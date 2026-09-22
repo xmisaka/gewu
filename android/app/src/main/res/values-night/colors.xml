@@ -1,0 +1,7 @@
+<resources>
+  <!-- 深色档（玄夜）的启动资源。
+       系统切深色时，splash 与 window 背景若仍是浅色，启动会闪一下白。
+       iconBackground 刻意不覆盖 —— 桌面图标是品牌资产，不随主题变。 -->
+  <color name="splashscreen_background">#1C1A15</color>
+  <color name="activityBackground">#1C1A15</color>
+</resources>

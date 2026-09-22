@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "格物",
+    "slug": "gewu",
+    "version": "1.2.1",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "gewu",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#FBF9F6",
+    "android": {
+      "package": "com.gewu.app",
+      "versionCode": 5,
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F4EF",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FBF9F6",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 132
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "格物需要访问相册，用来给物品添加照片。照片会复制到应用内部保存，删除系统相册不影响。",
+          "cameraPermission": "格物需要使用相机，用来现场拍摄物品照片。",
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
