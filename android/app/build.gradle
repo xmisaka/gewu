@@ -5,6 +5,28 @@ apply plugin: "com.facebook.react"
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
 /**
+ * 版本号从 app.json 现读，不手抄。
+ *
+ * 手抄的代价：app.json 与 build.gradle 一旦不一致，**构建不报错**，
+ * 只会打出一个自相矛盾的包（「关于」页显示 A，manifest 的 versionCode 还是 B）。
+ * 本项目已经踩过一次 —— package.json 早就 1.0.0 了，manifest 却停在 versionCode 1。
+ *
+ * rootDir 就是 android/，所以 app.json 在上一级。
+ * 读取失败**不让构建失败**，退回默认值；但 logger.lifecycle 一定打出实际生效的值，
+ * 构建日志里搜 `versionName=` 就能当场确认，不必等出包后再 dump badging。
+ */
+def appVersion = [code: 1, name: '0.0.0']
+try {
+    def cfg = new groovy.json.JsonSlurper().parse(new File(rootDir, '../app.json'))
+    def ex = cfg?.expo
+    if (ex?.android?.versionCode) appVersion.code = ex.android.versionCode as int
+    if (ex?.version) appVersion.name = ex.version as String
+} catch (Exception e) {
+    logger.lifecycle("读 app.json 版本号失败，沿用内置默认值（${e.message}）")
+}
+logger.lifecycle("versionName=${appVersion.name}  versionCode=${appVersion.code}")
+
+/**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
@@ -92,8 +114,8 @@ android {
         applicationId 'com.gewu.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
-        versionName "1.2.1"
+        versionCode appVersion.code
+        versionName appVersion.name
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }

@@ -69,7 +69,7 @@
   深色档「玄夜」**不进选择列表**：它是系统深色时的接管档，自动生效，
   而用户的浅色选择会留着 —— 白天切回来还是那套。
 
-> 以上是界面设计稿，源文件 `docs/screens.html`，已与 v1.2.1 的实现逐屏核对。
+> 以上是界面设计稿，源文件 `docs/screens.html`，已与 v1.3.0 的实现逐屏核对。
 > 图由无头 Chrome 渲染该 HTML 产出；文件名取自每屏 `<figure data-slug>`，改完设计重跑一次即可更新：
 >
 > ```
@@ -172,15 +172,23 @@ gradlew.bat assembleRelease --no-daemon --console=plain --no-parallel
 > 打出来的包签名不符，装不上已经装了正式版的手机。打完包务必用
 > `apksigner verify --verbose` 确认签名，这一步不加 `--verbose` 时通过也不打印任何字样。
 
-### 发版前要同步的版本号
+### 版本号只有一个来源
 
-主版本号散落在两处，**必须一致**：
+**`app.json` 是唯一真相**，`build.gradle` 现读它，不要手抄：
 
-- `app.json` → `expo.version`（如 `1.2.1`）与 `expo.android.versionCode`（如 `5`）
-- `android/app/build.gradle` → `versionName` 与 `versionCode`
+- `app.json` → `expo.version`（如 `1.3.0`）与 `expo.android.versionCode`（如 `6`）
+- `android/app/build.gradle` 通过 `JsonSlurper` 读上一级的 `app.json`，
+  构建日志里会打出 `versionName=1.3.0  versionCode=6`，搜这行即可当场确认
 
-Gradle 只认 `build.gradle` 那份，`app.json` 是给 Expo 与界面读的
-（界面上的版本号从 `Constants.expoConfig.version` 取，不硬编码）。
+这么改是因为手抄已经出过一次事：`app.json` 早就是 1.0.0 了，manifest 却停在
+`versionCode 1` —— **构建不报错**，只打出一个自相矛盾的包，而 `versionCode` 卡住不动
+才是真正要命的（决定能不能覆盖安装）。
+
+界面上的版本号从 `Constants.expoConfig.version` 取，**不硬编码**；
+`grep -rn "1\.[0-9]\.[0-9]" src/` 应当为空。
+
+> ⚠️ `build.gradle` 是 `prebuild` 的产物。真有一天重跑 prebuild，这段会被覆盖 ——
+> 但那一刻 prebuild 也会按 `app.json` 正确写版本号，不会更糟。
 
 ## 目录结构
 
@@ -281,21 +289,21 @@ Expo SDK 57 · React Native 0.86 · React 19 · expo-router 57 · TypeScript · 
 
 > `android/` **必须入库**：里面有手工维护的签名配置、权限调整（`tools:node="remove"`
 > 移除录音与悬浮窗权限）、图标原生资源和 arm64 单架构设定。
-> 一旦重新跑 `expo prebuild`，这些改动会被覆盖 —— **发版时不要 prebuild**，
-> 只需同步两处版本号。
+> 一旦重新跑 `expo prebuild`，这些改动会被覆盖 —— **发版时不要 prebuild**。
+> 版本号也不用手工同步两处：`build.gradle` 现读 `app.json`（见上）。
 
 ### 发一个版本
 
-1. 改版本号：`app.json` 的 `version` / `android.versionCode`
-   ＋ `android/app/build.gradle` 的 `versionName` / `versionCode`
+1. 只改 `app.json` 的 `version` / `android.versionCode`（唯一真相）；
+   构建日志里搜 `versionName=` 确认 `build.gradle` 跟上了
 2. 构建：`cd android && gradlew.bat assembleRelease --no-daemon --console=plain --no-parallel`
 3. 校验：`aapt2 dump badging`（版本 / 架构 / 权限）、`apksigner verify --verbose`（签名）
 4. 提交并打标签：
 
    ```bash
    git add -A
-   git commit -m "release: v1.2.1"
-   git tag -a v1.2.1 -m "格物 v1.2.1"
+   git commit -m "release: v1.3.0"
+   git tag -a v1.3.0 -m "格物 v1.3.0"
    git push origin main --tags
    ```
 
