@@ -69,7 +69,7 @@
   深色档「玄夜」**不进选择列表**：它是系统深色时的接管档，自动生效，
   而用户的浅色选择会留着 —— 白天切回来还是那套。
 
-> 以上是界面设计稿，源文件 `docs/screens.html`，已与 v1.3.0 的实现逐屏核对。
+> 以上是界面设计稿，源文件 `docs/screens.html`，已与 v1.3.1 的实现逐屏核对。
 > 图由无头 Chrome 渲染该 HTML 产出；文件名取自每屏 `<figure data-slug>`，改完设计重跑一次即可更新：
 >
 > ```
@@ -176,9 +176,9 @@ gradlew.bat assembleRelease --no-daemon --console=plain --no-parallel
 
 **`app.json` 是唯一真相**，`build.gradle` 现读它，不要手抄：
 
-- `app.json` → `expo.version`（如 `1.3.0`）与 `expo.android.versionCode`（如 `6`）
+- `app.json` → `expo.version`（如 `1.3.1`）与 `expo.android.versionCode`（如 `7`）
 - `android/app/build.gradle` 通过 `JsonSlurper` 读上一级的 `app.json`，
-  构建日志里会打出 `versionName=1.3.0  versionCode=6`，搜这行即可当场确认
+  构建日志里会打出 `versionName=1.3.1  versionCode=7`，搜这行即可当场确认
 
 这么改是因为手抄已经出过一次事：`app.json` 早就是 1.0.0 了，manifest 却停在
 `versionCode 1` —— **构建不报错**，只打出一个自相矛盾的包，而 `versionCode` 卡住不动
@@ -302,8 +302,8 @@ Expo SDK 57 · React Native 0.86 · React 19 · expo-router 57 · TypeScript · 
 
    ```bash
    git add -A
-   git commit -m "release: v1.3.0"
-   git tag -a v1.3.0 -m "格物 v1.3.0"
+   git commit -m "release: v1.3.1"
+   git tag -a v1.3.1 -m "格物 v1.3.1"
    git push origin main --tags
    ```
 
