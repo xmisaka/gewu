@@ -137,8 +137,9 @@ export function CoverPickerModal({
   // 每次打开重置：优先用名称直译，没有就先用原名，失败会自动退到分类词
   useEffect(() => {
     if (!visible) return;
-    const ready = hasApiKey();
-    setKeyReady(ready);
+      const ready = hasApiKey();
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 弹层每次打开把内部草稿拉回初始值，是本组件刻意的生命周期
+      setKeyReady(ready);
     setPicking(null);
     const initial = translation ?? itemName.trim();
     setKeyword(initial);
@@ -154,6 +155,7 @@ export function CoverPickerModal({
   // 外层关掉时，内层的 Key 面板也要跟着收起来 —— 否则下次再打开「找封面」，
   // 会先看到一个上一次没关掉的设置弹窗浮在上面
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 同步内层面板的开合，不是可推导的状态
     if (!visible) setKeyOpen(false);
   }, [visible]);
 

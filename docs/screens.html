@@ -9,8 +9,10 @@
   --paper:#F7F4EF; --surface:#FFFFFF; --surface2:#FDFCFA;
   --ink:#2B241F; --ink2:#6B6055; --ink3:#9A8D80; --ink4:#C9BEB0;
   --line:#E3DCD1; --line2:#EBE5DB; --line3:#F1ECE4;
+  --inset:#F2EDE5; --surface3:#FBF9F6;
   --brand:#8C5A34; --brand-deep:#6B4224; --brand-bg:#F3E9DE;
-  --sage:#5F7355; --amber:#926521; --clay:#AA523D;
+  --sage:#5F7355; --sage-bg:#EDF1E9; --amber:#926521; --amber-bg:#FBF1DF;
+  --clay:#AA523D; --clay-bg:#F9EAE5;
   --serif:"Source Han Serif SC","Noto Serif SC","Songti SC","STSong","SimSun",Georgia,serif;
   --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
 }
@@ -54,7 +56,7 @@ p.small{font-size:15px;color:var(--ink2)}
 .type-table th{text-align:left;font-size:12px;font-weight:500;color:var(--ink3);padding:0 16px 10px 0;border-bottom:1px solid var(--line)}
 .type-table td{padding:16px 16px 16px 0;border-bottom:1px solid var(--line3);vertical-align:middle}
 .type-table td.spec{font-size:12px;color:var(--ink3);white-space:nowrap;width:1%}
-.t-serif{font-family:var(--serif);font-size:26px;line-height:1.3}
+.t-serif{font-family:var(--serif);font-size:23px;letter-spacing:2px;line-height:1.3}
 .t-item{font-family:var(--sans);font-size:16px;font-weight:500}
 .t-meta{font-family:var(--sans);font-size:13px;color:var(--ink2)}
 .t-num{font-family:var(--sans);font-size:30px;font-weight:500;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
@@ -81,6 +83,12 @@ p.small{font-size:15px;color:var(--ink2)}
 .ph .ir{display:flex;gap:9px;padding:10px 11px;align-items:center;border-bottom:0.5px solid #F1ECE4}
 .ph .ir:last-child{border-bottom:0}
 .ph .tg{display:inline-flex;align-items:center;gap:3px;background:var(--brand-bg);border-radius:6px;padding:2px 6px;color:var(--brand)}
+/* 位置标签在实现里是「中性标签」（PlainTag 默认档，灰底墨字），不是品牌色 ——
+   品牌色只留给可点与状态，位置是纯说明性的 */
+.ph .tgn{display:inline-flex;align-items:center;gap:3px;background:var(--inset);border-radius:6px;padding:2px 6px;color:var(--ink2)}
+/* 到期状态标签：琥珀=将到期，砖红=已过期，橄榄=正常 */
+.ph .tga{display:inline-flex;align-items:center;gap:3px;background:var(--amber-bg);border-radius:6px;padding:1px 5px;color:var(--amber)}
+.ph .tgc{display:inline-flex;align-items:center;gap:3px;background:var(--clay-bg);border-radius:6px;padding:1px 5px;color:var(--clay)}
 .ph .tb{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#A99C8E}
 .ph .tb.on{color:var(--brand)}
 .ph .fr{display:flex;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:0.5px solid #F1ECE4;align-items:center}
@@ -133,7 +141,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
   <p class="small">整套界面只用一种底色、一种强调色。强调色控得很紧——它只出现在「可点的地方」和「要你看的地方」，其余全部交给层级与留白。三种状态色各自绑定一个语义，不做装饰性使用。</p>
   <div class="sw-grid">
     <div class="sw"><i style="background:#8C5A34"></i><div class="txt"><b>#8C5A34</b><em>品牌主色</em><span>主按钮、选中态、悬浮添加键</span></div></div>
-    <div class="sw"><i style="background:#F3E9DE"></i><div class="txt"><b>#F3E9DE</b><em>品牌浅底</em><span>标签底、成本卡底、位置标签</span></div></div>
+    <div class="sw"><i style="background:#F3E9DE"></i><div class="txt"><b>#F3E9DE</b><em>品牌浅底</em><span>品牌标签、成本卡、备份卡</span></div></div>
     <div class="sw"><i style="background:#FBF9F6"></i><div class="txt"><b>#FBF9F6</b><em>页面底色</em><span>纸感米白，带一点暖</span></div></div>
     <div class="sw"><i style="background:#2B241F"></i><div class="txt"><b>#2B241F</b><em>主文字</em><span>标题、名称、数字</span></div></div>
     <div class="sw"><i style="background:#926521"></i><div class="txt"><b>#926521</b><em>即将到期</em><span>仅用于倒计时，不做其它用途</span></div></div>
@@ -144,12 +152,13 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
   <table class="type-table">
     <thead><tr><th>用途</th><th>示例</th><th>规格</th></tr></thead>
     <tbody>
-      <tr><td>页面标题</td><td><span class="t-serif">我的物品</span></td><td class="spec">衬线 22 / 400</td></tr>
-      <tr><td>条目名称</td><td><span class="t-item">iPhone 15 Pro</span></td><td class="spec">无衬线 13 / 500</td></tr>
-      <tr><td>次要信息</td><td><span class="t-meta">Apple &middot; 256GB &middot; 原色钛金属</span></td><td class="spec">无衬线 12 / 400</td></tr>
-      <tr><td>关键数字</td><td><span class="t-num">&#165;24.4</span></td><td class="spec">无衬线 24 / 500 &middot; 等宽</td></tr>
+      <tr><td>页面标题</td><td><span class="t-serif">我的物品</span></td><td class="spec">衬线 23 / 400 &middot; 字距 2</td></tr>
+      <tr><td>条目名称</td><td><span class="t-item">iPhone 15 Pro</span></td><td class="spec">无衬线 16 / 500</td></tr>
+      <tr><td>次要信息</td><td><span class="t-meta">Apple &middot; 256GB &middot; 原色钛金属</span></td><td class="spec">无衬线 13 / 400</td></tr>
+      <tr><td>关键数字</td><td><span class="t-num">&#165;24.4</span></td><td class="spec">无衬线 30 / 500 &middot; 等宽</td></tr>
     </tbody>
   </table>
+  <p class="small" style="margin-top:14px">上表是 App 里的<b>真实</b>字号（对应 <code>Type</code> 令牌表）。下面九屏的手机稿框固定 280px 宽，而真机常见 393dp，所以屏内文字按约 0.8 倍收细画 —— 直接用真字号，品名会在更窄的框里折成两行。两边不一致时，以这张表为准。</p>
 </section>
 
 <section>
@@ -162,86 +171,92 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
   <div class="screens">
 
     <!-- 01 -->
-    <figure class="fig">
+    <figure class="fig" data-slug="items">
       <div class="shot"><div class="ph">
         <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
         <div style="padding:2px 17px 0;display:flex;align-items:center;justify-content:space-between">
           <div>
             <div class="hd">我的物品</div>
-            <div style="color:#9A8D80;margin-top:3px">328 件 &middot; 12 个位置</div>
+            <div style="color:#9A8D80;margin-top:3px">在库 328 件 &middot; 共 &#165;42,680</div>
           </div>
           <div style="display:flex;background:#F2EDE5;border-radius:9px;padding:2px">
             <span style="padding:4px 10px;border-radius:7px;background:#fff;font-weight:500">列表</span>
             <span style="padding:4px 10px;border-radius:7px;color:#9A8D80">位置</span>
           </div>
         </div>
-        <div style="margin:12px 17px 0;height:35px;background:#F2EDE5;border-radius:11px;display:flex;align-items:center;gap:7px;padding:0 10px">
-          <svg width="12" height="12" viewBox="0 0 13 13" fill="none"><circle cx="5.5" cy="5.5" r="4.1" stroke="#A99C8E" stroke-width="1.4"/><path d="M8.7 8.7 12 12" stroke="#A99C8E" stroke-width="1.4" stroke-linecap="round"/></svg>
-          <span style="color:#A99C8E;flex:1">搜索名称、品牌或位置</span>
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 5.4V2.6h2.8M12 5.4V2.6H9.2M12 8.6v2.8H9.2M2 8.6v2.8h2.8" stroke="#8C5A34" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <div style="margin:12px 17px 0;height:38px;background:#F2EDE5;border-radius:11px;display:flex;align-items:center;gap:8px;padding:0 12px">
+          <svg width="12" height="12" viewBox="0 0 13 13" fill="none"><circle cx="5.5" cy="5.5" r="4.1" stroke="#9A8D80" stroke-width="1.4"/><path d="M8.7 8.7 12 12" stroke="#9A8D80" stroke-width="1.4" stroke-linecap="round"/></svg>
+          <span style="color:#C9BEB0;flex:1">搜索名称 / 品牌 / 分类 / 位置</span>
         </div>
-        <div style="margin:11px 17px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#EBE5DB;border-radius:12px;overflow:hidden">
-          <div class="cell"><span style="color:#9A8D80">在库</span><span style="font-size:13px;font-weight:500;margin-top:2px">328</span></div>
-          <div class="cell"><span style="color:#9A8D80">总价值</span><span style="font-size:13px;font-weight:500;margin-top:2px">&#165;42,680</span></div>
-          <div class="cell"><span style="color:#9A8D80">即将到期</span><span style="font-size:13px;font-weight:500;margin-top:2px;color:#926521">3 件</span></div>
+        <div style="margin:12px 17px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#EBE5DB;border-radius:12px;overflow:hidden">
+          <!-- MetricStrip 是「值在上、标签在下」：stripValue(17/600) 先渲染，stripLabel(11.5) 跟在后面 -->
+          <div class="cell"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums">328</span><span style="color:#9A8D80;margin-top:2px;font-size:11px">在库</span></div>
+          <div class="cell"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums">&#165;42,680</span><span style="color:#9A8D80;margin-top:2px;font-size:11px">总价值</span></div>
+          <div class="cell"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:#AA523D">3 件</span><span style="color:#9A8D80;margin-top:2px;font-size:11px">即将到期</span></div>
         </div>
-        <div style="margin:11px 17px 0;display:flex;gap:6px">
+        <div style="margin:12px 17px 0;display:flex;gap:8px">
+          <span style="padding:3px 10px;border-radius:999px;background:#EDF1E9;color:#5F7355;font-weight:600;font-size:12px">正常 325</span>
+          <span style="padding:3px 10px;border-radius:999px;background:#FBF1DF;color:#926521;font-weight:600;font-size:12px">将到期 2</span>
+          <span style="padding:3px 10px;border-radius:999px;background:#F9EAE5;color:#AA523D;font-weight:600;font-size:12px">已过期 1</span>
+        </div>
+        <div style="margin:12px 17px 0;display:flex;gap:6px;flex-wrap:wrap">
           <span style="padding:5px 11px;border-radius:999px;background:#8C5A34;color:#fff">全部</span>
-          <span style="padding:5px 11px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">数码</span>
-          <span style="padding:5px 11px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">工具</span>
-          <span style="padding:5px 11px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">食品</span>
+          <span style="padding:5px 11px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">数码 42</span>
+          <span style="padding:5px 11px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">工具 31</span>
         </div>
-        <div style="margin:11px 17px 0;background:#fff;border-radius:14px;border:0.5px solid #EBE5DB;overflow:hidden">
+        <div style="margin:12px 17px 4px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <span style="display:inline-flex;align-items:center;gap:4px;color:#8C5A34;font-weight:600">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M5 3.5v9M5 12.5 3 10.6M5 12.5l2-1.9M11 12.5v-9M11 3.5 9 5.4M11 3.5l2 1.9" stroke="#8C5A34" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            排序 &middot; 最近变动
+            <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M2 3.6 5 6.6l3-3" stroke="#8C5A34" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span style="color:#C9BEB0;font-size:11px">刚改过的排前面</span>
+        </div>
+        <div style="margin:0 17px;background:#fff;border-radius:14px;border:0.5px solid #EBE5DB;overflow:hidden">
           <div class="ir">
             <div class="th" style="width:43px;height:43px;background:#EFF1EA;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="7" y="2.5" width="10" height="19" rx="2.6" stroke="#4F5A45" stroke-width="1.6"/><circle cx="12" cy="18" r="1.1" fill="#4F5A45"/></svg></div>
             <div style="flex:1;min-width:0">
               <div style="font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">iPhone 15 Pro</div>
-              <div style="color:#9A8D80;margin-top:1px">Apple &middot; 256GB</div>
-              <span class="tg" style="margin-top:4px"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#8C5A34"/></svg>书房 &middot; 电脑桌</span>
+              <div style="color:#9A8D80;margin-top:1px">数码 &middot; 入手 10.8 个月</div>
+              <span class="tgn" style="margin-top:4px"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#6B6055"/></svg>书房书柜 &middot; 顶层</span>
             </div>
-            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500">&#165;7,999</div><div style="color:#9A8D80;margin-top:1px">已用 328 天</div></div>
+            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500;font-size:12.5px">&#165;7,999</div><div style="color:#8C5A34;margin-top:1px;font-size:11px;font-variant-numeric:tabular-nums">&#165;24.40/天</div></div>
           </div>
           <div class="ir">
             <div class="th" style="width:43px;height:43px;background:#F0EBE2;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="3" y="10" width="10" height="7" rx="2" stroke="#7A6247" stroke-width="1.6"/><path d="M13 11.5h6.5v4H13z" stroke="#7A6247" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 10V7" stroke="#7A6247" stroke-width="1.6" stroke-linecap="round"/></svg></div>
             <div style="flex:1;min-width:0">
               <div style="font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">博世冲击钻</div>
-              <div style="color:#9A8D80;margin-top:1px">Bosch GSB 120</div>
-              <span class="tg" style="margin-top:4px"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#8C5A34"/></svg>阳台 &middot; 工具柜</span>
+              <div style="color:#9A8D80;margin-top:1px">工具 &middot; 入手 2.2 年</div>
+              <span class="tgn" style="margin-top:4px"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#6B6055"/></svg>阳台工具柜 &middot; 抽屉 1</span>
             </div>
-            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500">&#165;469</div><div style="color:#9A8D80;margin-top:1px">已用 812 天</div></div>
+            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500;font-size:12.5px">&#165;469</div><div style="color:#8C5A34;margin-top:1px;font-size:11px;font-variant-numeric:tabular-nums">&#165;0.58/天</div></div>
           </div>
           <div class="ir">
             <div class="th" style="width:43px;height:43px;background:#F5EFE0;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="4.5" y="9.5" width="15" height="6.5" rx="3.25" transform="rotate(-40 12 12.7)" stroke="#8A6B33" stroke-width="1.6"/><path d="M9.2 14.6l5.4-4.6" stroke="#8A6B33" stroke-width="1.6" stroke-linecap="round"/></svg></div>
             <div style="flex:1;min-width:0">
               <div style="font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">深海鱼油软胶囊</div>
-              <div style="color:#9A8D80;margin-top:1px">汤臣倍健 &middot; 100 粒</div>
-              <span class="tg" style="margin-top:4px"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#8C5A34"/></svg>厨房 &middot; 3 层</span>
+              <div style="color:#9A8D80;margin-top:1px">食品 &middot; 入手 3 个月</div>
+              <span style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;flex-wrap:wrap">
+                <span class="tgn"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#6B6055"/></svg>厨房吊柜 &middot; 第三层</span>
+                <span class="tga"><svg width="7" height="7" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.6" stroke="#926521" stroke-width="1.3"/><path d="M6 3.4V6l1.8 1.1" stroke="#926521" stroke-width="1.3" stroke-linecap="round"/></svg>6 天后到期</span>
+              </span>
             </div>
-            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500">&#165;268</div><div style="margin-top:1px;color:#926521;font-weight:500">6 天后过期</div></div>
-          </div>
-          <div class="ir">
-            <div class="th" style="width:43px;height:43px;background:#EDEFF1;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="8.5" y="7" width="7" height="14" rx="2" stroke="#5A6470" stroke-width="1.6"/><rect x="10" y="3" width="4" height="4" rx="1.4" stroke="#5A6470" stroke-width="1.6"/></svg></div>
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">松下剃须刀</div>
-              <div style="color:#9A8D80;margin-top:1px">Panasonic ES-LS9A</div>
-              <span class="tg" style="margin-top:4px"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#8C5A34"/></svg>卫浴 &middot; 镜柜</span>
-            </div>
-            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500">&#165;1,299</div><div style="color:#9A8D80;margin-top:1px">已用 154 天</div></div>
+            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500;font-size:12.5px">&#165;268</div><div style="color:#8C5A34;margin-top:1px;font-size:11px;font-variant-numeric:tabular-nums">&#165;2.98/天</div></div>
           </div>
         </div>
         <div class="tabbar">
           <div class="tb on"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7.5" height="7.5" rx="2" stroke="#8C5A34" stroke-width="1.7"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" stroke="#8C5A34" stroke-width="1.7"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" stroke="#8C5A34" stroke-width="1.7"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" stroke="#8C5A34" stroke-width="1.7"/></svg><span>物品</span></div>
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#A99C8E" stroke-width="1.7"/><circle cx="8.6" cy="9.6" r="1.6" fill="#A99C8E"/><path d="M4.5 17.2l4.8-4.3 3.9 3.4 3-2.6 3.8 3.5" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/></svg><span>相册</span></div>
           <div style="flex:1;display:flex;justify-content:center"><div style="width:42px;height:42px;border-radius:50%;background:#8C5A34;display:flex;align-items:center;justify-content:center;margin-top:-15px;border:3px solid #FBF9F6"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg></div></div>
-          <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>提醒</span></div>
+          <div class="tb"><div style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><div style="position:absolute;top:-5px;right:-9px;min-width:16px;height:16px;border-radius:8px;padding:0 4px;background:#AA523D;color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center">3</div></div><span>提醒</span></div>
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#A99C8E" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">01</div><div class="nm">首页 &middot; 物品列表</div><div class="ds">搜索、概览、分类筛选三段式。右上「列表 / 位置」是本次新增的切换器，位置视图由此进入。</div></figcaption>
+      <figcaption><div class="no">01</div><div class="nm">首页 &middot; 物品列表</div><div class="ds">搜索常驻，下面概览 / 三色图例 / 分类 / 排序四段随滚动收起。排序切到「手动」且没有搜索与分类筛选时，每行右侧才会出现上下箭头 —— 让用户手填排序数字，等于这个功能不存在。</div></figcaption>
     </figure>
 
     <!-- 02 -->
-    <figure class="fig">
+    <figure class="fig" data-slug="detail">
       <div class="shot"><div class="ph">
         <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
         <div style="height:158px;background:#E9ECE3;position:relative;display:flex;align-items:center;justify-content:center;flex:0 0 auto">
@@ -250,356 +265,472 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <div style="position:absolute;right:11px;top:11px;width:29px;height:29px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="3" cy="7" r="1.3" fill="#2B241F"/><circle cx="7" cy="7" r="1.3" fill="#2B241F"/><circle cx="11" cy="7" r="1.3" fill="#2B241F"/></svg></div>
           <div style="position:absolute;right:11px;bottom:11px;background:#2B241F;color:#fff;border-radius:999px;padding:3px 8px;font-size:11px">1 / 3</div>
         </div>
-        <div style="padding:13px 17px 0;flex:1;min-height:0">
-          <div class="hd" style="font-size:20px">iPhone 15 Pro</div>
-          <div style="color:#9A8D80;margin-top:3px">Apple &middot; 256GB &middot; 原色钛金属</div>
-          <div style="display:flex;gap:6px;margin-top:8px">
+        <div style="padding:13px 17px 0;flex:0 0 auto">
+          <div class="hd" style="font-size:23px;letter-spacing:2px">iPhone 15 Pro</div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
             <span style="padding:3px 8px;border-radius:6px;background:#F3E9DE;color:#8C5A34">数码</span>
-            <span style="padding:3px 8px;border-radius:6px;background:#EFF1EA;color:#5F7355">在用</span>
+            <span class="tgn" style="padding:3px 8px;border-radius:6px">书房书柜 &middot; 顶层</span>
           </div>
-          <div style="margin-top:12px;background:#F3E9DE;border-radius:13px;padding:12px 13px">
-            <div style="display:flex;align-items:flex-end;justify-content:space-between">
-              <div>
-                <div style="color:#8C5A34">持有 328 天</div>
-                <div style="display:flex;align-items:baseline;gap:3px;margin-top:3px"><span style="font-size:25px;font-weight:500;color:#6B4224;font-variant-numeric:tabular-nums">&#165;24.4</span><span style="color:#8C5A34">/ 天</span></div>
-              </div>
-              <div style="text-align:right;color:#8C5A34">
-                <div>购入 &#165;7,999</div>
-                <div style="margin-top:4px">2025-10-24</div>
-              </div>
+          <div style="margin-top:12px;background:#F3E9DE;border-radius:14px;padding:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="color:#8C5A34;font-size:11.5px">持有成本</span>
+              <span style="color:#8C5A34">已经陪你 328 天</span>
             </div>
-          </div>
-          <div style="margin-top:11px;background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden">
-            <div class="fr"><span class="fk">位置</span><span class="fv">书房 &#8250; 电脑桌 &#8250; 顶层</span></div>
-            <div class="fr"><span class="fk">购买日期</span><span class="fv">2025-10-24</span></div>
-            <div class="fr"><span class="fk">价格</span><span class="fv">&#165;7,999.00</span></div>
-            <div class="fr"><span class="fk">过期时间</span><span class="fv" style="color:#A99C8E;font-weight:400">未设置</span></div>
-            <div class="fr"><span class="fk">备注</span><span class="fv" style="font-weight:400;max-width:158px">以旧换新，旧机抵 &#165;2,300</span></div>
+            <div style="display:flex;align-items:baseline;gap:3px;margin-top:4px">
+              <span style="font-size:30px;font-weight:500;color:#8C5A34;font-variant-numeric:tabular-nums;letter-spacing:-.3px">&#165;24.40</span><span style="color:#8C5A34">/ 天</span>
+            </div>
+            <div style="color:#8C5A34;margin-top:4px;line-height:1.6">&#165;7,999 摊到 328 天，每天约 &#165;24.40</div>
           </div>
         </div>
-        <div style="flex:0 0 auto;padding:9px 17px 14px;display:flex;gap:9px">
-          <div style="flex:1;text-align:center;padding:11px;border-radius:11px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">复制一条</div>
-          <div style="flex:1.3;text-align:center;padding:11px;border-radius:11px;background:#8C5A34;color:#fff;font-weight:500">编辑</div>
+        <div style="margin-top:14px;padding:0 17px;flex:1;min-height:0;overflow:hidden">
+          <div style="color:#9A8D80;padding-bottom:6px">详细字段</div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
+            <div class="fr"><span class="fk">分类</span><span class="fv">数码</span></div>
+            <div class="fr"><span class="fk">位置</span><span class="fv">书房书柜 &middot; 顶层</span></div>
+            <div class="fr"><span class="fk">购买日期</span><span class="fv">2025-10-24</span></div>
+            <div class="fr"><span class="fk">价格</span><span class="fv">&#165;7,999</span></div>
+            <div class="fr"><span class="fk">品牌</span><span class="fv">Apple</span></div>
+            <div class="fr"><span class="fk">型号</span><span class="fv">A3102</span></div>
+          </div>
         </div>
       </div></div>
-      <figcaption><div class="no">02</div><div class="nm">物品详情 &middot; 持有成本卡</div><div class="ds">成本卡用品牌浅底，是详情页第二视觉重心。价格或日期任一缺失时整卡隐藏，不留占位。</div></figcaption>
+      <figcaption><div class="no">02</div><div class="nm">物品详情 &middot; 持有成本卡</div><div class="ds">成本卡单独成块：摊到多少天、每天多少钱、一句折算说明 —— 全 App 唯一带情绪回报的信息，混进字段表就会被淹没。价格或日期任一缺失就整卡隐藏，绝不留「&#165;0.00 / 天」。（上一版稿里的「复制一条」按钮并不存在，复制物品还在待办里。）</div></figcaption>
     </figure>
 
     <!-- 03 -->
-    <figure class="fig">
+    <figure class="fig" data-slug="compose">
       <div class="shot"><div class="ph">
         <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 17px;height:36px;flex:0 0 auto">
-          <span style="color:#6B6055">关闭</span>
-          <span style="font-family:var(--serif);font-size:16px">录入物品</span>
-          <span style="background:#F3E9DE;color:#8C5A34;border-radius:999px;padding:3px 9px;font-weight:500">第 3 件</span>
+        <div style="padding:2px 17px 0;flex:0 0 auto">
+          <div class="hd">录入</div>
+          <div style="color:#9A8D80;margin-top:3px">每件东西只敲一个名字就能存</div>
         </div>
-        <div style="display:flex;gap:4px;padding:2px 17px 0;flex:0 0 auto">
-          <span style="flex:1;height:3px;border-radius:2px;background:#8C5A34"></span>
-          <span style="flex:1;height:3px;border-radius:2px;background:#8C5A34"></span>
-          <span style="flex:1;height:3px;border-radius:2px;background:#E3DCD1"></span>
-        </div>
-        <div style="margin:14px 17px 0;height:78px;border:1px dashed #C9BEB0;border-radius:13px;display:flex;align-items:center;justify-content:center;gap:9px;background:#FDFCFA;flex:0 0 auto">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="6.5" width="19" height="13" rx="3" stroke="#8C5A34" stroke-width="1.6"/><circle cx="12" cy="13" r="3.4" stroke="#8C5A34" stroke-width="1.6"/><path d="M8.6 6.5 10 4.2h4l1.4 2.3" stroke="#8C5A34" stroke-width="1.6" stroke-linejoin="round"/></svg>
-          <div><div style="color:#8C5A34;font-weight:500;font-size:12px">添加照片</div><div style="color:#A99C8E;margin-top:2px">最多 9 张，自动压缩</div></div>
-        </div>
-        <div style="margin:12px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;padding:11px 12px;flex:0 0 auto">
-          <div style="color:#9A8D80">名称</div>
-          <div style="display:flex;align-items:center;gap:2px;margin-top:6px">
-            <span style="font-size:15px;font-weight:500">iPhone 15 Pro</span>
-            <span style="width:1.5px;height:16px;background:#8C5A34"></span>
+        <div style="margin:11px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:4px">照片（0）</div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
+            <div style="display:flex;gap:8px;padding:4px 17px">
+              <div style="width:72px;height:72px;border-radius:11px;border:0.5px dashed #E3DCD1;background:#FDFCFA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;flex:0 0 auto">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="6.5" width="19" height="13" rx="3" stroke="#9A8D80" stroke-width="1.6"/><circle cx="12" cy="13" r="3.4" stroke="#9A8D80" stroke-width="1.6"/><path d="M8.6 6.5 10 4.2h4l1.4 2.3" stroke="#9A8D80" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                <span style="color:#9A8D80">添加</span>
+              </div>
+              <div style="width:72px;height:72px;border-radius:11px;border:0.5px solid #F3E9DE;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;flex:0 0 auto">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5l1.9 4.6 4.6 1.9-4.6 1.9-1.9 4.6-1.9-4.6L5.5 10l4.6-1.9z" stroke="#8C5A34" stroke-width="1.6" stroke-linejoin="round"/><path d="M18.5 16.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z" stroke="#8C5A34" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                <span style="color:#8C5A34">找封面</span>
+              </div>
+            </div>
+            <div style="color:#C9BEB0;margin-top:8px;padding:0 17px 9px">图片会压缩后存入应用内，删除系统相册不影响这里</div>
           </div>
         </div>
-        <div style="margin:8px 17px 0;display:flex;align-items:center;gap:7px;flex:0 0 auto">
-          <span style="display:inline-flex;align-items:center;gap:4px;background:#F3E9DE;color:#8C5A34;border-radius:6px;padding:3px 8px">建议归入 &middot; 数码</span>
-          <span style="color:#A99C8E">点击采纳</span>
+        <div style="margin:9px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:4px">必填</div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
+            <div style="display:flex;align-items:center;min-height:50px;padding:8px 16px">
+              <span style="width:76px;color:#6B6055;flex:0 0 auto">名称</span>
+              <div style="flex:1;display:flex;justify-content:flex-end;align-items:center;gap:1px">
+                <span style="font-size:13.5px">iPhone 15 Pro</span>
+                <span style="width:1.5px;height:15px;background:#8C5A34"></span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;padding:8px 16px 12px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="flex:0 0 auto"><path d="M12 3.5l1.9 4.6 4.6 1.9-4.6 1.9-1.9 4.6-1.9-4.6L5.5 10l4.6-1.9z" stroke="#8C5A34" stroke-width="1.8" stroke-linejoin="round"/></svg>
+              <span style="color:#8C5A34">猜它属于「数码」，点一下采纳</span>
+            </div>
+          </div>
         </div>
-        <div style="margin:13px 17px 0;display:flex;align-items:center;justify-content:space-between;flex:0 0 auto">
-          <span style="color:#9A8D80">分类</span>
-          <span style="color:#A99C8E">未分类 12 件待补</span>
+        <div style="margin-top:20px;padding:0 17px;flex:0 0 auto">
+          <div style="text-align:center;color:#8C5A34;margin-bottom:4px">按今天算，大约 &#165;24.40 / 天</div>
+          <div style="text-align:center;padding:13px;border-radius:11px;background:#8C5A34;color:#fff;font-weight:500;font-size:13.5px">保存并录下一件</div>
+          <div style="text-align:center;padding:11px;border-radius:11px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055;margin-top:8px">保存并完成</div>
         </div>
-        <div style="margin:7px 17px 0;display:flex;gap:6px;flex:0 0 auto">
-          <span style="padding:4px 8px;border-radius:999px;background:#8C5A34;color:#fff">数码</span>
-          <span style="padding:4px 8px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">工具</span>
-          <span style="padding:4px 8px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">食品</span>
-          <span style="padding:4px 8px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">药品</span>
-          <span style="padding:4px 8px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">未分类</span>
-        </div>
-        <div style="margin:12px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden;flex:0 0 auto">
-          <div class="fr"><span class="fk">位置</span><span class="fv"><span style="background:#F3E9DE;color:#8C5A34;border-radius:6px;padding:2px 7px;font-weight:400">书房柜</span> <span style="color:#C9BEB0">&#8250;</span> <span style="background:#F3E9DE;color:#8C5A34;border-radius:6px;padding:2px 7px;font-weight:400">顶层</span></span></div>
-          <div class="fr"><span class="fk">购买日期</span><span style="display:flex;align-items:center;gap:7px"><span class="fv">2025-10-24</span><span style="color:#8C5A34">今天</span></span></div>
-          <div class="fr"><span class="fk">价格</span><span class="fv" style="color:#C9BEB0;font-weight:400">&#165; 请输入</span></div>
-          <div class="fr"><span class="fk">过期时间</span><span class="fv" style="color:#C9BEB0;font-weight:400">选填 &middot; 可按分类带模板</span></div>
-        </div>
-        <div style="margin-top:auto;padding:10px 17px 15px;background:#fff;border-top:0.5px solid #EBE5DB;display:flex;gap:9px;flex:0 0 auto">
-          <div style="flex:1;text-align:center;padding:11px;border-radius:11px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">保存并完成</div>
-          <div style="flex:1.5;text-align:center;padding:11px;border-radius:11px;background:#8C5A34;color:#fff;font-weight:500">保存并录下一件</div>
+        <!-- 录入是 tab 路由，底部标签栏照样在；中央那颗 + 永远品牌色、永远不带文字，
+             所以「当前在这一页」不会让标签栏有任何变化（TabBar 里 compose 分支不读 focused） -->
+        <div class="tabbar">
+          <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/></svg><span>物品</span></div>
+          <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#A99C8E" stroke-width="1.7"/><circle cx="8.6" cy="9.6" r="1.6" fill="#A99C8E"/><path d="M4.5 17.2l4.8-4.3 3.9 3.4 3-2.6 3.8 3.5" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/></svg><span>相册</span></div>
+          <div style="flex:1;display:flex;justify-content:center"><div style="width:42px;height:42px;border-radius:50%;background:#8C5A34;display:flex;align-items:center;justify-content:center;margin-top:-15px;border:3px solid #FBF9F6"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg></div></div>
+          <div class="tb"><div style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><div style="position:absolute;top:-5px;right:-9px;min-width:16px;height:16px;border-radius:8px;padding:0 4px;background:#AA523D;color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center">3</div></div><span>提醒</span></div>
+          <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#A99C8E" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">03</div><div class="nm">录入 &middot; 连续录入模式</div><div class="ds">主按钮是「保存并录下一件」，不是「完成」。顶部保留「第 3 件」进度，让批量录入有推进感。</div></figcaption>
+      <figcaption><div class="no">03</div><div class="nm">录入 &middot; 连续录入模式</div><div class="ds">两个按钮上下叠、主按钮在上且更大：「保存并录下一件」优先于「保存并完成」。推进感靠标题下那句回执（「刚记下「X」，继续下一件」），不靠进度条 —— 上一版稿里的「第 3 件」进度条和「最多 9 张」并不存在。照片给两个入口：「添加」走本地相册，「找封面」要联网，用品牌色描边把这两件事区分开。这屏画到按钮为止，中间还有「归类 / 时间与花费 / 更多信息」三组字段，只有名称必填。录入是 tab 路由，底部标签栏一直在；中央那颗 + 永远品牌色、永远不带文字，所以「当前在录入页」不会让标签栏有任何变化。</div></figcaption>
     </figure>
 
     <!-- 04 -->
-    <figure class="fig">
+    <figure class="fig" data-slug="cabinets">
       <div class="shot"><div class="ph">
         <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
-        <div style="padding:2px 17px 0;display:flex;align-items:flex-end;justify-content:space-between;flex:0 0 auto">
+        <div style="padding:2px 17px 0;display:flex;align-items:center;justify-content:space-between;flex:0 0 auto">
           <div>
-            <div class="hd">我的位置</div>
-            <div style="color:#9A8D80;margin-top:3px">12 个柜子 &middot; 47 个格位 &middot; 328 件</div>
+            <div class="hd">我的物品</div>
+            <div style="color:#9A8D80;margin-top:3px">在库 328 件 &middot; 共 &#165;4.3万</div>
           </div>
-          <span style="color:#8C5A34;font-weight:500;padding-bottom:2px">+ 新建</span>
-        </div>
-        <div style="margin:13px 17px 0;display:grid;grid-template-columns:1fr 1fr;gap:9px;flex:0 0 auto">
-          <div class="cab"><div style="display:flex;flex-direction:column;gap:3px;height:40px"><span class="sh" style="background:#F3E9DE"></span><span class="sh" style="background:#F3E9DE"></span><span class="sh" style="background:#F2EDE5"></span></div><div style="font-weight:500;margin-top:8px">客厅电视柜</div><div style="color:#9A8D80;margin-top:2px">6 格 &middot; 42 件</div></div>
-          <div class="cab"><div style="display:flex;flex-direction:column;gap:3px;height:40px"><span class="sh" style="background:#F3E9DE"></span><span class="sh" style="background:#F3E9DE"></span><span class="sh" style="background:#F3E9DE"></span></div><div style="font-weight:500;margin-top:8px">书房书柜</div><div style="color:#9A8D80;margin-top:2px">8 格 &middot; 87 件</div></div>
-          <div class="cab"><div style="display:flex;flex-direction:column;gap:3px;height:40px"><span class="sh" style="background:#F3E9DE"></span><span class="sh" style="background:#F3E9DE"></span><span class="sh" style="background:#F2EDE5"></span></div><div style="font-weight:500;margin-top:8px">厨房吊柜</div><div style="color:#9A8D80;margin-top:2px">5 格 &middot; 63 件</div></div>
-          <div class="cab"><div style="display:flex;flex-direction:column;gap:3px;height:40px"><span class="sh" style="background:#F3E9DE"></span><span class="sh" style="background:#F2EDE5"></span><span class="sh" style="background:#F2EDE5"></span></div><div style="font-weight:500;margin-top:8px">阳台工具柜</div><div style="color:#9A8D80;margin-top:2px">4 格 &middot; 31 件</div></div>
-          <div class="cab"><div style="display:flex;flex-direction:column;gap:3px;height:40px"><span class="sh" style="background:#F3E9DE"></span><span class="sh" style="background:#F3E9DE"></span><span class="sh" style="background:#F3E9DE"></span></div><div style="font-weight:500;margin-top:8px">卧室衣柜</div><div style="color:#9A8D80;margin-top:2px">6 格 &middot; 58 件</div></div>
-          <div style="background:#FDFCFA;border:1px dashed #C9BEB0;border-radius:13px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 6v12M6 12h12" stroke="#8C5A34" stroke-width="1.8" stroke-linecap="round"/></svg>
-            <div style="color:#8C5A34">新建柜子</div>
+          <div style="display:flex;background:#F2EDE5;border-radius:11px;padding:2px">
+            <span style="padding:4px 10px;border-radius:7px;color:#9A8D80">列表</span>
+            <span style="padding:4px 10px;border-radius:7px;background:#fff;font-weight:500">位置</span>
           </div>
         </div>
-        <div style="margin:13px 17px 0;background:#F3E9DE;border-radius:12px;padding:11px 12px;display:flex;gap:9px;align-items:flex-start;flex:0 0 auto">
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto;margin-top:2px"><circle cx="8" cy="8" r="6.6" stroke="#8C5A34" stroke-width="1.4"/><path d="M8 5.2v3.6" stroke="#8C5A34" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11" r=".9" fill="#8C5A34"/></svg>
-          <div style="color:#8C5A34;line-height:1.6">进柜子后按格位摆放，找东西时直接翻格位，不用记编号</div>
+        <div style="margin:12px 17px 0;height:38px;background:#F2EDE5;border-radius:11px;display:flex;align-items:center;gap:8px;padding:0 12px;flex:0 0 auto">
+          <svg width="12" height="12" viewBox="0 0 13 13" fill="none"><circle cx="5.5" cy="5.5" r="4.1" stroke="#9A8D80" stroke-width="1.4"/><path d="M8.7 8.7 12 12" stroke="#9A8D80" stroke-width="1.4" stroke-linecap="round"/></svg>
+          <span style="color:#C9BEB0;flex:1">搜索柜子或格位</span>
+        </div>
+        <div style="flex:1;min-height:0;overflow:hidden;padding-top:14px">
+          <div style="padding:0 17px">
+            <div style="font-size:15px;font-weight:600">按位置找东西</div>
+            <div style="color:#9A8D80;margin-top:2px">你知道东西在哪，就不必再买一件</div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;padding:12px 13px 0">
+            <div style="width:50%;padding:0 4px 10px">
+              <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;padding:11px">
+                <div style="font-family:var(--serif);font-size:16px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">客厅电视柜</div>
+                <div style="display:flex;gap:3px;min-height:22px;margin-bottom:12px">
+                  <span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#E3DCD1"></span><span style="width:7px;height:22px;border-radius:2px;background:#E3DCD1"></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;border-top:0.5px solid #F1ECE4;padding-top:8px">
+                  <span style="color:#8C5A34;font-size:11.5px">42 件</span><span style="color:#C9BEB0;font-size:12px">4/6 格在用</span>
+                </div>
+              </div>
+            </div>
+            <div style="width:50%;padding:0 4px 10px">
+              <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;padding:11px">
+                <div style="font-family:var(--serif);font-size:16px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">书房书柜</div>
+                <div style="display:flex;gap:3px;min-height:22px;margin-bottom:12px">
+                  <span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;border-top:0.5px solid #F1ECE4;padding-top:8px">
+                  <span style="color:#8C5A34;font-size:11.5px">87 件</span><span style="color:#C9BEB0;font-size:12px">8/8 格在用</span>
+                </div>
+              </div>
+            </div>
+            <div style="width:50%;padding:0 4px 10px">
+              <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;padding:11px">
+                <div style="font-family:var(--serif);font-size:16px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">厨房吊柜</div>
+                <div style="display:flex;gap:3px;min-height:22px;margin-bottom:12px">
+                  <span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;border-top:0.5px solid #F1ECE4;padding-top:8px">
+                  <span style="color:#8C5A34;font-size:11.5px">63 件</span><span style="color:#C9BEB0;font-size:12px">5/5 格在用</span>
+                </div>
+              </div>
+            </div>
+            <div style="width:50%;padding:0 4px 10px">
+              <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;padding:11px">
+                <div style="font-family:var(--serif);font-size:16px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">阳台工具柜</div>
+                <div style="display:flex;gap:3px;min-height:22px;margin-bottom:12px">
+                  <span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#E3DCD1"></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;border-top:0.5px solid #F1ECE4;padding-top:8px">
+                  <span style="color:#8C5A34;font-size:11.5px">31 件</span><span style="color:#C9BEB0;font-size:12px">3/4 格在用</span>
+                </div>
+              </div>
+            </div>
+            <div style="width:50%;padding:0 4px 10px">
+              <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;padding:11px">
+                <div style="font-family:var(--serif);font-size:16px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">卧室衣柜</div>
+                <div style="display:flex;gap:3px;min-height:22px;margin-bottom:12px">
+                  <span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#8C5A34"></span><span style="width:7px;height:22px;border-radius:2px;background:#E3DCD1"></span><span style="width:7px;height:22px;border-radius:2px;background:#E3DCD1"></span><span style="width:7px;height:22px;border-radius:2px;background:#E3DCD1"></span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;border-top:0.5px solid #F1ECE4;padding-top:8px">
+                  <span style="color:#8C5A34;font-size:11.5px">58 件</span><span style="color:#C9BEB0;font-size:12px">3/6 格在用</span>
+                </div>
+              </div>
+            </div>
+            <div style="width:50%;padding:0 4px 10px">
+              <div style="min-height:109px;border:1px dashed #E3DCD1;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M12 6v12M6 12h12" stroke="#9A8D80" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <span style="color:#9A8D80;font-size:11.5px">新建柜子</span>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="tabbar">
           <div class="tb on"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7.5" height="7.5" rx="2" stroke="#8C5A34" stroke-width="1.7"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" stroke="#8C5A34" stroke-width="1.7"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" stroke="#8C5A34" stroke-width="1.7"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" stroke="#8C5A34" stroke-width="1.7"/></svg><span>物品</span></div>
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#A99C8E" stroke-width="1.7"/><circle cx="8.6" cy="9.6" r="1.6" fill="#A99C8E"/><path d="M4.5 17.2l4.8-4.3 3.9 3.4 3-2.6 3.8 3.5" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/></svg><span>相册</span></div>
           <div style="flex:1;display:flex;justify-content:center"><div style="width:42px;height:42px;border-radius:50%;background:#8C5A34;display:flex;align-items:center;justify-content:center;margin-top:-15px;border:3px solid #FBF9F6"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg></div></div>
-          <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>提醒</span></div>
+          <div class="tb"><div style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><div style="position:absolute;top:-5px;right:-9px;min-width:16px;height:16px;border-radius:8px;padding:0 4px;background:#AA523D;color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center">3</div></div><span>提醒</span></div>
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#A99C8E" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">04</div><div class="nm">位置视图 &middot; 柜子与格位</div><div class="ds">柜子卡片上的小色块就是格位占用示意，填充色越浅表示还有空位，一眼看出哪个柜子塞满了。</div></figcaption>
+      <figcaption><div class="no">04</div><div class="nm">位置视图 &middot; 柜子与格位</div><div class="ds">柜子卡片上那排竖条就是格位占用示意：实心＝这一格有东西，浅色＝空着。用方块而不是进度条，是因为方块能传达「第几格」的位置感，进度条只传达比例。顶部搜索框是这一版新增的 —— 柜子多了以后，靠滚去找一个柜子同样费劲。</div></figcaption>
     </figure>
 
     <!-- 05 -->
-    <figure class="fig">
+    <figure class="fig" data-slug="slots">
       <div class="shot"><div class="ph">
         <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
-        <div style="display:flex;align-items:center;gap:9px;padding:2px 17px 0;height:38px;flex:0 0 auto">
-          <svg width="15" height="15" viewBox="0 0 14 14" fill="none" style="flex:0 0 auto"><path d="M9 2 4 7l5 5" stroke="#2B241F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span style="font-family:var(--serif);font-size:19px">客厅电视柜</span>
-          <span style="margin-left:auto;color:#8C5A34;font-weight:500">编辑</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 9px;flex:0 0 auto">
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none"><path d="M9 2 4 7l5 5" stroke="#2B241F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div style="width:29px;height:29px;border-radius:50%;background:#EFF1EA;display:flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="#8C5A34" stroke-width="1.9" stroke-linecap="round"/></svg></div>
         </div>
-        <div style="padding:4px 17px 0;color:#9A8D80;flex:0 0 auto">6 个格位 &middot; 42 件物品</div>
-        <div style="margin:12px 17px 0;display:flex;flex-direction:column;gap:7px;flex:0 0 auto">
-          <div class="cab" style="padding:7px 8px"><div style="display:flex;justify-content:space-between"><span style="font-weight:500;font-size:12.5px">顶层</span><span style="color:#9A8D80">12 件</span></div><div style="display:flex;gap:5px;margin-top:9px;align-items:center"><span class="th" style="width:38px;height:38px;background:#EFF1EA"></span><span class="th" style="width:38px;height:38px;background:#F0EBE2"></span><span class="th" style="width:38px;height:38px;background:#EDEFF1"></span><span class="th" style="width:38px;height:38px;background:#F5EFE0"></span><span style="color:#9A8D80;margin-left:2px">+8</span></div></div>
-          <div class="cab" style="padding:7px 8px"><div style="display:flex;justify-content:space-between"><span style="font-weight:500;font-size:12.5px">第二层</span><span style="color:#9A8D80">9 件</span></div><div style="display:flex;gap:5px;margin-top:9px;align-items:center"><span class="th" style="width:38px;height:38px;background:#F3E9DE"></span><span class="th" style="width:38px;height:38px;background:#E9ECE3"></span><span class="th" style="width:38px;height:38px;background:#F0EBE2"></span><span class="th" style="width:38px;height:38px;background:#EDEFF1"></span><span style="color:#9A8D80;margin-left:2px">+5</span></div></div>
-          <div class="cab" style="padding:7px 8px"><div style="display:flex;justify-content:space-between"><span style="font-weight:500;font-size:12.5px">第三层</span><span style="color:#9A8D80">8 件</span></div><div style="display:flex;gap:5px;margin-top:9px;align-items:center"><span class="th" style="width:38px;height:38px;background:#F5EFE0"></span><span class="th" style="width:38px;height:38px;background:#EFF1EA"></span><span class="th" style="width:38px;height:38px;background:#F3E9DE"></span><span class="th" style="width:38px;height:38px;background:#E9ECE3"></span><span style="color:#9A8D80;margin-left:2px">+4</span></div></div>
-          <div class="cab" style="padding:7px 8px"><div style="display:flex;justify-content:space-between"><span style="font-weight:500;font-size:12.5px">第四层</span><span style="color:#9A8D80">6 件</span></div><div style="display:flex;gap:5px;margin-top:9px;align-items:center"><span class="th" style="width:38px;height:38px;background:#EDEFF1"></span><span class="th" style="width:38px;height:38px;background:#F0EBE2"></span><span class="th" style="width:38px;height:38px;background:#EFF1EA"></span><span style="color:#9A8D80;margin-left:2px">+3</span></div></div>
-          <div class="cab" style="padding:7px 8px"><div style="display:flex;justify-content:space-between"><span style="font-weight:500;font-size:12.5px">抽屉 1</span><span style="color:#9A8D80">4 件</span></div><div style="display:flex;gap:5px;margin-top:9px;align-items:center"><span class="th" style="width:38px;height:38px;background:#E9ECE3"></span><span class="th" style="width:38px;height:38px;background:#F3E9DE"></span><span style="color:#9A8D80;margin-left:2px">+2</span></div></div>
+        <div style="padding:0 17px;flex:0 0 auto">
+          <div style="font-family:var(--serif);font-size:23px;letter-spacing:.03em">客厅电视柜</div>
+          <div style="display:flex;gap:8px;margin-top:11px">
+            <span style="background:#F3E9DE;color:#8C5A34;border-radius:6px;padding:2px 7px">42 件物品</span>
+            <span style="background:#F2EDE5;color:#6B6055;border-radius:6px;padding:2px 7px">6 个格位</span>
+          </div>
         </div>
-        <div style="margin-top:auto;padding:10px 17px 15px;flex:0 0 auto">
-          <div style="text-align:center;padding:11px;border-radius:11px;background:#8C5A34;color:#fff;font-weight:500">在这个柜子里录入</div>
+        <div style="padding:0 17px;margin-top:18px;flex:0 0 auto">
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;border-radius:11px;background:#8C5A34;color:#fff;font-weight:500">
+            <svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg>
+            在「客厅电视柜」里录一件
+          </div>
+        </div>
+        <div style="margin-top:22px;padding:0 17px;flex:0 0 auto">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:12px">
+            <span style="font-family:var(--serif);font-size:15px">顶层</span><span style="color:#C9BEB0">12 件</span>
+          </div>
+        </div>
+        <div style="padding:0 9px;display:flex;gap:8px;flex:0 0 auto">
+          <div style="width:56px"><div style="width:56px;height:56px;border-radius:9px;background:#EFF1EA;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><rect x="6" y="3" width="12" height="18" rx="2.6" stroke="#7C8A6E" stroke-width="1.7"/><circle cx="12" cy="7.5" r="1.4" fill="#7C8A6E"/><path d="M9 12h6M9 15h4" stroke="#7C8A6E" stroke-width="1.7" stroke-linecap="round"/></svg></div><div style="font-size:11px;text-align:center;margin-top:4px">遥控器</div></div>
+          <div style="width:56px"><div style="width:56px;height:56px;border-radius:9px;background:#F0EBE2;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0 1 16 0" stroke="#8A7256" stroke-width="1.7" transform="rotate(180 12 12)"/><rect x="3" y="12.5" width="4" height="5" rx="1.2" stroke="#8A7256" stroke-width="1.7"/><rect x="17" y="12.5" width="4" height="5" rx="1.2" stroke="#8A7256" stroke-width="1.7"/></svg></div><div style="font-size:11px;text-align:center;margin-top:4px">HDMI 线</div></div>
+          <div style="width:56px"><div style="width:56px;height:56px;border-radius:9px;background:#EDEFF1;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><rect x="3" y="8" width="18" height="9" rx="4.5" stroke="#6C7A88" stroke-width="1.7"/><circle cx="8.5" cy="12.5" r="1.3" fill="#6C7A88"/><circle cx="13" cy="12.5" r="1.3" fill="#6C7A88"/></svg></div><div style="font-size:11px;text-align:center;margin-top:4px">游戏手柄</div></div>
+          <div style="width:56px"><div style="width:56px;height:56px;border-radius:9px;background:#F5EFE0;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="18" height="12" rx="2.4" stroke="#907737" stroke-width="1.7"/><circle cx="8" cy="13" r="1.2" fill="#907737"/><path d="M3 11h18" stroke="#907737" stroke-width="1.7"/></svg></div><div style="font-size:11px;text-align:center;margin-top:4px">机顶盒</div></div>
+        </div>
+        <div style="margin-top:22px;padding:0 17px;flex:0 0 auto">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:12px">
+            <span style="font-family:var(--serif);font-size:15px">抽屉 1</span><span style="color:#C9BEB0">0 件</span>
+          </div>
+          <div style="background:#F2EDE5;border-radius:13px;padding:12px;color:#9A8D80">这一格是空的</div>
+        </div>
+        <div style="margin-top:auto;padding:16px 17px 18px;display:flex;flex-direction:column;gap:8px;flex:0 0 auto">
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:11px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7.5" height="7.5" rx="2" stroke="#6B6055" stroke-width="1.7"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" stroke="#6B6055" stroke-width="1.7"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" stroke="#6B6055" stroke-width="1.7"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" stroke="#6B6055" stroke-width="1.7"/></svg>
+            查看全部柜子
+          </div>
+          <div style="text-align:center;color:#C9BEB0">共 4 个格位在用</div>
         </div>
       </div></div>
-      <figcaption><div class="no">05</div><div class="nm">柜内格位 &middot; 位置二级页</div><div class="ds">点进柜子后按格位分组展示。这是「找东西」场景的主战场——先想到柜子，再扫一眼格位。</div></figcaption>
+      <figcaption><div class="no">05</div><div class="nm">柜内格位 &middot; 位置二级页</div><div class="ds">按格位分组，每组就是一排方形图块（实现里是 72px 缩略图 + 名字，每行几个按窗口宽度算，常见机型排 4 个 —— 稿里这 280px 的框装不下 4 个真尺寸的块，按同比例收细到 56px 才排得齐），不是「一张卡片装着缩略图和一个计数」—— 这里要的是扫一眼认出东西，不是看统计。空格位照样占一行、给一块浅底写「这一格是空的」，位置缺失才看得见。没指定格位的物品落到「直接放在柜子里」。录入按钮在标题正下方而不是页脚：进这一页十次有九次是刚放进去、想顺手记一下。</div></figcaption>
     </figure>
 
     <!-- 06 -->
-    <figure class="fig">
+    <figure class="fig" data-slug="album">
       <div class="shot"><div class="ph">
         <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
         <div style="padding:2px 17px 0;flex:0 0 auto">
           <div class="hd">相册</div>
-          <div style="color:#9A8D80;margin-top:3px">1,024 张照片 &middot; 占用 1.2 GB</div>
+          <div style="color:#9A8D80;margin-top:3px">1,024 张照片，都存在应用内</div>
         </div>
-        <div style="margin:12px 17px 0;display:flex;gap:6px;flex:0 0 auto">
-          <span style="padding:5px 11px;border-radius:999px;background:#8C5A34;color:#fff">全部</span>
-          <span style="padding:5px 11px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">数码</span>
-          <span style="padding:5px 11px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">工具</span>
-          <span style="padding:5px 11px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">食品</span>
+        <div style="margin:16px 17px 8px;display:flex;justify-content:space-between;align-items:baseline;flex:0 0 auto">
+          <span style="color:#9A8D80">2026 年 9 月</span><span style="color:#C9BEB0">18 张</span>
         </div>
-        <div style="margin:14px 17px 0;display:flex;justify-content:space-between;align-items:baseline;flex:0 0 auto">
-          <span style="font-weight:500">2026 年 9 月</span><span style="color:#9A8D80">18 张</span>
+        <div style="padding:0 17px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;flex:0 0 auto">
+          <div style="aspect-ratio:1;background:#EFF1EA;border-radius:12px;display:flex;align-items:flex-end;position:relative;overflow:hidden"><span style="position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);width:20px;height:30px;border-radius:5px;background:#D5DCC9"></span><span style="padding:0 12px 6px;color:#fff;font-size:10.5px;text-shadow:0 0 3px rgba(43,36,31,.9)">iPhone 15 Pro</span></div>
+          <div style="aspect-ratio:1;background:#F0EBE2;border-radius:12px;display:flex;align-items:flex-end;position:relative;overflow:hidden"><span style="position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);width:30px;height:16px;border-radius:4px;background:#DCD1C0"></span><span style="padding:0 12px 6px;color:#fff;font-size:10.5px;text-shadow:0 0 3px rgba(43,36,31,.9)">博世冲击钻</span></div>
+          <div style="aspect-ratio:1;background:#EDEFF1;border-radius:12px;display:flex;align-items:flex-end;position:relative;overflow:hidden"><span style="position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);width:14px;height:28px;border-radius:5px;background:#D3DAE0"></span><span style="padding:0 12px 6px;color:#fff;font-size:10.5px;text-shadow:0 0 3px rgba(43,36,31,.9)">墨盒 CE285A</span></div>
+          <div style="aspect-ratio:1;background:#F5EFE0;border-radius:12px;display:flex;align-items:flex-end;position:relative;overflow:hidden"><span style="position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:#E6D9BC"></span><span style="padding:0 12px 6px;color:#fff;font-size:10.5px;text-shadow:0 0 3px rgba(43,36,31,.9)">鱼油软胶囊</span></div>
+          <div style="aspect-ratio:1;background:#E9ECE3;border-radius:12px;display:flex;align-items:flex-end;position:relative;overflow:hidden"><span style="position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);width:26px;height:20px;border-radius:5px;background:#CFD6C4"></span><span style="padding:0 12px 6px;color:#fff;font-size:10.5px;text-shadow:0 0 3px rgba(43,36,31,.9)">免洗洗手液</span></div>
+          <div style="aspect-ratio:1;background:#F3E9DE;border-radius:12px;display:flex;align-items:flex-end;position:relative;overflow:hidden"><span style="position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);width:18px;height:30px;border-radius:6px;background:#E2D2BE"></span><span style="padding:0 12px 6px;color:#fff;font-size:10.5px;text-shadow:0 0 3px rgba(43,36,31,.9)">Type-C 线</span></div>
         </div>
-        <div style="margin:8px 17px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;flex:0 0 auto">
-          <div style="aspect-ratio:1;background:#EFF1EA;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:20px;height:30px;border-radius:5px;background:#D5DCC9"></span></div>
-          <div style="aspect-ratio:1;background:#F0EBE2;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:30px;height:16px;border-radius:4px;background:#DCD1C0"></span></div>
-          <div style="aspect-ratio:1;background:#EDEFF1;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:14px;height:28px;border-radius:5px;background:#D3DAE0"></span></div>
-          <div style="aspect-ratio:1;background:#F5EFE0;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:24px;height:24px;border-radius:50%;background:#E6D9BC"></span></div>
-          <div style="aspect-ratio:1;background:#E9ECE3;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:26px;height:20px;border-radius:5px;background:#CFD6C4"></span></div>
-          <div style="aspect-ratio:1;background:#F3E9DE;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:18px;height:30px;border-radius:6px;background:#E2D2BE"></span></div>
-          <div style="aspect-ratio:1;background:#F0EBE2;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:28px;height:14px;border-radius:4px;background:#DCD1C0"></span></div>
-          <div style="aspect-ratio:1;background:#EFF1EA;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:22px;height:22px;border-radius:5px;background:#D5DCC9"></span></div>
-          <div style="aspect-ratio:1;background:#EDEFF1;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:30px;height:18px;border-radius:4px;background:#D3DAE0"></span></div>
+        <div style="margin:16px 17px 8px;display:flex;justify-content:space-between;align-items:baseline;flex:0 0 auto">
+          <span style="color:#9A8D80">2026 年 8 月</span><span style="color:#C9BEB0">34 张</span>
         </div>
-        <div style="margin:14px 17px 0;display:flex;justify-content:space-between;align-items:baseline;flex:0 0 auto">
-          <span style="font-weight:500">2026 年 8 月</span><span style="color:#9A8D80">34 张</span>
-        </div>
-        <div style="margin:8px 17px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;flex:0 0 auto">
-          <div style="aspect-ratio:1;background:#F5EFE0;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:20px;height:26px;border-radius:5px;background:#E6D9BC"></span></div>
-          <div style="aspect-ratio:1;background:#E9ECE3;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:26px;height:18px;border-radius:4px;background:#CFD6C4"></span></div>
-          <div style="aspect-ratio:1;background:#F3E9DE;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="width:24px;height:24px;border-radius:50%;background:#E2D2BE"></span></div>
+        <div style="padding:0 17px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;flex:0 0 auto">
+          <div style="aspect-ratio:1;background:#F5EFE0;border-radius:12px;display:flex;align-items:flex-end;position:relative;overflow:hidden"><span style="position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);width:20px;height:26px;border-radius:5px;background:#E6D9BC"></span><span style="padding:0 12px 6px;color:#fff;font-size:10.5px;text-shadow:0 0 3px rgba(43,36,31,.9)">工具箱</span></div>
+          <div style="aspect-ratio:1;background:#E9ECE3;border-radius:12px;display:flex;align-items:flex-end;position:relative;overflow:hidden"><span style="position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);width:26px;height:18px;border-radius:4px;background:#CFD6C4"></span><span style="padding:0 12px 6px;color:#fff;font-size:10.5px;text-shadow:0 0 3px rgba(43,36,31,.9)">松下剃须刀</span></div>
+          <div style="aspect-ratio:1;background:#F3E9DE;border-radius:12px;display:flex;align-items:flex-end;position:relative;overflow:hidden"><span style="position:absolute;left:50%;top:32%;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;background:#E2D2BE"></span><span style="padding:0 12px 6px;color:#fff;font-size:10.5px;text-shadow:0 0 3px rgba(43,36,31,.9)">保温杯</span></div>
         </div>
         <div class="tabbar">
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/></svg><span>物品</span></div>
           <div class="tb on"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#8C5A34" stroke-width="1.7"/><circle cx="8.6" cy="9.6" r="1.6" fill="#8C5A34"/><path d="M4.5 17.2l4.8-4.3 3.9 3.4 3-2.6 3.8 3.5" stroke="#8C5A34" stroke-width="1.7" stroke-linejoin="round"/></svg><span>相册</span></div>
           <div style="flex:1;display:flex;justify-content:center"><div style="width:42px;height:42px;border-radius:50%;background:#8C5A34;display:flex;align-items:center;justify-content:center;margin-top:-15px;border:3px solid #FBF9F6"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg></div></div>
-          <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>提醒</span></div>
+          <div class="tb"><div style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><div style="position:absolute;top:-5px;right:-9px;min-width:16px;height:16px;border-radius:8px;padding:0 4px;background:#AA523D;color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center">3</div></div><span>提醒</span></div>
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#A99C8E" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">06</div><div class="nm">相册视图</div><div class="ds">照片按时间倒序分组，顶部按分类筛选。缩略图统一正方形裁切，加载的是压缩图，不是原图。</div></figcaption>
+      <figcaption><div class="no">06</div><div class="nm">相册视图</div><div class="ds">按年月分组，不按物品分组 —— 翻相册的心理是「回忆 / 核对」，时间轴比分类树贴合。缩略图统一正方形裁切，底部压一条白字物品名：图糊了还能靠名字认。这页没有分类筛选（上一版稿里的筛选 chips 并不存在），要看某个东西的照片就从它的详情页进。加载的是压缩图，不是原图。</div></figcaption>
     </figure>
 
     <!-- 07 -->
-    <figure class="fig">
+    <figure class="fig" data-slug="expiry">
       <div class="shot"><div class="ph">
         <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
         <div style="padding:2px 17px 0;flex:0 0 auto">
-          <div class="hd">提醒</div>
-          <div style="color:#9A8D80;margin-top:3px">1 件已过期 &middot; 3 件 30 天内到期</div>
+          <div class="hd">到期</div>
+          <div style="color:#9A8D80;margin-top:3px">共 4 件填了过期时间</div>
         </div>
-        <div style="margin:13px 17px 0;display:flex;align-items:baseline;gap:7px;flex:0 0 auto">
-          <span style="font-weight:500">已过期</span><span style="color:#AA523D;font-weight:500">1</span>
+        <!-- V1 不做系统推送，这件事必须在页面顶部说清楚 —— 否则用户会以为提醒坏了 -->
+        <div style="margin:11px 17px 0;background:#F2EDE5;border-radius:13px;padding:11px 12px;flex:0 0 auto">
+          <div style="color:#6B6055;line-height:18px">V1 不会主动推送通知，打开这一页即可查看。系统级提醒计划在后续版本加入。</div>
         </div>
-        <div style="margin:8px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden;flex:0 0 auto">
-          <div style="padding:11px 12px;display:flex;gap:10px;align-items:center">
-            <div class="th" style="width:40px;height:40px;background:#F0EBE2"></div>
+        <div style="margin:11px 17px 0;display:flex;align-items:baseline;justify-content:space-between;flex:0 0 auto">
+          <span style="color:#AA523D;font-weight:600;font-size:13px;letter-spacing:.4px">已过期</span><span style="color:#C9BEB0">1 件</span>
+        </div>
+        <div style="margin:8px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden;flex:0 0 auto">
+          <div class="ir">
+            <div class="th" style="width:43px;height:43px;background:#F0EBE2;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="7" y="7.5" width="10" height="12.5" rx="2.4" stroke="#7A6247" stroke-width="1.6"/><path d="M10.5 7.5V4.6h3v2.9" stroke="#7A6247" stroke-width="1.6" stroke-linejoin="round"/><path d="M16.5 4.6h-6" stroke="#7A6247" stroke-width="1.6" stroke-linecap="round"/></svg></div>
             <div style="flex:1;min-width:0">
-              <div style="font-weight:500;font-size:12.5px">免洗洗手液</div>
-              <div style="color:#9A8D80;margin-top:2px">日用品 &middot; 镜柜</div>
+              <div style="font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">免洗洗手液</div>
+              <div style="color:#9A8D80;margin-top:1px">日用品 &middot; 入手 8 个月</div>
+              <span style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;flex-wrap:wrap">
+                <span class="tgn"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#6B6055"/></svg>镜柜</span>
+                <span class="tgc"><svg width="7" height="7" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.6" stroke="#AA523D" stroke-width="1.3"/><path d="M6 3.4V6l1.8 1.1" stroke="#AA523D" stroke-width="1.3" stroke-linecap="round"/></svg>过期 4 天</span>
+              </span>
             </div>
-            <div style="text-align:right;flex:0 0 auto"><div style="color:#AA523D;font-weight:500">已过期 4 天</div><div style="color:#9A8D80;margin-top:2px">09-13</div></div>
-          </div>
-          <div style="border-top:0.5px solid #F1ECE4;display:flex">
-            <div style="flex:1;text-align:center;padding:9px;color:#6B6055;border-right:0.5px solid #F1ECE4">续期 6 个月</div>
-            <div style="flex:1;text-align:center;padding:9px;color:#8C5A34;font-weight:500">已处理</div>
-          </div>
-        </div>
-        <div style="margin:13px 17px 0;display:flex;align-items:baseline;gap:7px;flex:0 0 auto">
-          <span style="font-weight:500">30 天内到期</span><span style="color:#926521;font-weight:500">3</span>
-        </div>
-        <div style="margin:8px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden;flex:0 0 auto">
-          <div style="padding:11px 12px;display:flex;gap:10px;align-items:center">
-            <div class="th" style="width:40px;height:40px;background:#F5EFE0"></div>
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:500;font-size:12.5px">深海鱼油软胶囊</div>
-              <div style="color:#9A8D80;margin-top:2px">食品 &middot; 厨房 &middot; 3 层</div>
-            </div>
-            <div style="text-align:right;flex:0 0 auto"><div style="color:#926521;font-weight:500">6 天后</div><div style="color:#9A8D80;margin-top:2px">10-03</div></div>
+            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500;font-size:12.5px">&#165;39</div><div style="color:#8C5A34;margin-top:1px;font-size:11px;font-variant-numeric:tabular-nums">&#165;0.16/天</div></div>
           </div>
         </div>
-        <div style="margin:8px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden;flex:0 0 auto">
-          <div style="padding:11px 12px;display:flex;gap:10px;align-items:center">
-            <div class="th" style="width:40px;height:40px;background:#EDEFF1"></div>
+        <div style="margin:11px 17px 0;display:flex;align-items:baseline;justify-content:space-between;flex:0 0 auto">
+          <span style="color:#926521;font-weight:600;font-size:13px;letter-spacing:.4px">30 天内到期</span><span style="color:#C9BEB0">2 件</span>
+        </div>
+        <div style="margin:8px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden;flex:0 0 auto">
+          <div class="ir">
+            <div class="th" style="width:43px;height:43px;background:#F5EFE0;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="4.5" y="9.5" width="15" height="6.5" rx="3.25" transform="rotate(-40 12 12.7)" stroke="#8A6B33" stroke-width="1.6"/><path d="M9.2 14.6l5.4-4.6" stroke="#8A6B33" stroke-width="1.6" stroke-linecap="round"/></svg></div>
             <div style="flex:1;min-width:0">
-              <div style="font-weight:500;font-size:12.5px">打印机墨盒 CE285A</div>
-              <div style="color:#9A8D80;margin-top:2px">数码 &middot; 书房 &middot; 抽屉 2</div>
+              <div style="font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">深海鱼油软胶囊</div>
+              <div style="color:#9A8D80;margin-top:1px">食品 &middot; 入手 3 个月</div>
+              <span style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;flex-wrap:wrap">
+                <span class="tgn"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#6B6055"/></svg>厨房吊柜 &middot; 第三层</span>
+                <span class="tga"><svg width="7" height="7" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.6" stroke="#926521" stroke-width="1.3"/><path d="M6 3.4V6l1.8 1.1" stroke="#926521" stroke-width="1.3" stroke-linecap="round"/></svg>6 天后到期</span>
+              </span>
             </div>
-            <div style="text-align:right;flex:0 0 auto"><div style="color:#926521;font-weight:500">18 天后</div><div style="color:#9A8D80;margin-top:2px">10-15</div></div>
+            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500;font-size:12.5px">&#165;268</div><div style="color:#8C5A34;margin-top:1px;font-size:11px;font-variant-numeric:tabular-nums">&#165;2.98/天</div></div>
           </div>
-        </div>
-        <div style="margin:13px 17px 0;display:flex;align-items:baseline;gap:7px;flex:0 0 auto">
-          <span style="font-weight:500">更远</span><span style="color:#9A8D80;font-weight:500">2</span>
-        </div>
-        <div style="margin:8px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden;flex:0 0 auto">
-          <div style="padding:11px 12px;display:flex;gap:10px;align-items:center">
-            <div class="th" style="width:40px;height:40px;background:#F3E9DE"></div>
+          <div class="ir">
+            <div class="th" style="width:43px;height:43px;background:#EDEFF1;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="4.5" y="9" width="15" height="6" rx="3" transform="rotate(-35 12 12)" stroke="#6C7A88" stroke-width="1.6"/><circle cx="9.2" cy="13.6" r="0.9" fill="#6C7A88"/><circle cx="12" cy="11.6" r="0.9" fill="#6C7A88"/><circle cx="14.8" cy="9.6" r="0.9" fill="#6C7A88"/></svg></div>
             <div style="flex:1;min-width:0">
-              <div style="font-weight:500;font-size:12.5px">维生素 C 泡腾片</div>
-              <div style="color:#9A8D80;margin-top:2px">食品 &middot; 厨房 &middot; 2 层</div>
+              <div style="font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">创可贴</div>
+              <div style="color:#9A8D80;margin-top:1px">日用品 &middot; 入手 1 个月</div>
+              <span style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;flex-wrap:wrap">
+                <span class="tgn"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#6B6055"/></svg>浴室柜 &middot; 第二层</span>
+                <span class="tga"><svg width="7" height="7" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.6" stroke="#926521" stroke-width="1.3"/><path d="M6 3.4V6l1.8 1.1" stroke="#926521" stroke-width="1.3" stroke-linecap="round"/></svg>12 天后到期</span>
+              </span>
             </div>
-            <div style="text-align:right;flex:0 0 auto"><div style="color:#9A8D80;font-weight:500">132 天后</div><div style="color:#9A8D80;margin-top:2px">2027-02-01</div></div>
+            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500;font-size:12.5px">&#165;18</div><div style="color:#8C5A34;margin-top:1px;font-size:11px;font-variant-numeric:tabular-nums">&#165;0.60/天</div></div>
           </div>
         </div>
         <div class="tabbar">
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/></svg><span>物品</span></div>
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#A99C8E" stroke-width="1.7"/><circle cx="8.6" cy="9.6" r="1.6" fill="#A99C8E"/><path d="M4.5 17.2l4.8-4.3 3.9 3.4 3-2.6 3.8 3.5" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/></svg><span>相册</span></div>
           <div style="flex:1;display:flex;justify-content:center"><div style="width:42px;height:42px;border-radius:50%;background:#8C5A34;display:flex;align-items:center;justify-content:center;margin-top:-15px;border:3px solid #FBF9F6"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg></div></div>
-          <div class="tb on"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#8C5A34" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#8C5A34" stroke-width="1.7" stroke-linecap="round"/></svg><span>提醒</span></div>
+          <div class="tb on"><div style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#8C5A34" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#8C5A34" stroke-width="1.7" stroke-linecap="round"/></svg><div style="position:absolute;top:-5px;right:-9px;min-width:16px;height:16px;border-radius:8px;padding:0 4px;background:#AA523D;color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center">3</div></div><span>提醒</span></div>
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#A99C8E" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">07</div><div class="nm">提醒 &middot; 到期</div><div class="ds">只做到期一件事，按严重程度分三段：已过期 / 30 天内到期 / 更远，最紧急的排在最前。不做提醒中心，也不做系统推送。</div></figcaption>
+      <figcaption><div class="no">07</div><div class="nm">到期 &middot; 只看待办的那两段</div><div class="ds">这页只列「已过期」和「30 天内到期」；30 天以上的只计入顶部总数（这里 4 件 vs 列出 3 件），不进列表。顶部那条浅底说明卡必须在：V1 不做系统推送，不写清楚，用户会以为提醒坏了。行就是普通物品行——这里没有「续期」，也没有「已处理」，要改去详情页改。段数和底部「提醒」上的角标都取同一份计数：角标是 overdue + soon（这里 3），所以 01 屏的「即将到期」写的也是 3 件 —— 两屏必须对得上，否则一眼就露出破绽。</div></figcaption>
     </figure>
 
     <!-- 08 -->
-    <figure class="fig">
+    <figure class="fig" data-slug="mine">
       <div class="shot"><div class="ph">
         <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
         <div style="padding:2px 17px 0;flex:0 0 auto">
           <div class="hd">我的</div>
           <div style="color:#9A8D80;margin-top:3px">数据都在这台手机里，请留意备份</div>
         </div>
-        <div style="margin:11px 17px 0;background:#F3E9DE;border-radius:13px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex:0 0 auto">
-          <div style="min-width:0">
-            <div style="color:#8C5A34">上次备份：今天 09:14</div>
-            <div style="color:#8C5A34;margin-top:3px">328 件 &middot; 1,024 张照片</div>
+        <!-- 概览：MetricStrip 裸壳（framed=false）塞进一张 Card，总价值 / 占用收在下面一行小字 -->
+        <div style="margin:11px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;padding:2px 0 1px;flex:0 0 auto">
+          <div style="display:flex">
+            <div style="flex:1;text-align:center;padding:7px 6px 0">
+              <div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">328</div>
+              <div style="color:#9A8D80;margin-top:1px;font-size:11px">物品</div>
+            </div>
+            <div style="flex:1;text-align:center;padding:7px 6px 0;border-left:0.5px solid #EBE5DB">
+              <div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">1,024</div>
+              <div style="color:#9A8D80;margin-top:1px;font-size:11px">照片</div>
+            </div>
+            <div style="flex:1;text-align:center;padding:7px 6px 0;border-left:0.5px solid #EBE5DB">
+              <div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">3</div>
+              <div style="color:#9A8D80;margin-top:1px;font-size:11px">回收站</div>
+            </div>
           </div>
-          <div style="background:#8C5A34;color:#fff;border-radius:9px;padding:7px 12px;font-weight:500;white-space:nowrap">立即备份</div>
+          <div style="text-align:center;color:#C9BEB0;margin-top:3px">共 &#165;42,680 &middot; 占用 486 MB</div>
         </div>
         <div style="margin:9px 17px 0;flex:0 0 auto">
           <div style="color:#9A8D80;margin-bottom:4px">数据通道</div>
           <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden">
-            <div class="fr"><span class="fk">生成备份包</span><span style="color:#C9BEB0">&#8250;</span></div>
-            <div class="fr"><span class="fk">导出物品清单</span><span style="color:#C9BEB0">&#8250;</span></div>
-            <div class="fr"><span class="fk">导入恢复</span><span style="color:#C9BEB0">&#8250;</span></div>
-            <div class="fr"><span class="fk">回收站</span><span style="color:#9A8D80">3 件 &nbsp;&#8250;</span></div>
+            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">生成备份包</span><span style="color:#9A8D80;font-weight:500">3 天前 &nbsp;&#8250;</span></div>
+            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">导出物品清单</span><span style="color:#9A8D80;font-weight:500">CSV &nbsp;&#8250;</span></div>
+            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">导入备份</span><span style="color:#8C5A34">&#8250;</span></div>
+          </div>
+          <!-- 品牌卡：备份是唯一「不做就会永久丢」的动作，单独提出来，整行宽按钮是这页唯一的主动作。
+               回收站不再混在这里 —— 它属于「整理」 -->
+          <div style="margin-top:10px;background:#F3E9DE;border-radius:13px;padding:11px">
+            <div style="color:#6B4224;font-weight:500">上次备份：3 天前</div>
+            <div style="color:#8C5A34;margin-top:2px;font-size:11px;line-height:17px">这块数据不联网、也没有云端副本。手机丢了或误卸载，几千件物品和照片会一起没。</div>
+            <div style="margin-top:11px;background:#8C5A34;color:#fff;border-radius:10px;padding:7px 0;text-align:center;font-weight:600">立即备份</div>
           </div>
         </div>
-        <div style="margin:9px 17px 0;flex:0 0 auto">
+        <div style="margin:7px 17px 0;flex:0 0 auto">
           <div style="color:#9A8D80;margin-bottom:4px">整理</div>
           <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden">
-            <div class="fr"><span class="fk">柜子与格位</span><span style="color:#9A8D80">12 个柜子 &nbsp;&#8250;</span></div>
-            <div class="fr"><span class="fk">封面图源</span><span style="color:#9A8D80">已连接 &nbsp;&#8250;</span></div>
+            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">柜子与格位</span><span style="color:#8C5A34">&#8250;</span></div>
+            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">封面图源</span><span style="color:#9A8D80;font-weight:500">已配置 &#8226;&#8226;&#8226;&#8226;&#8226;&#8226;7f2a &nbsp;&#8250;</span></div>
+            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">回收站</span><span style="color:#8C5A34;font-weight:500">3 件待处理 &nbsp;&#8250;</span></div>
           </div>
         </div>
-        <div style="margin:9px 17px 0;flex:0 0 auto">
-          <div style="color:#9A8D80;margin-bottom:4px">外观</div>
-          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden">
-            <div class="fr"><span class="fk">主题</span><span class="fv" style="font-weight:400;display:flex;align-items:center;gap:7px">素笺<span style="display:inline-flex;gap:3px"><span style="width:10px;height:10px;border-radius:50%;background:#8C5A34"></span><span style="width:10px;height:10px;border-radius:50%;background:#2C5282"></span><span style="width:10px;height:10px;border-radius:50%;background:#35605A"></span><span style="width:10px;height:10px;border-radius:50%;background:#A8372C"></span></span></span></div>
-          </div>
-        </div>
-        <div style="text-align:center;color:#C9BEB0;margin-top:auto;padding-bottom:22px;flex:0 0 auto">格物 v1.2.1</div>
         <div class="tabbar" style="margin-top:0">
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/></svg><span>物品</span></div>
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#A99C8E" stroke-width="1.7"/><circle cx="8.6" cy="9.6" r="1.6" fill="#A99C8E"/><path d="M4.5 17.2l4.8-4.3 3.9 3.4 3-2.6 3.8 3.5" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/></svg><span>相册</span></div>
           <div style="flex:1;display:flex;justify-content:center"><div style="width:42px;height:42px;border-radius:50%;background:#8C5A34;display:flex;align-items:center;justify-content:center;margin-top:-15px;border:3px solid #FBF9F6"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg></div></div>
-          <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>提醒</span></div>
+          <div class="tb"><div style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><div style="position:absolute;top:-5px;right:-9px;min-width:16px;height:16px;border-radius:8px;padding:0 4px;background:#AA523D;color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center">3</div></div><span>提醒</span></div>
           <div class="tb on"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#8C5A34" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#8C5A34" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">08</div><div class="nm">我的 &middot; 数据与备份</div><div class="ds">备份状态置顶且用品牌浅底 —— 纯本地方案里这是唯一的救命绳。下方按「数据通道 / 整理 / 外观」分组，主题切换收在「外观」里。</div></figcaption>
+      <figcaption><div class="no">08</div><div class="nm">我的 &middot; 数据与备份</div><div class="ds">备份状态置顶、单独用品牌浅底，按钮占满整行 —— 纯本地方案里这是唯一的救命绳，混进设置行就会被当成一条普通设置。三个出口（生成备份包 / 导出 CSV 清单 / 导入备份）收在一组，回收站归到「整理」，不再和数据通道混在一起。这屏画的是首屏，再往下还有「外观」（主题入口 + 五枚色点）与「关于」两组，主题弹层见 09。</div></figcaption>
     </figure>
 
     <!-- 09 -->
-    <figure class="fig">
+    <figure class="fig" data-slug="theme">
       <div class="shot"><div class="ph">
         <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 17px;height:38px;flex:0 0 auto">
-          <span style="color:#6B6055">关闭</span>
-          <span style="font-family:var(--serif);font-size:17px">主题</span>
-          <span style="width:26px;flex:0 0 auto"></span>
+        <!-- 底部弹层：底下压着「我的」页，被 scrim 罩住（静态稿用降透明度 + 蒙层模拟） -->
+        <div style="flex:1;position:relative;display:flex;flex-direction:column;overflow:hidden">
+          <div style="opacity:.32;display:flex;flex-direction:column">
+            <div style="padding:2px 17px 0">
+              <div class="hd">我的</div>
+              <div style="margin-top:3px">数据都在这台手机里，请留意备份</div>
+            </div>
+            <div style="margin:11px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;padding:10px 0 9px">
+              <div style="display:flex">
+                <div style="flex:1;text-align:center"><div style="font-size:14px;font-weight:600">328</div><div style="margin-top:1px;font-size:11px">物品</div></div>
+                <div style="flex:1;text-align:center;border-left:0.5px solid #EBE5DB"><div style="font-size:14px;font-weight:600">1,024</div><div style="margin-top:1px;font-size:11px">照片</div></div>
+                <div style="flex:1;text-align:center;border-left:0.5px solid #EBE5DB"><div style="font-size:14px;font-weight:600">3</div><div style="margin-top:1px;font-size:11px">回收站</div></div>
+              </div>
+            </div>
+            <div style="margin:9px 17px 0">
+              <div style="margin-bottom:4px">数据通道</div>
+              <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden">
+                <div style="padding:7px 12px;border-bottom:0.5px solid #F1ECE4">生成备份包</div>
+                <div style="padding:7px 12px;border-bottom:0.5px solid #F1ECE4">导出物品清单</div>
+                <div style="padding:7px 12px">导入备份</div>
+              </div>
+            </div>
+          </div>
+          <div style="position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(43,36,31,.42)"></div>
+
+          <!-- 弹层本体：把手 + 标题 + 关闭，四项之间用发丝线分隔，底部那行说明是这页的收尾 -->
+          <div style="margin-top:auto;background:#FBF9F6;border-radius:20px 20px 0 0;padding-bottom:20px;position:relative">
+            <div style="width:36px;height:4px;border-radius:2px;background:#E3DCD1;margin:8px auto 0"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 17px 12px">
+              <span style="font-family:var(--serif);font-size:19px;letter-spacing:.04em">外观主题</span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="#9A8D80" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </div>
+            <div style="padding:0 17px">
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 0">
+                <span style="width:26px;height:26px;border-radius:13px;background:#8C5A34;flex:0 0 auto"></span>
+                <div style="flex:1;min-width:0"><div>素笺</div><div style="color:#9A8D80;margin-top:1px">暖米白配赭石棕，稿纸的温度</div></div>
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto"><path d="M3 8.4 6.4 12 13 4.6" stroke="#8C5A34" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:0.5px solid #F1ECE4">
+                <span style="width:26px;height:26px;border-radius:13px;background:#2C5282;flex:0 0 auto"></span>
+                <div style="flex:1;min-width:0"><div>靛青</div><div style="color:#9A8D80;margin-top:1px">冷灰白配蓝黑，像钢笔墨水</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:0.5px solid #F1ECE4">
+                <span style="width:26px;height:26px;border-radius:13px;background:#35605A;flex:0 0 auto"></span>
+                <div style="flex:1;min-width:0"><div>青瓷</div><div style="color:#9A8D80;margin-top:1px">淡青白配黛青，器物本色</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:0.5px solid #F1ECE4">
+                <span style="width:26px;height:26px;border-radius:13px;background:#A8372C;flex:0 0 auto"></span>
+                <div style="flex:1;min-width:0"><div>朱砂</div><div style="color:#9A8D80;margin-top:1px">暖粉白配朱红，像盖了一枚印</div></div>
+              </div>
+            </div>
+            <div style="margin-top:12px;padding:12px 17px 0;border-top:0.5px solid #F1ECE4">
+              <div style="color:#9A8D80;line-height:18px">深色档跟随系统：系统切到深色时界面自动换成「玄夜」，这里的浅色选择会留着 —— 白天切回来还是这套。</div>
+            </div>
+          </div>
         </div>
-        <div style="color:#9A8D80;padding:6px 17px 0;flex:0 0 auto">四套浅色随你挑</div>
-        <div style="margin:12px 17px 0;display:flex;flex-direction:column;gap:8px;flex:0 0 auto">
-          <div style="display:flex;align-items:center;gap:10px;border:1.5px solid #8C5A34;border-radius:12px;padding:9px 11px;background:#F3E9DE">
-            <span style="width:28px;height:28px;border-radius:8px;background:#F7F4EF;border:1px solid #E3DCD1;position:relative;flex:0 0 auto"><span style="position:absolute;right:3px;bottom:3px;width:13px;height:13px;border-radius:50%;background:#8C5A34"></span></span>
-            <div style="flex:1;min-width:0"><div style="font-weight:500">素笺</div><div style="color:#8C5A34;margin-top:1px">暖米白配赭石棕，稿纸的温度</div></div>
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto"><path d="M3 8.4 6.4 12 13 4.6" stroke="#8C5A34" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;border:0.5px solid #EBE5DB;border-radius:12px;padding:9px 11px;background:#fff">
-            <span style="width:28px;height:28px;border-radius:8px;background:#F2F4F8;border:1px solid #E3DCD1;position:relative;flex:0 0 auto"><span style="position:absolute;right:3px;bottom:3px;width:13px;height:13px;border-radius:50%;background:#2C5282"></span></span>
-            <div style="flex:1;min-width:0"><div style="font-weight:500">靛青</div><div style="color:#9A8D80;margin-top:1px">冷灰白配蓝黑，像钢笔墨水</div></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;border:0.5px solid #EBE5DB;border-radius:12px;padding:9px 11px;background:#fff">
-            <span style="width:28px;height:28px;border-radius:8px;background:#F1F4F2;border:1px solid #E3DCD1;position:relative;flex:0 0 auto"><span style="position:absolute;right:3px;bottom:3px;width:13px;height:13px;border-radius:50%;background:#35605A"></span></span>
-            <div style="flex:1;min-width:0"><div style="font-weight:500">青瓷</div><div style="color:#9A8D80;margin-top:1px">淡青白配黛青，器物本色</div></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;border:0.5px solid #EBE5DB;border-radius:12px;padding:9px 11px;background:#fff">
-            <span style="width:28px;height:28px;border-radius:8px;background:#F9F3F0;border:1px solid #E3DCD1;position:relative;flex:0 0 auto"><span style="position:absolute;right:3px;bottom:3px;width:13px;height:13px;border-radius:50%;background:#A8372C"></span></span>
-            <div style="flex:1;min-width:0"><div style="font-weight:500">朱砂</div><div style="color:#9A8D80;margin-top:1px">暖粉白配朱红，像盖了一枚印</div></div>
-          </div>
-        </div>
-        <div style="margin:auto 17px 20px;background:#F3E9DE;border-radius:11px;padding:10px 11px;color:#8C5A34;flex:0 0 auto">深色档跟随系统：系统切到深色时界面自动换成「玄夜」，这里的浅色选择会留着</div>
       </div></div>
-      <figcaption><div class="no">09</div><div class="nm">主题 &middot; 四套浅色可选</div><div class="ds">四套浅色由用户任选（素笺 / 靛青 / 青瓷 / 朱砂）。深色档「玄夜」不进选择列表 —— 它是系统深色时的接管档，自动生效，用户的浅色选择仍然保留。</div></figcaption>
+      <figcaption><div class="no">09</div><div class="nm">主题 &middot; 底部弹层，只列四套浅色</div><div class="ds">和排序、分类选择器同构：底部弹出，不进路由。每一行前面那枚圆点取的是该套主题的品牌色，与「我的」页的色点指示器同源。深色档「玄夜」不进这个列表 —— 它不是「第五个选项」，是系统深色时的接管档，让用户手动选它等于要维护五套可选项。底部那行说明必须留着：否则用户在系统深色下选浅色会以为没生效。</div></figcaption>
     </figure>
 
   </div>
@@ -614,9 +745,9 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
   <p class="small">画的过程中撞到几个 PRD 里没定死的地方，这几条最终都落进了实现，也是这套界面看起来「像回事」的原因：</p>
   <ol class="dl">
     <li><b>位置视图挂在「物品」页下，不占底部 Tab</b><span>底部五个位置已经被「物品 / 相册 / 录入 / 提醒 / 我的」占满了，再塞一个位置 Tab 会让低频入口挤掉高频入口。改成首页右上角的「列表 / 位置」切换器，切换成本低、又不抢位置。</span></li>
-    <li><b>成本卡做成品牌浅底的独立卡片</b><span>不跟普通字段行放在一起。它是整个 App 里唯一带情绪回报的信息，混在字段表里会被淹没。同时它也是唯一允许用大面积品牌浅底的地方——用多了会廉价。</span></li>
+    <li><b>成本卡做成品牌浅底的独立卡片</b><span>不跟普通字段行放在一起。它是整个 App 里唯一带情绪回报的信息，混在字段表里会被淹没。大面积品牌浅底全 App 只给两处：这张成本卡，和「我的」页的备份卡——都是「这件事很重要」的提示，用多了会廉价。</span></li>
     <li><b>「保存并录下一件」视觉权重高于「保存并完成」</b><span>主按钮给了「录下一件」，字号和面积都更大。这是刻意的：连续录入是 V1 成败的关键，界面要推着用户往前走，而不是引导他退出。</span></li>
-    <li><b>过期时间与保修，视觉上合为一处但语义分开</b><span>列表里两种情况共用琥珀色倒计时样式，但详情页字段名仍叫「过期时间」。等你决定要不要单独加「保修到期」字段时，视觉层不用改。</span></li>
+    <li><b>V1 只有「过期时间」一个时间字段，没有保修</b><span>源码里查不到任何「保修」相关字段或文案——这一版不做。留的口子是：将来真加「保修到期」，直接复用现在这套琥珀色倒计时样式即可，视觉层不用改。别把这两件事画成两个色，那会让「即将到期」这个信号失去唯一性。</span></li>
     <li><b>缺失值统一显示「未设置」，且组合缺失时整行隐藏</b><span>单个字段缺失显示浅灰「未设置」；但成本卡这类依赖多个字段的组合指标，任一缺失就整卡隐藏。绝不显示「¥0.00 / 天」——那会让人以为东西是白来的。</span></li>
   </ol>
 </section>

@@ -6,7 +6,6 @@
  * 混进去就会被淹没成一堆灰字里的一行。
  */
 
-import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
@@ -14,14 +13,13 @@ import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { PhotoStage, PhotoThumb } from '@/components/domain/media';
 import { Button, FormRow, IconButton } from '@/components/ui/controls';
 import { Loading, PlainTag, StatusTag } from '@/components/ui/feedback';
-import { Card, Divider, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
-import { Body, Display, Heading, Label, Meta, Num, Title } from '@/components/ui/typography';
-import { GUTTER, Radius, Space } from '@/constants/theme';
-import { describePurchase, formatDateCN, isJustAcquired } from '@/lib/date';
+import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
+import { Body, Display, Label, Meta, Num } from '@/components/ui/typography';
+import { GUTTER, Space } from '@/constants/theme';
+import { formatDateCN, isJustAcquired } from '@/lib/date';
 import { getItemView, softDeleteItem } from '@/lib/db/items';
 import { listPhotos } from '@/lib/db/photos';
 import { formatMoney } from '@/lib/format';
-import { absoluteUri } from '@/lib/photos/pipeline';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { useAppState } from '@/lib/store/app-state';
 import type { ItemView, Photo } from '@/lib/types';

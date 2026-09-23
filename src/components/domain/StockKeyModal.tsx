@@ -43,6 +43,7 @@ export function StockKeyModal({ visible, onClose, onSaved }: StockKeyModalProps)
   // 每次打开都从已存的值重新开始，避免残留上次没提交的草稿
   useEffect(() => {
     if (!visible) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 弹层每次打开都把草稿重置为已存的值，是本组件刻意的生命周期
     setDraft(currentApiKey());
     setMessage(null);
     setChecking(false);

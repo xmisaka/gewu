@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Palette, Space } from '@/constants/theme';
+import { Palette, Radius, Space } from '@/constants/theme';
 import { describePurchase } from '@/lib/date';
 import { formatMoney } from '@/lib/format';
 import type { ItemView } from '@/lib/types';
@@ -32,6 +32,14 @@ export interface ItemRowProps {
    * 但那档下面必须看得见数字，否则用户不知道自己要改什么。
    */
   showSortOrder?: boolean;
+  /**
+   * 手动排序档下的上移 / 下移。
+   * 传了才渲染控制钮：其余几档顺序由规则决定，摆一对按不动的箭头是纯噪音。
+   */
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
 }
 
 function expiryTextOf(item: ItemView): string {
@@ -48,8 +56,13 @@ export const ItemRow = memo(function ItemRow({
   selected,
   selecting,
   showSortOrder,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = true,
+  canMoveDown = true,
 }: ItemRowProps) {
   const styles = useStyles();
+  const reorderable = !!onMoveUp || !!onMoveDown;
   const subtitleParts: string[] = [];
   if (item.categoryName) subtitleParts.push(item.categoryName);
   subtitleParts.push(describePurchase(item.purchaseDate));
@@ -103,19 +116,69 @@ export const ItemRow = memo(function ItemRow({
         </View>
       </View>
 
-      <View style={styles.tail}>
-        {item.price != null ? (
-          <ItemText style={styles.price}>{formatMoney(item.price)}</ItemText>
-        ) : null}
-        {item.dailyCost != null ? (
-          <Meta tone="brand" style={styles.daily}>
-            {item.dailyCost >= 0.01 ? `¥${item.dailyCost.toFixed(2)}/天` : '日均 <¥0.01'}
-          </Meta>
-        ) : null}
-      </View>
+      {/* 调顺序时整行让位给箭头：这一档是在「整理」而不是在「看」，价格留着只会挤窄品名。
+          箭头竖排、总高与缩略图齐平，行高不会因为多了一对钮而变 */}
+      {reorderable ? (
+        <View style={styles.reorder}>
+          <MoveButton
+            icon="chevron-up"
+            label={`${item.name} 上移`}
+            disabled={!canMoveUp}
+            onPress={onMoveUp}
+          />
+          <MoveButton
+            icon="chevron-down"
+            label={`${item.name} 下移`}
+            disabled={!canMoveDown}
+            onPress={onMoveDown}
+          />
+        </View>
+      ) : (
+        <View style={styles.tail}>
+          {item.price != null ? (
+            <ItemText style={styles.price}>{formatMoney(item.price)}</ItemText>
+          ) : null}
+          {item.dailyCost != null ? (
+            <Meta tone="brand" style={styles.daily}>
+              {item.dailyCost >= 0.01 ? `¥${item.dailyCost.toFixed(2)}/天` : '日均 <¥0.01'}
+            </Meta>
+          ) : null}
+        </View>
+      )}
     </Pressable>
   );
 });
+
+function MoveButton({
+  icon,
+  label,
+  disabled,
+  onPress,
+}: {
+  icon: 'chevron-up' | 'chevron-down';
+  label: string;
+  disabled?: boolean;
+  onPress?: () => void;
+}) {
+  const styles = useStyles();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      hitSlop={6}
+      android_ripple={{ color: Palette.ripple, borderless: true }}
+      style={({ pressed }) => [
+        styles.moveBtn,
+        pressed && !disabled && styles.moveBtnPressed,
+        disabled && styles.moveBtnDisabled,
+      ]}>
+      <Ionicons name={icon} size={17} color={Palette.brand} />
+    </Pressable>
+  );
+}
 
 const useStyles = makeStyles((Palette) => ({
   row: {
@@ -148,4 +211,18 @@ const useStyles = makeStyles((Palette) => ({
   tail: { alignItems: 'flex-end', gap: 2, minWidth: 62 },
   price: { fontSize: 15 },
   daily: { fontSize: 11.5, fontVariant: ['tabular-nums'] },
+
+  /* 手动排序档的上下移。竖排两枚、总高 46 与缩略图齐平，
+     行高不因此变化；24 宽也压得住，不至于把品名挤到只剩一个字 */
+  reorder: { alignItems: 'center', gap: 2 },
+  moveBtn: {
+    width: 28,
+    height: 22,
+    borderRadius: Radius.tag,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Palette.brandBg,
+  },
+  moveBtnPressed: { opacity: 0.6 },
+  moveBtnDisabled: { opacity: 0.3 },
 }));

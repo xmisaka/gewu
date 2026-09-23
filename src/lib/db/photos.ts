@@ -26,10 +26,12 @@ function toPhoto(row: PhotoRow): Photo {
   };
 }
 
+const PHOTO_COLUMNS = 'id, item_id, file_path, thumb_path, sort_order';
+
 export async function listPhotos(itemId: string): Promise<Photo[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<PhotoRow>(
-    'SELECT * FROM photos WHERE item_id = ? ORDER BY sort_order ASC',
+    `SELECT ${PHOTO_COLUMNS} FROM photos WHERE item_id = ? ORDER BY sort_order ASC, rowid ASC`,
     itemId,
   );
   return rows.map(toPhoto);
@@ -56,7 +58,10 @@ export async function addPhoto(itemId: string, filePath: string, thumbPath: stri
 /** 删除一条图片记录，返回待清理的两个文件路径 */
 export async function removePhoto(photoId: string): Promise<string[]> {
   const db = await getDatabase();
-  const row = await db.getFirstAsync<PhotoRow>('SELECT * FROM photos WHERE id = ?', photoId);
+  const row = await db.getFirstAsync<PhotoRow>(
+    `SELECT ${PHOTO_COLUMNS} FROM photos WHERE id = ?`,
+    photoId,
+  );
   await db.runAsync('DELETE FROM photos WHERE id = ?', photoId);
   return row ? [row.file_path, row.thumb_path].filter(Boolean) : [];
 }
@@ -143,34 +148,33 @@ export async function listAlbumPhotos(): Promise<AlbumPhoto[]> {
 /** 全部照片记录，备份包用 */
 export async function listAllPhotos(): Promise<Photo[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<PhotoRow>('SELECT * FROM photos ORDER BY item_id, sort_order');
+  const rows = await db.getAllAsync<PhotoRow>(
+    `SELECT ${PHOTO_COLUMNS} FROM photos ORDER BY item_id, sort_order`,
+  );
   return rows.map(toPhoto);
 }
 
-/** 导入用：原样写回 */
+/**
+ * 导入用：原样写回。
+ *
+ * 与 items 同理，不用 `INSERT OR REPLACE` —— REPLACE 是先删后插，
+ * 会把行上挂着的级联关系一并触发。photos 自己虽然没有子表，
+ * 但保持四个仓储同一个写法，避免以后有人照抄成 items 那种有子表的情形。
+ */
 export async function insertRawPhoto(photo: Photo): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
-    'INSERT OR REPLACE INTO photos (id, item_id, file_path, thumb_path, sort_order) VALUES (?, ?, ?, ?, ?)',
+    `INSERT INTO photos (id, item_id, file_path, thumb_path, sort_order)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       item_id    = excluded.item_id,
+       file_path  = excluded.file_path,
+       thumb_path = excluded.thumb_path,
+       sort_order = excluded.sort_order`,
     photo.id,
     photo.itemId,
     photo.filePath,
     photo.thumbPath,
     photo.sortOrder,
   );
-}
-
-/** 孤儿照片（所属物品已不存在），用于自检 */
-export async function listOrphanPhotos(): Promise<Photo[]> {
-  const db = await getDatabase();
-  const rows = await db.getAllAsync<PhotoRow>(
-    'SELECT * FROM photos WHERE item_id NOT IN (SELECT id FROM items)',
-  );
-  return rows.map(toPhoto);
-}
-
-export async function countPhotos(): Promise<number> {
-  const db = await getDatabase();
-  const row = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM photos');
-  return row?.c ?? 0;
 }

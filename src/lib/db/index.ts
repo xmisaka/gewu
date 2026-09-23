@@ -153,17 +153,3 @@ export async function wipeBusinessData(db: Database): Promise<void> {
     await db.execAsync('DELETE FROM categories');
   });
 }
-
-/** 清空全部数据并重建内置分类（用于「恢复出厂」） */
-export async function wipeAll(db: Database): Promise<void> {
-  await wipeBusinessData(db);
-  await seedCategories(db);
-}
-
-/** 仅供测试/调试：关闭连接 */
-export async function closeDatabase(): Promise<void> {
-  if (!dbPromise) return;
-  const db = await dbPromise;
-  await db.closeAsync();
-  dbPromise = null;
-}

@@ -15,30 +15,40 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Alert, FlatList, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { CabinetGrid } from '@/components/domain/CabinetGrid';
 import { CategoryPickerModal } from '@/components/domain/CategoryPickerModal';
 import { ItemRow } from '@/components/domain/ItemRow';
+import { LocationPickerModal } from '@/components/domain/LocationPickerModal';
 import {
   SortPickerModal,
   isItemSort,
   sortOptionOf,
 } from '@/components/domain/SortPickerModal';
 import { Collapse } from '@/components/ui/collapse';
-import { Button, Chip, ChipRow, SearchField, Segmented } from '@/components/ui/controls';
+import { Chip, ChipRow, SearchField, Segmented } from '@/components/ui/controls';
 import { EmptyState, LegendStrip, Loading, MetricStrip } from '@/components/ui/feedback';
 import { Card, PageHeader, Screen } from '@/components/ui/layout';
 import { Body, Heading, Label, Meta } from '@/components/ui/typography';
 import { GUTTER, Palette, Space } from '@/constants/theme';
 import { listCategories } from '@/lib/db/categories';
-import { DEFAULT_ITEM_SORT, assignCategory, listItems } from '@/lib/db/items';
+import {
+  DEFAULT_ITEM_SORT,
+  assignCategory,
+  assignLocation,
+  listItems,
+  setManualOrder,
+  softDeleteMany,
+} from '@/lib/db/items';
 import { listCabinetViews } from '@/lib/db/locations';
 import { PREF_ITEM_SORT, readPref, writePref } from '@/lib/db/prefs';
 import { formatMoneyCompact } from '@/lib/format';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
+import { useDebouncedSearch } from '@/lib/hooks/use-debounced-search';
 import { useScrollFold } from '@/lib/hooks/use-scroll-fold';
+import { filterCabinets } from '@/lib/search';
 import { useAppState } from '@/lib/store/app-state';
 import type { ItemSort, ItemView } from '@/lib/types';
 import { makeStyles } from '@/lib/theme';
@@ -69,8 +79,15 @@ export default function ItemsScreen() {
   const [sortOpen, setSortOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
 
-  /** 多选模式：低摩擦录入的补偿机制，用于批量补分类 */
+  /** 位置视图的搜索词。柜子只有几十个，纯前端筛，不必等数据库 */
+  const [locationQuery, setLocationQuery] = useState('');
+
+  /** 正在重排的那一行，用于挡住连点 */
+  const [movingId, setMovingId] = useState<string | null>(null);
+
+  /** 多选模式：低摩擦录入的补偿机制，用于批量补分类 / 改位置 / 删除 */
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const selecting = selected.size > 0;
 
@@ -99,13 +116,26 @@ export default function ItemsScreen() {
     expandFold();
   }, [expandFold, mode, categoryId, sort]);
 
+  /* 输入框是受控的、每次按键立刻回显；送给查询的那个值压了一档 ——
+     库不大，但没理由每敲一个字就跑一次 SQLite。清空立即生效 */
+  const debouncedQuery = useDebouncedSearch(query);
+
+  /* 手动排序的箭头只在「看得见整份列表」时才给。
+     带着筛选调顺序，被过滤掉的物品会插在中间，用户看着像是点了没反应 */
+  const manualReorder = sort === 'manual' && debouncedQuery.length === 0 && categoryId === null;
+
   const itemsState = useAsyncData(
-    () => listItems({ query, categoryId, sort }),
-    [query, categoryId, sort, dataVersion],
+    () => listItems({ query: debouncedQuery, categoryId, sort }),
+    [debouncedQuery, categoryId, sort, dataVersion],
     [] as ItemView[],
   );
   const categoryState = useAsyncData(() => listCategories(), [dataVersion], []);
   const cabinetState = useAsyncData(() => listCabinetViews(), [dataVersion], []);
+
+  const cabinets = useMemo(
+    () => filterCabinets(cabinetState.data, locationQuery),
+    [cabinetState.data, locationQuery],
+  );
 
   const categories = useMemo(
     () => categoryState.data.filter((c) => c.itemCount > 0 || categoryId === c.id),
@@ -114,6 +144,12 @@ export default function ItemsScreen() {
 
   const items = itemsState.data;
   const currentSort = sortOptionOf(sort);
+  const sortHint =
+    sort !== 'manual'
+      ? currentSort.hint
+      : manualReorder
+        ? '用右侧箭头直接调顺序'
+        : '清掉搜索与分类筛选后，可用箭头调顺序';
   const activeCategory = useMemo(
     () => categories.find((c) => c.id === categoryId) ?? null,
     [categories, categoryId],
@@ -122,7 +158,7 @@ export default function ItemsScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
-      listItems({ query, categoryId, sort }).catch(() => undefined),
+      listItems({ query: debouncedQuery, categoryId, sort }).catch(() => undefined),
       listCategories().catch(() => undefined),
       listCabinetViews().catch(() => undefined),
     ]);
@@ -131,7 +167,7 @@ export default function ItemsScreen() {
     cabinetState.reload();
     setRefreshing(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, categoryId, sort]);
+  }, [debouncedQuery, categoryId, sort]);
 
   const toggleSelect = useCallback((item: ItemView) => {
     setSelected((prev) => {
@@ -161,6 +197,58 @@ export default function ItemsScreen() {
     clearSelection();
     bump();
   };
+
+  const applyBulkLocation = async (nextLocationId: string | null) => {
+    await assignLocation([...selected], nextLocationId);
+    setLocationPickerOpen(false);
+    clearSelection();
+    bump();
+  };
+
+  /* 批量删除走的是软删除，照片与字段都留着 —— 确认文案必须说清
+     这是「进回收站」而不是抹掉，否则没人敢按 */
+  const confirmBulkDelete = () => {
+    const count = selected.size;
+    Alert.alert('移入回收站？', `选中的 ${count} 件物品会进入回收站，之后可以整批恢复。`, [
+      { text: '取消', style: 'cancel' },
+      { text: '移入回收站', style: 'destructive', onPress: () => void runBulkDelete() },
+    ]);
+  };
+
+  const runBulkDelete = async () => {
+    await softDeleteMany([...selected]);
+    clearSelection();
+    bump();
+  };
+
+  /**
+   * 把某一行上移 / 下移一格，然后把整份顺序一次性写回。
+   *
+   * 为什么重写整份而不是只改这两行：sort_order 只在手动档下有意义，
+   * 整体归一成 10 的倍数之后，后续插队永远有缝隙可用，也不会出现
+   * 「一半有值一半为空」那种自己都说不清的中间态。
+   */
+  const moveItem = useCallback(
+    async (itemId: string, delta: -1 | 1) => {
+      if (movingId) return;
+      const ids = items.map((i) => i.id);
+      const from = ids.indexOf(itemId);
+      const to = from + delta;
+      if (from < 0 || to < 0 || to >= ids.length) return;
+
+      ids.splice(to, 0, ...ids.splice(from, 1));
+      setMovingId(itemId);
+      try {
+        await setManualOrder(ids);
+        bump();
+      } catch {
+        // 写失败就维持原顺序，不弹框：这是随手可再试一次的操作
+      } finally {
+        setMovingId(null);
+      }
+    },
+    [items, movingId, bump],
+  );
 
   const headerRight = selecting ? (
     <Meta tone="brand" onPress={clearSelection} suppressHighlighting>
@@ -253,7 +341,7 @@ export default function ItemsScreen() {
                 <Ionicons name="caret-down" size={11} color={Palette.brand} />
               </Pressable>
               <Meta tone="ink4" numberOfLines={1} style={styles.sortHint}>
-                {currentSort.hint}
+                {sortHint}
               </Meta>
             </View>
           </Collapse>
@@ -269,7 +357,7 @@ export default function ItemsScreen() {
               onMomentumScrollEnd={settleFold}
               scrollEventThrottle={16}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
+              renderItem={({ item, index }) => (
                 <ItemRow
                   item={item}
                   selected={selected.has(item.id)}
@@ -277,6 +365,11 @@ export default function ItemsScreen() {
                   showSortOrder={sort === 'manual'}
                   onPress={openItem}
                   onLongPress={(it) => setSelected(new Set([it.id]))}
+                  /* 多选状态下不给排序钮：两套操作抢同一个手势区，谁都点不准 */
+                  onMoveUp={manualReorder && !selecting ? () => void moveItem(item.id, -1) : undefined}
+                  onMoveDown={manualReorder && !selecting ? () => void moveItem(item.id, 1) : undefined}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < items.length - 1}
                 />
               )}
               contentContainerStyle={styles.listInner}
@@ -286,7 +379,7 @@ export default function ItemsScreen() {
               ListEmptyComponent={
                 itemsState.loading ? (
                   <Loading />
-                ) : query || categoryId ? (
+                ) : debouncedQuery || categoryId ? (
                   <EmptyState
                     icon="search-outline"
                     title="没有找到"
@@ -311,45 +404,72 @@ export default function ItemsScreen() {
           </Card>
         </>
       ) : (
-        <ScrollView
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.brand} />
-          }>
-          <View style={styles.locationIntro}>
-            <Heading>按位置找东西</Heading>
-            <Meta tone="ink3" style={styles.locationHint}>
-              你知道东西在哪，就不必再买一件
-            </Meta>
-          </View>
+        <>
+          {/* 位置视图也要能搜 —— 柜子多了之后，靠滚去找一个柜子同样费劲。
+              搜索框留在屏上（不进 ScrollView），滚多远都能改词 */}
+          <SearchField
+            value={locationQuery}
+            onChange={setLocationQuery}
+            placeholder="搜索柜子或格位"
+          />
 
-          {cabinetState.loading ? (
-            <Loading />
-          ) : cabinetState.data.length === 0 ? (
-            <EmptyState
-              icon="grid-outline"
-              title="还没有登记柜子"
-              description="先建一个柜子，再往里加格位。物品可以只挂到柜子，也可以精确到某一格。"
-              actionLabel="新建柜子"
-              onAction={() => router.push('/cabinet/new')}
-            />
-          ) : (
-            <CabinetGrid
-              cabinets={cabinetState.data}
-              onOpen={(cabinet) => router.push({ pathname: '/cabinet/[id]', params: { id: cabinet.id } })}
-              onAdd={() => router.push('/cabinet/new')}
-            />
-          )}
-        </ScrollView>
+          <ScrollView
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.brand} />
+            }>
+            {/* 搜索期间收掉开场白：正在找东西的人不需要再被介绍一下这页是干什么的 */}
+            {locationQuery.length > 0 ? null : (
+              <View style={styles.locationIntro}>
+                <Heading>按位置找东西</Heading>
+                <Meta tone="ink3" style={styles.locationHint}>
+                  你知道东西在哪，就不必再买一件
+                </Meta>
+              </View>
+            )}
+
+            {cabinetState.loading ? (
+              <Loading />
+            ) : cabinetState.data.length === 0 ? (
+              <EmptyState
+                icon="grid-outline"
+                title="还没有登记柜子"
+                description="先建一个柜子，再往里加格位。物品可以只挂到柜子，也可以精确到某一格。"
+                actionLabel="新建柜子"
+                onAction={() => router.push('/cabinet/new')}
+              />
+            ) : cabinets.length === 0 ? (
+              <EmptyState
+                icon="search-outline"
+                title="没有这个柜子"
+                description="柜子名和格位名都能搜，换个词试试。"
+                actionLabel="清空搜索"
+                onAction={() => setLocationQuery('')}
+              />
+            ) : (
+              <CabinetGrid
+                cabinets={cabinets}
+                onOpen={(cabinet) => router.push({ pathname: '/cabinet/[id]', params: { id: cabinet.id } })}
+                onAdd={() => router.push('/cabinet/new')}
+              />
+            )}
+          </ScrollView>
+        </>
       )}
 
       {selecting ? (
         <View style={styles.selectionBar}>
           <Body color={Palette.onAccent}>已选 {selected.size} 件</Body>
           <View style={styles.selectionActions}>
-            <Button label="取消" tone="ghost" block={false} onPress={clearSelection} />
-            <Button label="补分类" block={false} onPress={() => setPickerOpen(true)} />
+            <BarAction icon="pricetag-outline" label="补分类" onPress={() => setPickerOpen(true)} />
+            <BarAction
+              icon="location-outline"
+              label="改位置"
+              onPress={() => setLocationPickerOpen(true)}
+            />
+            <BarAction icon="trash-outline" label="删除" onPress={confirmBulkDelete} />
           </View>
         </View>
       ) : null}
@@ -361,6 +481,18 @@ export default function ItemsScreen() {
         onPick={applyBulkCategory}
       />
 
+      <LocationPickerModal
+        visible={locationPickerOpen}
+        cabinets={cabinetState.data}
+        selectedId={null}
+        onClose={() => setLocationPickerOpen(false)}
+        onPick={applyBulkLocation}
+        onManage={() => {
+          setLocationPickerOpen(false);
+          router.push('/cabinet/new');
+        }}
+      />
+
       <SortPickerModal
         visible={sortOpen}
         value={sort}
@@ -368,6 +500,32 @@ export default function ItemsScreen() {
         onPick={changeSort}
       />
     </Screen>
+  );
+}
+
+/** 多选工具条上的一枚动作。文字 + 图标，压在深色条上 */
+function BarAction({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) {
+  const styles = useStyles();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={6}
+      style={({ pressed }) => [styles.barAction, pressed && styles.barActionPressed]}>
+      <Ionicons name={icon} size={14} color={Palette.onAccent} />
+      <Label color={Palette.onAccent} style={styles.barActionText}>
+        {label}
+      </Label>
+    </Pressable>
   );
 }
 
@@ -407,4 +565,15 @@ const useStyles = makeStyles((Palette) => ({
     backgroundColor: Palette.ink,
   },
   selectionActions: { flexDirection: 'row', alignItems: 'center', gap: Space.xs },
+  /* 批量操作的按钮做成文字工具条而不是实心按钮：三条并排还要放下「已选 N 件」，
+     实心按钮一撑就换行；这里只要可点、看得清即可 */
+  barAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Space.sm,
+    paddingVertical: Space.xs,
+  },
+  barActionPressed: { opacity: 0.6 },
+  barActionText: { fontWeight: '600' },
 }));

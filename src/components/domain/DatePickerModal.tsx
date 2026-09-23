@@ -81,6 +81,7 @@ export function DatePickerModal({
   useEffect(() => {
     if (!visible) return;
     const d = parseDate(value) ?? new Date();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 弹层每次打开都从当前值重新起算，是本组件刻意的生命周期
     setYear(d.getFullYear());
     setMonth(d.getMonth());
     setLevel('day');

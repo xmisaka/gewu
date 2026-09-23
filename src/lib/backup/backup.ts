@@ -19,7 +19,7 @@ import * as Sharing from 'expo-sharing';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 
 import { formatDateCN } from '../date';
-import { listAllCategories, insertRawCategory, type CategoryWithCount } from '../db/categories';
+import { listAllCategories, insertRawCategory } from '../db/categories';
 import { SCHEMA_VERSION } from '../db/schema';
 import { getDatabase, readMeta, wipeBusinessData, writeMeta } from '../db';
 import {
@@ -33,7 +33,7 @@ import {
   listAllLocations,
 } from '../db/locations';
 import { insertRawPhoto, listAllPhotos } from '../db/photos';
-import { ensureDirs, storageUsage } from '../photos/pipeline';
+import { PHOTO_DIR, THUMB_DIR, ensureDirs, pruneOrphanFiles } from '../photos/pipeline';
 import type { Category, Item, Photo, StorageLocation } from '../types';
 
 /** 备份包格式版本；与 app 版本无关，改了包结构才递增 */
@@ -73,8 +73,13 @@ export interface BackupResult {
 
 export type ImportStrategy = 'replace' | 'merge';
 
+/**
+ * 导入结果。
+ *
+ * 注意这里**没有 canceled** —— 取消发生在选文件与预览那一步（见 PreviewOutcome），
+ * 走到 applyBackup 时策略已经定了，不存在"中途取消"。
+ */
 export interface ImportResult {
-  canceled: boolean;
   error?: string;
   manifest?: BackupManifest;
   written?: {
@@ -84,8 +89,41 @@ export interface ImportResult {
     photos: number;
     photoFiles: number;
     skipped: number;
+    /** 导入后顺手清掉的孤儿照片文件数（覆盖导入时通常是正数） */
+    prunedFiles: number;
   };
 }
+
+/**
+ * 导入预览：**只读不写库**。
+ *
+ * 存在的理由：原来是「先问策略、再选文件」，用户是在盲选 ——
+ * 选完才知道那个包里有几件东西、是什么时候的，想反悔已经执行完了。
+ * 现在是先看包，再决定怎么办。
+ */
+export interface BackupPreview {
+  /** 用户选中的文件名，展示用 */
+  fileName: string;
+  manifest: BackupManifest;
+  /** 包内**实际**条目数（以数据文件为准，不信 manifest 里的声明） */
+  counts: { items: number; categories: number; locations: number; photos: number };
+  /** 包内照片文件总字节，让用户对"要占多少空间"有个数 */
+  photoBytes: number;
+  /** 内部用：解压结果，避免确认后再解一次 */
+  entries: Record<string, Uint8Array>;
+  /** 内部用：已解析的四份数据 */
+  data: {
+    categories: Category[];
+    locations: StorageLocation[];
+    items: Item[];
+    photos: Photo[];
+  };
+}
+
+export type PreviewOutcome =
+  | { kind: 'canceled' }
+  | { kind: 'error'; error: string }
+  | { kind: 'ok'; preview: BackupPreview };
 
 /* ------------------------------------------------------------ 时间戳 */
 
@@ -326,45 +364,87 @@ async function pickBackupFile(): Promise<DocumentPickerAsset | null> {
 }
 
 /**
- * 从用户选择的文件导入。
+ * 选包 → 解压 → 校验 → 汇总，**不碰数据库**。
  *
- * replace —— 先清空业务数据再写回，语义简单、绝不重复
- * merge   —— 按 UUID 判重，只补不存在的记录（这也是主键必须 UUID 的原因：
- *            两台设备的备份一合并，自增 ID 立刻撞车）
+ * 校验只做两件事：是不是 zip、是不是格物的包、包格式版本是否高于 App。
+ * 任何一条不过就带着人话回来，不抛异常 —— 调用方只负责把 error 显示出来。
  */
-export async function importBackup(strategy: ImportStrategy): Promise<ImportResult> {
+export async function previewBackup(): Promise<PreviewOutcome> {
   let asset: DocumentPickerAsset | null;
   try {
     asset = await pickBackupFile();
   } catch (err) {
-    return { canceled: false, error: err instanceof Error ? err.message : '无法打开文件选择器' };
+    return { kind: 'error', error: err instanceof Error ? err.message : '无法打开文件选择器' };
   }
-  if (!asset) return { canceled: true };
+  if (!asset) return { kind: 'canceled' };
 
-  let unzipped: Record<string, Uint8Array>;
+  let entries: Record<string, Uint8Array>;
   try {
     const file = new File(asset.uri);
-    unzipped = unzipSync(file.bytesSync());
+    entries = unzipSync(file.bytesSync());
   } catch {
-    return { canceled: false, error: '这个文件不是有效的 ZIP 备份包' };
+    return { kind: 'error', error: '这个文件不是有效的 ZIP 备份包' };
   }
 
-  const manifest = parseJson<BackupManifest | null>(unzipped['manifest.json'], null);
+  const manifest = parseJson<BackupManifest | null>(entries['manifest.json'], null);
   if (!manifest || manifest.app !== 'gewu') {
-    return { canceled: false, error: '这不是格物的备份包（缺少 manifest.json）' };
+    return { kind: 'error', error: '这不是格物的备份包（缺少 manifest.json）' };
   }
   if (manifest.formatVersion > BACKUP_FORMAT_VERSION) {
     return {
-      canceled: false,
+      kind: 'error',
       error: `备份包版本（v${manifest.formatVersion}）比当前 App 新，请先升级 App`,
     };
   }
 
-  const categories = parseJson<Category[]>(unzipped['data/categories.json'], []);
-  const locations = parseJson<StorageLocation[]>(unzipped['data/locations.json'], []);
-  const items = parseJson<Item[]>(unzipped['data/items.json'], []);
-  const photos = parseJson<Photo[]>(unzipped['data/photos.json'], []);
+  const data = {
+    categories: parseJson<Category[]>(entries['data/categories.json'], []),
+    locations: parseJson<StorageLocation[]>(entries['data/locations.json'], []),
+    items: parseJson<Item[]>(entries['data/items.json'], []),
+    photos: parseJson<Photo[]>(entries['data/photos.json'], []),
+  };
 
+  // 照片体积以包内实际条目为准，不读 manifest 的声明
+  let photoBytes = 0;
+  for (const [name, bytes] of Object.entries(entries)) {
+    if (name.startsWith(`${PHOTO_DIR}/`) || name.startsWith(`${THUMB_DIR}/`)) {
+      photoBytes += bytes.byteLength;
+    }
+  }
+
+  return {
+    kind: 'ok',
+    preview: {
+      fileName: asset.name || '备份包',
+      manifest,
+      counts: {
+        items: data.items.length,
+        categories: data.categories.length,
+        locations: data.locations.length,
+        photos: data.photos.length,
+      },
+      photoBytes,
+      entries,
+      data,
+    },
+  };
+}
+
+/**
+ * 按预览结果执行导入。
+ *
+ * replace —— 先清空业务数据再写回，语义简单、绝不重复
+ * merge   —— 按 UUID 判重，只补不存在的记录（这也是主键必须 UUID 的原因：
+ *            两台设备的备份一合并，自增 ID 立刻撞车）
+ *
+ * 收尾一律对账一次，清掉磁盘上没人引用的照片文件。
+ */
+export async function applyBackup(
+  preview: BackupPreview,
+  strategy: ImportStrategy,
+): Promise<ImportResult> {
+  const { entries, data } = preview;
+  const { categories, locations, items, photos } = data;
   const db = await getDatabase();
 
   if (strategy === 'replace') {
@@ -383,6 +463,12 @@ export async function importBackup(strategy: ImportStrategy): Promise<ImportResu
       : new Set<string>();
 
   let skipped = 0;
+  /* 各实体分别计数。
+     曾经的写法是拿**四段循环累加后的** skipped 去减分类总数（categories.length - skipped），
+     而分类那段循环最先跑 —— 于是合并导入只要跳过过物品或照片，
+     提示里的「分类 N 个」就是错的，跳得多时甚至会算出负数。 */
+  let catWritten = 0;
+  let locWritten = 0;
 
   // 分类与位置必须先落，物品才有外键可指
   for (const category of categories) {
@@ -391,6 +477,7 @@ export async function importBackup(strategy: ImportStrategy): Promise<ImportResu
       continue;
     }
     await insertRawCategory(category);
+    catWritten += 1;
   }
 
   for (const location of locations) {
@@ -399,6 +486,7 @@ export async function importBackup(strategy: ImportStrategy): Promise<ImportResu
       continue;
     }
     await insertRawLocation(location);
+    locWritten += 1;
   }
 
   let itemCount = 0;
@@ -422,7 +510,7 @@ export async function importBackup(strategy: ImportStrategy): Promise<ImportResu
     }
     let ok = true;
     for (const rel of [photo.filePath, photo.thumbPath]) {
-      const bytes = unzipped[rel];
+      const bytes = entries[rel];
       if (!bytes) continue;
       try {
         const target = new File(Paths.document, rel);
@@ -439,23 +527,28 @@ export async function importBackup(strategy: ImportStrategy): Promise<ImportResu
     }
   }
 
+  /* 对账：删掉磁盘上已无人引用的照片文件。
+     覆盖导入后这一步是必要的 —— wipeBusinessData 只删库里的行、不删文件，
+     本地原有但不在备份包里的照片会变成「占着空间却看不见」的孤儿，
+     而且会被 storageUsage() 算进「我的 → 占用」，让空间显示无解释地偏大。
+     合并导入时跑一次也无害：只会删掉表里确实没有的文件。 */
+  const referenced = new Set<string>();
+  for (const photo of await listAllPhotos()) {
+    if (photo.filePath) referenced.add(photo.filePath);
+    if (photo.thumbPath) referenced.add(photo.thumbPath);
+  }
+  const prunedFiles = pruneOrphanFiles(referenced);
+
   return {
-    canceled: false,
-    manifest,
+    manifest: preview.manifest,
     written: {
       items: itemCount,
-      categories: strategy === 'replace' ? categories.length : categories.length - skipped,
-      locations: locations.length,
+      categories: catWritten,
+      locations: locWritten,
       photos: photoCount,
       photoFiles,
       skipped,
+      prunedFiles,
     },
   };
-}
-
-/* ------------------------------------------------------------ 自检 */
-
-/** 存储占用，用于「我的」页展示 */
-export function getStorageUsage() {
-  return storageUsage();
 }

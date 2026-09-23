@@ -6,7 +6,6 @@
  */
 
 import { dailyCost, expiryState, holdingDays, today } from '../date';
-import { uuid } from '../id';
 import type { Database } from './index';
 import { getDatabase } from './index';
 import type {
@@ -44,19 +43,44 @@ interface ItemRow {
   cover_thumb: string | null;
 }
 
-/** 列表查询的统一 SELECT 前缀；`_WHERE_` 由调用方替换 */
+/**
+ * 列表查询的统一 SELECT 前缀；`_WHERE_` 由调用方替换。
+ *
+ * 两条硬约束写在这里：
+ *  1. **列名全部显式**，不用 `i.*` —— 迁移新增的列会排在表末尾，
+ *     老库与新库的列序不同，显式列出才不会因为列序差异读错值。
+ *  2. 照片信息走**一次 GROUP BY 聚合**，而不是每行两个相关子查询。
+ *     旧的写法每行要执行 2 次子查询，1000 件物品就是 2000 次；
+ *     现在整个查询只扫一遍 photos 表。
+ *
+ * cover_thumb 取的是 sort_order 最小的那张的 thumb_path。
+ * 这里依赖 SQLite 的一条明确保证：查询中**只有一个 min()/max() 聚合**时，
+ * 所有裸列都会取自那个极值所在的行（COUNT 不属于 min/max，不干扰）。
+ * 注意 sort_order 相同时取哪一行未定义 —— 与旧写法 `ORDER BY sort_order LIMIT 1`
+ * 的模糊程度一致，没有变差。
+ */
 const SELECT_VIEW = `
 SELECT
-  i.*,
-  c.name AS category_name,
-  l.name AS location_name,
+  i.id, i.name, i.category_id, i.location_id, i.purchase_date, i.price,
+  i.expire_date, i.brand, i.model, i.tags, i.note, i.sort_order,
+  i.created_at, i.updated_at, i.deleted_at,
+  c.name  AS category_name,
+  l.name  AS location_name,
   pl.name AS cabinet_name,
-  (SELECT COUNT(*) FROM photos p WHERE p.item_id = i.id) AS photo_count,
-  (SELECT p.thumb_path FROM photos p WHERE p.item_id = i.id ORDER BY p.sort_order ASC LIMIT 1) AS cover_thumb
+  COALESCE(ph.photo_count, 0) AS photo_count,
+  ph.cover_thumb              AS cover_thumb
 FROM items i
 LEFT JOIN categories c  ON c.id = i.category_id
 LEFT JOIN locations  l  ON l.id = i.location_id
 LEFT JOIN locations  pl ON pl.id = l.parent_id
+LEFT JOIN (
+  SELECT item_id,
+         COUNT(*)        AS photo_count,
+         MIN(sort_order) AS min_sort_order,
+         thumb_path      AS cover_thumb
+  FROM photos
+  GROUP BY item_id
+) ph ON ph.item_id = i.id
 `;
 
 function parseTags(raw: string | null): string[] {
@@ -173,8 +197,19 @@ export async function listItems(options: ListOptions = {}): Promise<ItemView[]> 
 
   if (options.query && options.query.trim()) {
     const q = `%${options.query.trim()}%`;
-    where.push('(i.name LIKE ? OR i.brand LIKE ? OR i.model LIKE ? OR i.note LIKE ? OR i.tags LIKE ?)');
-    args.push(q, q, q, q, q);
+    // 除了物品自身字段，还要能按**分类名**和**位置名**搜到：
+    // 用户记的常常是归属而不是物品名 —— 搜「药品」该搜出归在药品类里的东西，
+    // 搜「书房」该搜出书房那个柜子（及其格位）里的东西。
+    where.push(`(
+      i.name LIKE ? OR i.brand LIKE ? OR i.model LIKE ? OR i.note LIKE ? OR i.tags LIKE ?
+      OR EXISTS (SELECT 1 FROM categories c WHERE c.id = i.category_id AND c.name LIKE ?)
+      OR EXISTS (
+        SELECT 1 FROM locations l
+        LEFT JOIN locations p ON p.id = l.parent_id
+        WHERE l.id = i.location_id AND (l.name LIKE ? OR p.name LIKE ?)
+      )
+    )`);
+    args.push(q, q, q, q, q, q, q, q);
   }
 
   if (options.categoryId) {
@@ -295,14 +330,82 @@ export async function updateItem(id: string, patch: Partial<ItemDraft>): Promise
   await db.runAsync(`UPDATE items SET ${sets.join(', ')} WHERE id = ?`, ...args);
 }
 
-/** 批量补分类（补偿机制：低摩擦录入后的批量整理） */
-export async function assignCategory(itemIds: string[], categoryId: string | null): Promise<void> {
+/* ------------------------------------------------------------ 批量整理 */
+
+/**
+ * 批量改单个外键列。列名只来自下面这张白名单表，
+ * 不接受外部字符串，因此可以安全拼进 SQL。
+ */
+const BULK_COLUMN = {
+  category: 'category_id',
+  location: 'location_id',
+} as const;
+
+async function updateManyItems(
+  itemIds: string[],
+  column: (typeof BULK_COLUMN)[keyof typeof BULK_COLUMN],
+  value: string | null,
+): Promise<void> {
   if (itemIds.length === 0) return;
   const db = await getDatabase();
   const now = Date.now();
   await db.withTransactionAsync(async () => {
     for (const id of itemIds) {
-      await db.runAsync('UPDATE items SET category_id = ?, updated_at = ? WHERE id = ?', categoryId, now, id);
+      await db.runAsync(`UPDATE items SET ${column} = ?, updated_at = ? WHERE id = ?`, value, now, id);
+    }
+  });
+}
+
+/** 批量补分类（补偿机制：低摩擦录入后的批量整理） */
+export function assignCategory(itemIds: string[], categoryId: string | null): Promise<void> {
+  return updateManyItems(itemIds, BULK_COLUMN.category, categoryId);
+}
+
+/**
+ * 批量改位置（补偿机制的第二块）。
+ * 搬家、换柜子、整理时这件事必须能一次改完 ——
+ * 否则用户会放弃维护位置，而位置是「找得到」的前提。
+ */
+export function assignLocation(itemIds: string[], locationId: string | null): Promise<void> {
+  return updateManyItems(itemIds, BULK_COLUMN.location, locationId);
+}
+
+/** 批量移入回收站。走软删除，照片与字段都还在，可随时恢复。 */
+export async function softDeleteMany(itemIds: string[]): Promise<void> {
+  if (itemIds.length === 0) return;
+  const db = await getDatabase();
+  const now = Date.now();
+  await db.withTransactionAsync(async () => {
+    for (const id of itemIds) {
+      await db.runAsync('UPDATE items SET deleted_at = ?, updated_at = ? WHERE id = ?', now, now, id);
+    }
+  });
+}
+
+/* ------------------------------------------------------------ 手动排序 */
+
+/** 手动排序步长：留出空隙，将来想往两条之间插一条不必整段重排 */
+const MANUAL_ORDER_STEP = 10;
+
+/**
+ * 按传入顺序重写手动排序值（序号 × 10）。
+ *
+ * 只在首页的「调整顺序」模式里调用，那时列表已被强制清空搜索与分类筛选 ——
+ * 这一点是必须的：若只重排可见的那一段，它的序号会与隐藏项交错，顺序就乱了。
+ *
+ * 刻意**不动 updated_at**：调顺序是展示偏好，不是内容变更。
+ * 改了会让那些物品在「最近变动」排序里集体跳到最前，那是很突兀的副作用。
+ */
+export async function setManualOrder(orderedIds: string[]): Promise<void> {
+  if (orderedIds.length === 0) return;
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await db.runAsync(
+        'UPDATE items SET sort_order = ? WHERE id = ?',
+        i * MANUAL_ORDER_STEP,
+        orderedIds[i],
+      );
     }
   });
 }
@@ -431,19 +534,7 @@ export async function listExpiring(): Promise<ExpiringGroup[]> {
   ];
 }
 
-/** 最近录入的 N 件，用于「我的」页与空状态引导 */
-export async function listRecent(limit = 5): Promise<ItemView[]> {
-  return listItems({ limit });
-}
-
-/** 物品总数（含回收站），备份包用 */
-export async function countAll(): Promise<number> {
-  const db = await getDatabase();
-  const row = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM items');
-  return row?.c ?? 0;
-}
-
-/** 导出用：一次性取出全部字段（含软删除） */
+/** 导入用：一次性取出全部字段（含软删除） */
 export async function listAllForExport(): Promise<Item[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<ItemRow>(`${SELECT_VIEW} ORDER BY i.created_at ASC`);
@@ -462,14 +553,37 @@ export async function existingIds(ids: string[]): Promise<Set<string>> {
   return new Set(rows.map((r) => r.id));
 }
 
-/** 导入用：原样写回记录（保留 UUID 与全部时间戳） */
+/**
+ * 导入用：原样写回记录（保留 UUID 与全部时间戳）。
+ *
+ * **不要用 `INSERT OR REPLACE`**：REPLACE 的语义是先 DELETE 再 INSERT，
+ * 而 `photos.item_id` 上挂着 `ON DELETE CASCADE`（且 `PRAGMA foreign_keys = ON`），
+ * 于是对一个已存在的 id 触发 REPLACE 时，它名下的照片记录会被**级联删掉**。
+ * 现有导入逻辑用 `existingIds` 前置跳过，常规路径碰不到；
+ * 但只要备份包内出现重复 id，就会静默丢照片。用显式 upsert 把语义钉死。
+ */
 export async function insertRaw(item: Item): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
-    `INSERT OR REPLACE INTO items
+    `INSERT INTO items
       (id, name, category_id, location_id, purchase_date, price, expire_date,
        brand, model, tags, note, sort_order, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name          = excluded.name,
+       category_id   = excluded.category_id,
+       location_id   = excluded.location_id,
+       purchase_date = excluded.purchase_date,
+       price         = excluded.price,
+       expire_date   = excluded.expire_date,
+       brand         = excluded.brand,
+       model         = excluded.model,
+       tags          = excluded.tags,
+       note          = excluded.note,
+       sort_order    = excluded.sort_order,
+       created_at    = excluded.created_at,
+       updated_at    = excluded.updated_at,
+       deleted_at    = excluded.deleted_at`,
     item.id,
     item.name,
     item.categoryId,

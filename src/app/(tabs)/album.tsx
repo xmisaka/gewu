@@ -139,5 +139,8 @@ const useStyles = makeStyles((Palette) => ({
     right: Space.md,
     bottom: 6,
   },
-  captionText: { fontSize: 10.5, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3 },
+  /* 白字压在任意照片上，靠一圈深色晕开保证可读。
+     用 shadow 令牌而不是写死的黑 —— 它在浅色档是暖墨、深色档是纯黑，
+     两档都能兜住，也避免成为主题守护脚本的漏网之鱼 */
+  captionText: { fontSize: 10.5, textShadowColor: Palette.shadow, textShadowRadius: 3 },
 }));

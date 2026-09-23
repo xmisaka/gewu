@@ -6,7 +6,6 @@
  * 让用户一眼看出哪些位置记录缺失。
  */
 
-import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
@@ -15,9 +14,9 @@ import { PhotoThumb } from '@/components/domain/media';
 import { Button, IconButton } from '@/components/ui/controls';
 import { EmptyState, Loading, PlainTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen } from '@/components/ui/layout';
-import { Body, Heading, ItemText, Label, Meta, Title } from '@/components/ui/typography';
+import { Heading, ItemText, Label, Meta, Title } from '@/components/ui/typography';
 import { GUTTER, Radius, Space } from '@/constants/theme';
-import { getCabinetView, listCabinetViews } from '@/lib/db/locations';
+import { getCabinetView } from '@/lib/db/locations';
 import { listItems } from '@/lib/db/items';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { useAppState } from '@/lib/store/app-state';

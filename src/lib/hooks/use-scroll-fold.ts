@@ -23,7 +23,11 @@
  *
  * 目标态与动画值分开存：折叠是 240ms 的 withTiming，若拿过渡中的值去判断
  * 「要不要再启动一次动画」，会每帧重启一次，动画永远走不完。
+ *
+ * 全文件豁免 react-hooks/immutability：Reanimated 的 shared value 就是靠
+ * 直接改 .value 驱动的（写值即触发 UI 线程更新），这条规则在这里是误报。
  */
+/* eslint-disable react-hooks/immutability */
 
 import { useCallback } from 'react';
 import {

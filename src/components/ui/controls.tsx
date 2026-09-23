@@ -228,7 +228,9 @@ export function Segmented<T extends string>({
 export function SearchField({
   value,
   onChange,
-  placeholder = '搜索物品 / 品牌 / 备注',
+  /* 搜索已经能命中分类名、柜子名与格位名（见 db/items.ts 的 SELECT_WHERE），
+     占位符得跟上 —— 否则用户不会想到可以搜「药品」或「书房」 */
+  placeholder = '搜索名称 / 品牌 / 分类 / 位置',
   onClear,
 }: {
   value: string;

@@ -33,11 +33,17 @@ export interface CategoryWithCount extends Category {
   itemCount: number;
 }
 
+const CATEGORY_COLUMNS = 'id, name, parent_id, default_expire_months, sort_order, builtin';
+/** 带表别名的同一组列，供需要 JOIN 的查询使用 */
+const CATEGORY_COLUMNS_C = `${CATEGORY_COLUMNS.split(', ')
+  .map((c) => `c.${c}`)
+  .join(', ')}`;
+
 /** 全部分类，带在库物品数；按 sort_order 升序 */
 export async function listCategories(): Promise<CategoryWithCount[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<CategoryRow & { item_count: number }>(
-    `SELECT c.*,
+    `SELECT ${CATEGORY_COLUMNS_C},
        (SELECT COUNT(*) FROM items i WHERE i.category_id = c.id AND i.deleted_at IS NULL) AS item_count
      FROM categories c
      ORDER BY c.sort_order ASC, c.name ASC`,
@@ -47,13 +53,19 @@ export async function listCategories(): Promise<CategoryWithCount[]> {
 
 export async function getCategoryByName(name: string): Promise<Category | null> {
   const db = await getDatabase();
-  const row = await db.getFirstAsync<CategoryRow>('SELECT * FROM categories WHERE name = ?', name);
+  const row = await db.getFirstAsync<CategoryRow>(
+    `SELECT ${CATEGORY_COLUMNS} FROM categories WHERE name = ?`,
+    name,
+  );
   return row ? toCategory(row) : null;
 }
 
 export async function getCategory(id: string): Promise<Category | null> {
   const db = await getDatabase();
-  const row = await db.getFirstAsync<CategoryRow>('SELECT * FROM categories WHERE id = ?', id);
+  const row = await db.getFirstAsync<CategoryRow>(
+    `SELECT ${CATEGORY_COLUMNS} FROM categories WHERE id = ?`,
+    id,
+  );
   return row ? toCategory(row) : null;
 }
 
@@ -103,12 +115,21 @@ export async function deleteCategory(id: string): Promise<{ ok: boolean; reason?
 
 /* ------------------------------------------------------------ 备份还原 */
 
-/** 导入用：原样写回分类，保留 UUID 与内置标记 */
+/**
+ * 导入用：原样写回分类，保留 UUID 与内置标记。
+ * 用显式 upsert 而非 `INSERT OR REPLACE`（理由见 items.ts 的 insertRaw）。
+ */
 export async function insertRawCategory(category: Category): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
-    `INSERT OR REPLACE INTO categories (id, name, parent_id, default_expire_months, sort_order, builtin)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO categories (id, name, parent_id, default_expire_months, sort_order, builtin)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name                  = excluded.name,
+       parent_id             = excluded.parent_id,
+       default_expire_months = excluded.default_expire_months,
+       sort_order            = excluded.sort_order,
+       builtin               = excluded.builtin`,
     category.id,
     category.name,
     category.parentId,
@@ -121,6 +142,8 @@ export async function insertRawCategory(category: Category): Promise<void> {
 /** 导入用：一次性取出全部分类（含内置） */
 export async function listAllCategories(): Promise<Category[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<CategoryRow>('SELECT * FROM categories ORDER BY sort_order ASC');
+  const rows = await db.getAllAsync<CategoryRow>(
+    `SELECT ${CATEGORY_COLUMNS} FROM categories ORDER BY sort_order ASC`,
+  );
   return rows.map(toCategory);
 }

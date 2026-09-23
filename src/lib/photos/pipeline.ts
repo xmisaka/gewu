@@ -55,13 +55,25 @@ export function absoluteUri(relativePath: string | null | undefined): string | n
   return new File(Paths.document, relativePath).uri;
 }
 
-/** 文件是否存在，用于检出「DB 有记录但文件丢了」 */
-export function fileExists(relativePath: string): boolean {
+/**
+ * 列出一个目录下的文件：相对路径 → 文件对象。
+ *
+ * 全模块的目录读取都走这里 —— 目录列举一次就把文件名和体积都拿到了，
+ * 比逐文件 `File.exists` / `stat` 便宜得多（照片上千张时差别很明显）。
+ * 目录不可读时返回空表，于是对账结果偏保守，不会误删东西。
+ */
+function listFilesInDir(dirName: string): Map<string, File> {
+  const map = new Map<string, File>();
   try {
-    return new File(Paths.document, relativePath).exists;
+    const dir = new Directory(Paths.document, dirName);
+    if (!dir.exists) return map;
+    for (const entry of dir.list()) {
+      if (entry instanceof File) map.set(`${dirName}/${entry.name}`, entry);
+    }
   } catch {
-    return false;
+    // 按空目录处理
   }
+  return map;
 }
 
 function sizeOf(relativePath: string): number {
@@ -71,6 +83,63 @@ function sizeOf(relativePath: string): number {
   } catch {
     return 0;
   }
+}
+
+/* ------------------------------------------------------------ 文件对账 */
+
+export interface PhotoFileAudit {
+  /** 磁盘上有、但 photos 表已不再引用的文件 —— 「占用」会因此虚高 */
+  orphans: number;
+  /** photos 表引用了、磁盘上却找不到的文件 —— 界面上就是白框 */
+  missing: number;
+}
+
+/**
+ * 照片文件与数据库记录对账。
+ *
+ * `referenced` 是 photos 表里全部 file_path + thumb_path。
+ * 只列举两次目录，不做逐文件 stat —— 目录列举本身已经给出全部文件名。
+ */
+export function auditPhotoFiles(referenced: Set<string>): PhotoFileAudit {
+  const onDisk = new Set<string>();
+  for (const dirName of [PHOTO_DIR, THUMB_DIR]) {
+    for (const rel of listFilesInDir(dirName).keys()) onDisk.add(rel);
+  }
+
+  let orphans = 0;
+  for (const rel of onDisk) {
+    if (!referenced.has(rel)) orphans += 1;
+  }
+
+  let missing = 0;
+  for (const rel of referenced) {
+    if (rel && !onDisk.has(rel)) missing += 1;
+  }
+
+  return { orphans, missing };
+}
+
+/**
+ * 删除孤儿照片文件，返回删除数量。
+ *
+ * 覆盖导入后必须调一次：本地原有、但不在备份包里的照片，其记录已被
+ * `wipeBusinessData` 清掉，文件却还留在沙盒里 —— 用户看不见，
+ * 但 `storageUsage()` 会把它们算进「占用」，于是空间显示无解释地偏大。
+ */
+export function pruneOrphanFiles(referenced: Set<string>): number {
+  let removed = 0;
+  for (const dirName of [PHOTO_DIR, THUMB_DIR]) {
+    for (const [rel, file] of listFilesInDir(dirName)) {
+      if (referenced.has(rel)) continue;
+      try {
+        file.delete();
+        removed += 1;
+      } catch {
+        // 单个文件删不掉不应中断整体清理
+      }
+    }
+  }
+  return removed;
 }
 
 /* ------------------------------------------------------------ 类型 */
@@ -222,50 +291,17 @@ export function deleteFiles(relativePaths: string[]): void {
   }
 }
 
-/** 磁盘占用统计 */
+/** 磁盘占用统计。与文件对账共用同一次目录列举。 */
 export function storageUsage(): { photoBytes: number; thumbBytes: number; total: number } {
-  const sum = (rel: string): number => {
-    try {
-      const dir = new Directory(Paths.document, rel);
-      if (!dir.exists) return 0;
-      return dir.list().reduce((acc, entry) => {
-        if (entry instanceof File && entry.exists) return acc + (entry.size ?? 0);
-        return acc;
-      }, 0);
-    } catch {
-      return 0;
+  const sum = (dirName: string): number => {
+    let bytes = 0;
+    for (const file of listFilesInDir(dirName).values()) {
+      if (file.exists) bytes += file.size ?? 0;
     }
+    return bytes;
   };
 
   const photoBytes = sum(PHOTO_DIR);
   const thumbBytes = sum(THUMB_DIR);
   return { photoBytes, thumbBytes, total: photoBytes + thumbBytes };
-}
-
-/**
- * 备份包导出用：把照片复制到 cache 下的暂存目录。
- * 返回 相对路径 → 暂存绝对 uri 的映射（缺失的文件直接跳过，备份不因此失败）。
- */
-export function stageForBackup(
-  relativePaths: string[],
-  stagingDirName: string,
-): Map<string, string> {
-  const staging = new Directory(Paths.cache, stagingDirName);
-  if (staging.exists) staging.delete();
-  staging.create({ intermediates: true });
-
-  const map = new Map<string, string>();
-  for (const rel of relativePaths) {
-    try {
-      const src = new File(Paths.document, rel);
-      if (!src.exists) continue;
-      // 相对路径里的 `/` 不能进文件名，替换为分隔符
-      const dest = new File(staging, rel.replace(/\//g, '__'));
-      src.copySync(dest);
-      map.set(rel, dest.uri);
-    } catch {
-      // 跳过
-    }
-  }
-  return map;
 }

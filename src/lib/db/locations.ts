@@ -29,11 +29,14 @@ function toLocation(row: LocationRow): StorageLocation {
   };
 }
 
+const LOCATION_COLUMNS = 'id, name, parent_id, note, sort_order, builtin';
+
 /** 扁平列表，用于选择器；柜子在前、其格位紧随 */
 export async function listLocations(): Promise<StorageLocation[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<LocationRow>(
-    'SELECT * FROM locations ORDER BY (parent_id IS NOT NULL) ASC, sort_order ASC, name ASC',
+    `SELECT ${LOCATION_COLUMNS} FROM locations
+     ORDER BY (parent_id IS NOT NULL) ASC, sort_order ASC, name ASC`,
   );
   return rows.map(toLocation);
 }
@@ -41,7 +44,7 @@ export async function listLocations(): Promise<StorageLocation[]> {
 export async function listCabinets(): Promise<StorageLocation[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<LocationRow>(
-    'SELECT * FROM locations WHERE parent_id IS NULL ORDER BY sort_order ASC, name ASC',
+    `SELECT ${LOCATION_COLUMNS} FROM locations WHERE parent_id IS NULL ORDER BY sort_order ASC, name ASC`,
   );
   return rows.map(toLocation);
 }
@@ -49,7 +52,7 @@ export async function listCabinets(): Promise<StorageLocation[]> {
 export async function listSlots(cabinetId: string): Promise<StorageLocation[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<LocationRow>(
-    'SELECT * FROM locations WHERE parent_id = ? ORDER BY sort_order ASC, name ASC',
+    `SELECT ${LOCATION_COLUMNS} FROM locations WHERE parent_id = ? ORDER BY sort_order ASC, name ASC`,
     cabinetId,
   );
   return rows.map(toLocation);
@@ -57,7 +60,10 @@ export async function listSlots(cabinetId: string): Promise<StorageLocation[]> {
 
 export async function getLocation(id: string): Promise<StorageLocation | null> {
   const db = await getDatabase();
-  const row = await db.getFirstAsync<LocationRow>('SELECT * FROM locations WHERE id = ?', id);
+  const row = await db.getFirstAsync<LocationRow>(
+    `SELECT ${LOCATION_COLUMNS} FROM locations WHERE id = ?`,
+    id,
+  );
   return row ? toLocation(row) : null;
 }
 
@@ -71,7 +77,7 @@ export async function listCabinetViews(): Promise<CabinetView[]> {
 
   for (const cabinet of cabinets) {
     const slots = await db.getAllAsync<LocationRow>(
-      'SELECT * FROM locations WHERE parent_id = ? ORDER BY sort_order ASC, name ASC',
+      `SELECT ${LOCATION_COLUMNS} FROM locations WHERE parent_id = ? ORDER BY sort_order ASC, name ASC`,
       cabinet.id,
     );
 
@@ -209,11 +215,21 @@ export async function lastUsedLocationId(): Promise<string | null> {
 
 /* ------------------------------------------------------------ 备份还原 */
 
-/** 导入用：原样写回位置 */
+/**
+ * 导入用：原样写回位置。
+ * 用显式 upsert 而非 `INSERT OR REPLACE`（理由见 items.ts 的 insertRaw）。
+ */
 export async function insertRawLocation(location: StorageLocation): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
-    'INSERT OR REPLACE INTO locations (id, name, parent_id, note, sort_order, builtin) VALUES (?, ?, ?, ?, ?, ?)',
+    `INSERT INTO locations (id, name, parent_id, note, sort_order, builtin)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name       = excluded.name,
+       parent_id  = excluded.parent_id,
+       note       = excluded.note,
+       sort_order = excluded.sort_order,
+       builtin    = excluded.builtin`,
     location.id,
     location.name,
     location.parentId,

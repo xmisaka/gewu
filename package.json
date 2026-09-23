@@ -1,18 +1,15 @@
 {
   "name": "gewu",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.2.1",
   "dependencies": {
-    "@expo/ui": "~57.0.18",
     "@expo/vector-icons": "^15.0.2",
     "expo": "~57.0.23",
     "expo-constants": "~57.0.18",
     "expo-crypto": "~57.0.3",
-    "expo-device": "~57.0.2",
     "expo-document-picker": "~57.0.2",
     "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
-    "expo-glass-effect": "~57.0.3",
     "expo-image": "~57.0.5",
     "expo-image-manipulator": "~57.0.18",
     "expo-image-picker": "~57.0.18",
@@ -22,9 +19,7 @@
     "expo-splash-screen": "~57.0.9",
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
-    "expo-symbols": "~57.0.3",
     "expo-system-ui": "~57.0.4",
-    "expo-web-browser": "~57.0.3",
     "fflate": "^0.8.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -48,7 +43,11 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --experimental-test-module-mocks --import ./tests/support/register.mjs --test \"tests/*.test.mjs\"",
+    "audit:colors": "node tools/audit-theme-colors.mjs",
+    "verify": "npm run lint && npm run typecheck && npm run audit:colors && npm test"
   },
   "private": true
 }

@@ -14,7 +14,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput
 import { Button, IconButton } from '@/components/ui/controls';
 import { Loading, PlainTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
-import { Body, Heading, ItemText, Label, Meta, Title } from '@/components/ui/typography';
+import { Body, ItemText, Label, Meta } from '@/components/ui/typography';
 import { GUTTER, Palette, Radius, Space, Type } from '@/constants/theme';
 import { createCabinet, createSlot, deleteLocation, listCabinetViews } from '@/lib/db/locations';
 import { useAsyncData } from '@/lib/hooks/use-async-data';

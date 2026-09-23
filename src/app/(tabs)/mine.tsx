@@ -19,12 +19,22 @@ import { Loading, MetricStrip } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { DARK_THEME_KEY, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES, type ThemeKey } from '@/constants/theme';
-import { exportItemsCsv, importBackup, shareBackup, daysSinceLastBackup, BACKUP_FORMAT_VERSION, type ImportResult } from '@/lib/backup/backup';
+import {
+  exportItemsCsv,
+  previewBackup,
+  applyBackup,
+  shareBackup,
+  daysSinceLastBackup,
+  BACKUP_FORMAT_VERSION,
+  type BackupPreview,
+  type ImportStrategy,
+  type PreviewOutcome,
+} from '@/lib/backup/backup';
 import { listAllForExport, listTrash } from '@/lib/db/items';
 import { listAllPhotos } from '@/lib/db/photos';
 
 import { formatDateCN } from '@/lib/date';
-import { formatBytes, formatCount, formatMoney } from '@/lib/format';
+import { formatBytes, formatCount, formatMoney, formatStamp } from '@/lib/format';
 import { storageUsage } from '@/lib/photos/pipeline';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { useAppState } from '@/lib/store/app-state';
@@ -39,6 +49,9 @@ const APP_VERSION = Constants.expoConfig?.version ?? '—';
  * 所以只在这里出现，不进选择器的列表。
  */
 const THEME_DOT_ORDER: readonly ThemeKey[] = [...LIGHT_THEME_KEYS, DARK_THEME_KEY];
+
+/** 超过这么多天没备份，文案就从「上次备份：XX」换成催的口径 */
+const BACKUP_STALE_DAYS = 30;
 
 export default function MineScreen() {
   const styles = useStyles();
@@ -99,35 +112,61 @@ export default function MineScreen() {
     }
   };
 
-  const runImport = () => {
-    Alert.alert('导入备份', '手机上已有的数据怎么处理？', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '合并（只补充新记录）',
-        onPress: () => void doImport('merge'),
-      },
-      {
-        text: '覆盖（清空后还原）',
-        style: 'destructive',
-        onPress: () => {
-          Alert.alert(
-            '确认覆盖？',
-            '当前所有物品、柜子和照片会被清空，然后从备份包还原。这个操作不可撤销。',
-            [
-              { text: '取消', style: 'cancel' },
-              { text: '确认覆盖', style: 'destructive', onPress: () => void doImport('replace') },
-            ],
-          );
-        },
-      },
-    ]);
+  const runImport = async () => {
+    /* 先读包、再问策略。原来是先问策略再选文件 —— 用户在盲选：
+       选完才知道包里是几件东西、什么时候的，而这个动作已经执行完了 */
+    setBusy('preview');
+    let outcome: PreviewOutcome;
+    try {
+      outcome = await previewBackup();
+    } catch (err) {
+      setBusy(null);
+      Alert.alert('导入失败', err instanceof Error ? err.message : '未知错误');
+      return;
+    }
+    setBusy(null);
+
+    if (outcome.kind === 'canceled') return;
+    if (outcome.kind === 'error') {
+      Alert.alert('无法读取这个备份包', outcome.error);
+      return;
+    }
+
+    const preview = outcome.preview;
+    Alert.alert(
+      '这份备份包里有什么',
+      [
+        preview.fileName,
+        `备份时间：${formatStamp(preview.manifest.createdAt)}`,
+        `物品 ${preview.counts.items} 件 · 分类 ${preview.counts.categories} 个 · 位置 ${preview.counts.locations} 个`,
+        `照片 ${preview.counts.photos} 张（${formatBytes(preview.photoBytes)}）`,
+        '',
+        `本机现有 ${stats.total} 件物品。要怎么合？`,
+      ].join('\n'),
+      [
+        { text: '取消', style: 'cancel' },
+        { text: '合并', onPress: () => void doImport(preview, 'merge') },
+        { text: '覆盖', style: 'destructive', onPress: () => confirmReplace(preview) },
+      ],
+    );
   };
 
-  const doImport = async (strategy: 'merge' | 'replace') => {
+  /* 覆盖是不可撤销的，所以单独再确认一次，并且把要抹掉的数字写出来 */
+  const confirmReplace = (preview: BackupPreview) => {
+    Alert.alert(
+      '确认覆盖？',
+      `本机现有的 ${stats.total} 件物品、柜子和照片会先被清空，然后从这份备份还原。这个操作不可撤销。`,
+      [
+        { text: '取消', style: 'cancel' },
+        { text: '确认覆盖', style: 'destructive', onPress: () => void doImport(preview, 'replace') },
+      ],
+    );
+  };
+
+  const doImport = async (preview: BackupPreview, strategy: ImportStrategy) => {
     setBusy('import');
     try {
-      const result: ImportResult = await importBackup(strategy);
-      if (result.canceled) return;
+      const result = await applyBackup(preview, strategy);
       if (result.error) {
         Alert.alert('导入失败', result.error);
         return;
@@ -142,6 +181,7 @@ export default function MineScreen() {
           `位置 ${w?.locations ?? 0} 个`,
           `照片 ${w?.photos ?? 0} 张（文件 ${w?.photoFiles ?? 0} 个）`,
           w && w.skipped > 0 ? `跳过已存在 ${w.skipped} 条` : '',
+          w && w.prunedFiles > 0 ? `顺带清掉 ${w.prunedFiles} 个没人引用的照片文件` : '',
         ]
           .filter(Boolean)
           .join('\n'),
@@ -164,7 +204,24 @@ export default function MineScreen() {
         : backupDays === 1
           ? '昨天'
           : `${backupDays} 天前`;
-  const backupTitle = backupDays == null ? '还没有备份过' : `上次备份：${backupWhen}`;
+  /* 从没备份过、或者拖过了一个月，都算「该再备一次」：
+     这张卡平时是提醒，只有到这一步才需要真的劝 */
+  const backupStale = backupDays == null || backupDays >= BACKUP_STALE_DAYS;
+  const backupTitle =
+    backupDays == null
+      ? '还没有备份过'
+      : backupStale
+        ? `上次备份：${backupWhen}，该再备一次`
+        : `上次备份：${backupWhen}`;
+
+  const backupDesc =
+    backupDays == null
+      ? stats.total > 0
+        ? `这 ${stats.total} 件物品还没有任何副本。手机丢了或误卸载，就一起没了。`
+        : '这块数据不联网、也没有云端副本。手机丢了或误卸载，几千件物品和照片会一起没。'
+      : backupStale
+        ? `距上次备份已经 ${backupDays} 天，这期间录入和修改的东西都还没有副本。`
+        : '这块数据不联网、也没有云端副本。手机丢了或误卸载，几千件物品和照片会一起没。';
 
   return (
     <Screen>
@@ -201,7 +258,7 @@ export default function MineScreen() {
               <SettingRow
                 label="生成备份包"
                 value={busy === 'backup' ? '处理中…' : backupWhen}
-                valueTone={backupDays == null ? 'brand' : 'ink3'}
+                valueTone={backupStale ? 'brand' : 'ink3'}
                 onPress={runBackup}
               />
               <SettingRow
@@ -212,7 +269,7 @@ export default function MineScreen() {
               />
               <SettingRow
                 label="导入备份"
-                value={busy === 'import' ? '处理中…' : undefined}
+                value={busy === 'preview' ? '正在读包…' : busy === 'import' ? '处理中…' : undefined}
                 last
                 onPress={runImport}
               />
@@ -225,7 +282,7 @@ export default function MineScreen() {
                 {backupTitle}
               </Body>
               <Meta color={Palette.brand} style={styles.backupDesc}>
-                这块数据不联网、也没有云端副本。手机丢了或误卸载，几千件物品和照片会一起没。
+                {backupDesc}
               </Meta>
               <Pressable
                 accessibilityRole="button"
@@ -319,7 +376,17 @@ export default function MineScreen() {
 
         {busy ? (
           <View style={styles.busyRow}>
-            <Loading label={busy === 'backup' ? '正在打包…' : busy === 'export' ? '正在导出…' : '正在导入…'} />
+            <Loading
+              label={
+                busy === 'backup'
+                  ? '正在打包…'
+                  : busy === 'export'
+                    ? '正在导出…'
+                    : busy === 'preview'
+                      ? '正在读取备份包…'
+                      : '正在导入…'
+              }
+            />
           </View>
         ) : null}
       </ScrollView>

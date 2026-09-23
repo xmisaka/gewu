@@ -15,7 +15,7 @@ import { PhotoThumb } from '@/components/domain/media';
 import { Button, IconButton } from '@/components/ui/controls';
 import { EmptyState, Loading } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen } from '@/components/ui/layout';
-import { Body, ItemText, Label, Meta } from '@/components/ui/typography';
+import { ItemText, Meta } from '@/components/ui/typography';
 import { GUTTER, Palette, Radius, Space } from '@/constants/theme';
 import { emptyTrash, listTrash, purgeItem, restoreItem } from '@/lib/db/items';
 import { formatMoney, formatStamp } from '@/lib/format';

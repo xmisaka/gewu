@@ -65,6 +65,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   // dataVersion 变化即重算统计，保证角标与实际数据永远同步
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 这一句就是本 hook 存在的理由：写库后立刻把统计重算一遍
     void refreshStats();
   }, [refreshStats, dataVersion]);
 
