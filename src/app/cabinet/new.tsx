@@ -107,7 +107,8 @@ export default function NewCabinetScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <SectionCard title="新建柜子">
-            <Card padded={false}>
+            {/* 卡片自己扛左右边距：SectionCard 只给标题加边距，内容区裸露 */}
+            <Card padded={false} style={styles.formCard}>
               <Gutter>
                 <View style={styles.fieldRow}>
                   <Body style={styles.fieldLabel}>名称</Body>
@@ -283,6 +284,7 @@ const useStyles = makeStyles((Palette) => ({
     backgroundColor: Palette.inset,
   },
   saveAction: { marginTop: Space.lg },
+  formCard: { marginHorizontal: GUTTER },
   list: { paddingHorizontal: GUTTER, gap: Space.md },
   cabinetCard: { padding: Space.lg },
   cabinetHead: { flexDirection: 'row', alignItems: 'center', gap: Space.sm },

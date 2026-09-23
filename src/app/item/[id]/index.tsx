@@ -212,13 +212,13 @@ export default function ItemDetailScreen() {
         </SectionCard>
 
         <SectionCard title="备注">
-          <Card>
+          <Card style={styles.fieldCard}>
             <Body tone={item.note ? 'ink' : 'ink3'}>{item.note?.trim() || '未设置'}</Body>
           </Card>
         </SectionCard>
 
         <SectionCard title="照片">
-          <Card>
+          <Card style={styles.fieldCard}>
             <Body tone={photos.length > 0 ? 'ink' : 'ink3'}>
               {photos.length > 0 ? `${photos.length} 张，已存入 App 沙盒` : '未设置'}
             </Body>

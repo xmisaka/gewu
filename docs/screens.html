@@ -307,8 +307,10 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
         </div>
         <div style="margin:11px 17px 0;flex:0 0 auto">
           <div style="color:#9A8D80;margin-bottom:4px">照片（0）</div>
-          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
-            <div style="display:flex;gap:8px;padding:4px 17px">
+          <!-- 这一组没有卡片外壳 —— 实现里就是两个 72px 描边方块直接落在页面底上，
+               卡片会变成两层边框嵌套。方块自身有边，足够成形 -->
+          <div>
+            <div style="display:flex;gap:8px;padding:4px 0">
               <div style="width:72px;height:72px;border-radius:11px;border:0.5px dashed #E3DCD1;background:#FDFCFA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;flex:0 0 auto">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="6.5" width="19" height="13" rx="3" stroke="#9A8D80" stroke-width="1.6"/><circle cx="12" cy="13" r="3.4" stroke="#9A8D80" stroke-width="1.6"/><path d="M8.6 6.5 10 4.2h4l1.4 2.3" stroke="#9A8D80" stroke-width="1.6" stroke-linejoin="round"/></svg>
                 <span style="color:#9A8D80">添加</span>
@@ -318,7 +320,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
                 <span style="color:#8C5A34">找封面</span>
               </div>
             </div>
-            <div style="color:#C9BEB0;margin-top:8px;padding:0 17px 9px">图片会压缩后存入应用内，删除系统相册不影响这里</div>
+            <div style="color:#C9BEB0;margin-top:8px;padding:0 0 9px">图片会压缩后存入应用内，删除系统相册不影响这里</div>
           </div>
         </div>
         <div style="margin:9px 17px 0;flex:0 0 auto">
@@ -352,7 +354,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#A99C8E" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">03</div><div class="nm">录入 &middot; 连续录入模式</div><div class="ds">两个按钮上下叠、主按钮在上且更大：「保存并录下一件」优先于「保存并完成」。推进感靠标题下那句回执（「刚记下「X」，继续下一件」），不靠进度条 —— 上一版稿里的「第 3 件」进度条和「最多 9 张」并不存在。照片给两个入口：「添加」走本地相册，「找封面」要联网，用品牌色描边把这两件事区分开。这屏画到按钮为止，中间还有「归类 / 时间与花费 / 更多信息」三组字段，只有名称必填。录入是 tab 路由，底部标签栏一直在；中央那颗 + 永远品牌色、永远不带文字，所以「当前在录入页」不会让标签栏有任何变化。</div></figcaption>
+      <figcaption><div class="no">03</div><div class="nm">录入 &middot; 连续录入模式</div><div class="ds">两个按钮上下叠、主按钮在上且更大：「保存并录下一件」优先于「保存并完成」。推进感靠标题下那句回执（「刚记下「X」，继续下一件」），不靠进度条 —— 上一版稿里的「第 3 件」进度条和「最多 9 张」并不存在。照片给两个入口：「添加」走本地相册，「找封面」要联网，用品牌色描边把这两件事区分开。照片这一组**没有卡片外壳**（方块自带描边，再套卡片就是两层边框）—— 卡片只给下面四组字段用，每张卡左右各留 17px，靠卡片自身的边距；这是页面上最容易漏的一处，漏了不报错、只是卡片顶到屏幕两边。这屏画到按钮为止，中间还有「归类 / 时间与花费 / 更多信息」三组字段，只有名称必填。录入是 tab 路由，底部标签栏一直在；中央那颗 + 永远品牌色、永远不带文字，所以「当前在录入页」不会让标签栏有任何变化。</div></figcaption>
     </figure>
 
     <!-- 04 -->

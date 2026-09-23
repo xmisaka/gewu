@@ -425,7 +425,7 @@ export function ItemForm({
         </SectionCard>
 
         <SectionCard title="必填">
-          <Card padded={false}>
+          <Card padded={false} style={styles.cardGutter}>
             <Gutter>
               <FieldRow label="名称" required>
                 <TextInput
@@ -461,7 +461,7 @@ export function ItemForm({
         </SectionCard>
 
         <SectionCard title="归类">
-          <Card padded={false}>
+          <Card padded={false} style={styles.cardGutter}>
             <Gutter>
               <FieldRow label="分类">
                 <Pressable
@@ -488,7 +488,7 @@ export function ItemForm({
         </SectionCard>
 
         <SectionCard title="时间与花费">
-          <Card padded={false}>
+          <Card padded={false} style={styles.cardGutter}>
             <Gutter>
               <FieldRow label="购买日期">
                 <Pressable
@@ -552,7 +552,7 @@ export function ItemForm({
         </SectionCard>
 
         <SectionCard title="更多信息（选填）">
-          <Card padded={false}>
+          <Card padded={false} style={styles.cardGutter}>
             <Gutter>
               <FieldRow label="品牌">
                 <TextInput
@@ -730,6 +730,15 @@ const useStyles = makeStyles((Palette) => ({
   flex: { flex: 1 },
   scroll: { paddingBottom: Space.xxxl * 2 },
   heading: { paddingHorizontal: GUTTER, paddingTop: Space.sm, paddingBottom: Space.xs },
+
+  /* ★ 卡片必须自己扛左右边距（v1.3.0 修：以前四张卡都漏了，整页顶到屏幕两边）。
+     SectionCard 只给「标题」加左右边距，内容区是裸露的 —— 卡片要不要内缩
+     全看调用方，**漏了不报错**。
+     这里用 marginHorizontal 而不是在外面再包一层 <Gutter>：卡片内部已经有一层
+     <Gutter> 给字段行做左右内距（fieldRow 只设了 paddingVertical），
+     若改包外层 Gutter，就得把内层那层挪走，字段行会立刻贴住卡片边缘。
+     同一种做法见详情页的 fieldCard（也是 marginHorizontal: GUTTER）。 */
+  cardGutter: { marginHorizontal: GUTTER },
 
   photoStrip: { gap: Space.sm, paddingHorizontal: GUTTER, paddingVertical: Space.xs },
   photoAdd: {
