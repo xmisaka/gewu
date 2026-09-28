@@ -8,13 +8,21 @@
  * 纯本地单机存储是单点故障，所以备份必须做到「低成本、随手就能做」：
  * 一键生成 + 直接调系统分享面板（发到微信文件传输助手 / 存网盘都行）。
  *
+ * ★ 还有一条 PRD 写死了两次的结论（§10 风险清单）：
+ *   「需要手动触发的备份最终会被弃用，**必须定时自动执行**」。
+ *   所以除了一键分享，还有一个**静默的自动备份**：启动时若距上次备份满 7 天
+ *   且数据确有变化，就往 cache 里写一份（见 autoBackupIfDue）。
+ *   它与手动备份是两个不同的承诺，各自记各自的时间，别相互冒名：
+ *     手动 → 包**离开了这台手机**（发出去 / 存网盘了），这才算防丢；
+ *     自动 → 只是本机 cache 里的一份回滚副本，手机丢了照样没。
+ *
  * 打包用 STORE 模式（level 0）而非 deflate：照片已是 JPEG，再压缩收益近零，
  * 却要多花几倍 CPU 与时间。
  */
 
 import { DocumentPickerAsset } from 'expo-document-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 
@@ -33,12 +41,33 @@ import {
   listAllLocations,
 } from '../db/locations';
 import { insertRawPhoto, listAllPhotos } from '../db/photos';
-import { PHOTO_DIR, THUMB_DIR, ensureDirs, pruneOrphanFiles } from '../photos/pipeline';
+import { PHOTO_DIR, THUMB_DIR, ensureDirs, pruneOrphanFiles, storageUsage } from '../photos/pipeline';
 import type { Category, Item, Photo, StorageLocation } from '../types';
+import {
+  AUTO_BACKUP_INTERVAL_DAYS,
+  BACKUP_CACHE_BUDGET_BYTES,
+  BACKUP_KEEP_MAX,
+  decideAutoBackup,
+  planBackupRetention,
+  summarizeBackups,
+  type BackupFileEntry,
+} from './policy';
 
 /** 备份包格式版本；与 app 版本无关，改了包结构才递增 */
 export const BACKUP_FORMAT_VERSION = 1;
 const CSV_BOM = '\uFEFF';
+
+/**
+ * 备份包文件名前缀。
+ * 名字里带 `YYYYMMDD-HHmm`，**字典序即时间序** —— 清理时不必读 mtime。
+ * 前缀同时是「哪些文件算备份包」的唯一判据（cache 目录里还有找封面的中转图等）。
+ */
+const BACKUP_FILE_PREFIX = '格物-备份-';
+
+/** 手动清理时保留几份（只留最新的一份，是用户主动要腾空间） */
+const MANUAL_CLEAN_KEEP = 1;
+
+export { AUTO_BACKUP_INTERVAL_DAYS };
 
 /* ------------------------------------------------------------ 类型 */
 
@@ -210,7 +239,7 @@ export async function createBackupFile(): Promise<BackupResult> {
   // level 0 = STORE：只打包不压缩，JPEG 再压收益近零
   const zipped = zipSync(entries, { level: 0 });
 
-  const fileName = `格物-备份-${stamp()}.zip`;
+  const fileName = `${BACKUP_FILE_PREFIX}${stamp()}.zip`;
   const out = new File(Paths.cache, fileName);
   out.create({ overwrite: true, intermediates: true });
   out.write(zipped);
@@ -226,7 +255,7 @@ export async function createBackupFile(): Promise<BackupResult> {
 /** 生成备份并立即调起系统分享面板 */
 export async function shareBackup(): Promise<BackupResult> {
   const result = await createBackupFile();
-  await markBackupDone();
+  await markBackupDone(META_LAST_BACKUP);
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(result.uri, {
       mimeType: 'application/zip',
@@ -234,39 +263,236 @@ export async function shareBackup(): Promise<BackupResult> {
       UTI: 'public.zip-archive',
     });
   }
+  // 清理放在分享之后：分享面板还开着的时候去删文件是另一类风险，
+  // 而这一份是刚生成的、名字最新，本来也不会被删到
+  cleanBackupFiles(BACKUP_KEEP_MAX);
   return result;
 }
 
-/* ------------------------------------------------------------ 上次备份时间 */
+/* ------------------------------------------------------------ 本机备份包（cache） */
 
 /**
- * 记在 meta 表，**不随备份包走**。
+ * 列出 cache 目录里已有的备份包，**新的在前**。
+ *
+ * 只看文件名前缀，不认别的文件 —— cache 里还住着找封面时下载的中转图、
+ * 图片压缩过程中的临时文件，删错一个用户的照片就没了。
+ * 目录不可读时返回空表（于是不会误删任何东西）。
+ */
+export function listBackupFiles(): BackupFileEntry[] {
+  const entries: BackupFileEntry[] = [];
+  try {
+    const dir = new Directory(Paths.cache);
+    if (!dir.exists) return entries;
+    for (const entry of dir.list()) {
+      if (!(entry instanceof File)) continue;
+      if (!entry.name.startsWith(BACKUP_FILE_PREFIX) || !entry.name.endsWith('.zip')) continue;
+      entries.push({ name: entry.name, bytes: entry.size ?? 0 });
+    }
+  } catch {
+    return entries;
+  }
+  return entries.sort((a, b) => (a.name < b.name ? 1 : a.name > b.name ? -1 : 0));
+}
+
+/** 本机留了几份、占多少字节（「我的」页那行显示的就是它） */
+export function backupCacheInfo(): { count: number; bytes: number } {
+  return summarizeBackups(listBackupFiles());
+}
+
+/**
+ * 按保留策略清理 cache 里的备份包，返回删掉的份数与释放的字节。
+ *
+ * keep 只是**份额上限**，字节预算照样生效（见 policy.ts 的说明）——
+ * 清理动作永远不能把「至少留一份」这条突破。
+ */
+export function cleanBackupFiles(keep: number = MANUAL_CLEAN_KEEP): { removed: number; freedBytes: number } {
+  const files = listBackupFiles();
+  const plan = planBackupRetention(files, {
+    maxFiles: keep,
+    maxBytes: BACKUP_CACHE_BUDGET_BYTES,
+  });
+
+  let removed = 0;
+  let freedBytes = 0;
+  for (const entry of plan.remove) {
+    try {
+      new File(Paths.cache, entry.name).delete();
+      removed += 1;
+      freedBytes += entry.bytes;
+    } catch {
+      // 单份删不掉不该中断清理
+    }
+  }
+  return { removed, freedBytes };
+}
+
+/* ------------------------------------------------------------ 备份时间与数据指纹 */
+
+/**
+ * 全部记在 meta 表，**不随备份包走**。
  *
  * 语义是「这台设备上做过没做」，不是「我的数据」——
- * 恢复到新手机后这个值从零开始，正好提醒用户"换机后先备份一次"。
+ * 恢复到新手机后这些值从零开始，正好提醒用户"换机后先备份一次"。
  */
 const META_LAST_BACKUP = 'backup.lastAt';
+/** 上次**自动**备份时间。与上一个分开：两者对用户的含义不同（见文件头注释） */
+const META_LAST_AUTO = 'backup.autoAt';
+/** 上次备份那一刻的数据指纹，用来判断"这期间数据动过没有" */
+const META_FINGERPRINT = 'backup.fingerprint';
 
-async function markBackupDone(): Promise<void> {
+/**
+ * 记一笔「刚备份过」。
+ *
+ * 时间与指纹一起写：指纹只记「那一刻的数据长什么样」，
+ * 谁写的都一样 —— 手动备份之后数据没再动过，自动备份就不必再写一份。
+ */
+async function markBackupDone(key: string, fingerprint?: string): Promise<void> {
   try {
     const db = await getDatabase();
-    await writeMeta(db, META_LAST_BACKUP, String(Date.now()));
+    await writeMeta(db, key, String(Date.now()));
+    await writeMeta(db, META_FINGERPRINT, fingerprint ?? (await dataFingerprint()).line);
   } catch {
     // 时间没记上不影响这次备份本身
   }
 }
 
-/** 距上次生成备份包过了多少天；从没备份过返回 null */
-export async function daysSinceLastBackup(): Promise<number | null> {
+async function daysSince(key: string): Promise<number | null> {
   try {
     const db = await getDatabase();
-    const raw = await readMeta(db, META_LAST_BACKUP);
+    const raw = await readMeta(db, key);
     if (!raw) return null;
     const at = Number(raw);
     if (!Number.isFinite(at) || at <= 0) return null;
     return Math.max(0, Math.floor((Date.now() - at) / 86_400_000));
   } catch {
     return null;
+  }
+}
+
+/** 距上次生成备份包（含分享出去的那次）过了多少天；从没备份过返回 null */
+export function daysSinceLastBackup(): Promise<number | null> {
+  return daysSince(META_LAST_BACKUP);
+}
+
+/** 距上次**自动**备份过了多少天；没自动备份过返回 null */
+export function daysSinceAutoBackup(): Promise<number | null> {
+  return daysSince(META_LAST_AUTO);
+}
+
+interface DataFingerprint {
+  line: string;
+  itemCount: number;
+}
+
+/**
+ * 业务数据的指纹：「几个东西 + 最后动过的时间」拼成一个串。
+ *
+ * 为什么不给每张表的写操作挂钩子（每次 createItem / updateItem 都记一笔）：
+ * 那会把「备份策略」这件事插进所有写路径，成本与风险都不划算。
+ * 这里六个标量查询就够用，且全走已有索引：
+ *   - 物品 / 分类 / 位置 / 照片的数量变了 → 指纹变；
+ *   - 任何一件物品被编辑（updated_at）、或被移入/移出回收站 → 指纹变。
+ * 已知的盲区：照片在列表里换序、分类改名。两者都只在「没别的变化」时漏掉一次，
+ * 最坏结果是无变化，等下一次真正有变更时一起被带上，不会丢东西。
+ */
+async function dataFingerprint(): Promise<DataFingerprint> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{
+    items: number;
+    trashed: number;
+    cats: number;
+    locs: number;
+    photos: number;
+    touched: number | null;
+  }>(
+    `SELECT
+       (SELECT COUNT(*) FROM items)                       AS items,
+       (SELECT COUNT(*) FROM items WHERE deleted_at IS NOT NULL) AS trashed,
+       (SELECT COUNT(*) FROM categories)                  AS cats,
+       (SELECT COUNT(*) FROM locations)                   AS locs,
+       (SELECT COUNT(*) FROM photos)                      AS photos,
+       (SELECT MAX(CASE WHEN deleted_at IS NOT NULL AND deleted_at > updated_at
+                        THEN deleted_at ELSE updated_at END) FROM items) AS touched`,
+  );
+
+  const items = row?.items ?? 0;
+  return {
+    itemCount: items,
+    line: [
+      `items=${items}`,
+      `trashed=${row?.trashed ?? 0}`,
+      `cats=${row?.cats ?? 0}`,
+      `locs=${row?.locs ?? 0}`,
+      `photos=${row?.photos ?? 0}`,
+      `touched=${row?.touched ?? 0}`,
+    ].join(';'),
+  };
+}
+
+/* ------------------------------------------------------------ 自动备份 */
+
+export type AutoBackupReason = 'ok' | 'no-data' | 'fresh' | 'unchanged' | 'low-space' | 'error';
+
+export interface AutoBackupOutcome {
+  /** 是否真的写出了一份包 */
+  ran: boolean;
+  reason: AutoBackupReason;
+  result?: BackupResult;
+  /** 本次顺带清掉的旧包份数 */
+  pruned?: number;
+}
+
+/**
+ * 到期就静默写一份备份包到 cache。**不碰分享面板、不弹任何东西**。
+ *
+ * 它补的是 PRD 判定的那个坑：「需要手动触发的备份最终会被弃用」。
+ * 但它**不能替代**手动备份 —— 包留在这台手机里，手机丢了照样没，
+ * 所以「我的」页上两个状态是分开显示的，自动那份不会把手动那份的提醒压下去。
+ *
+ * 任何失败都吞掉并返回原因：这是启动时的补位动作，不该打断用户。
+ */
+export async function autoBackupIfDue(): Promise<AutoBackupOutcome> {
+  try {
+    const db = await getDatabase();
+    const fingerprint = await dataFingerprint();
+
+    const [lastAt, lastAuto, prevFingerprint] = await Promise.all([
+      readMeta(db, META_LAST_BACKUP),
+      readMeta(db, META_LAST_AUTO),
+      readMeta(db, META_FINGERPRINT),
+    ]);
+    // 手动那次也算数：用户刚自己备份过，没必要再自动写一份
+    const lastBackupAt = Math.max(Number(lastAt) || 0, Number(lastAuto) || 0);
+
+    const decision = decideAutoBackup({
+      itemCount: fingerprint.itemCount,
+      lastBackupAt,
+      lastFingerprint: prevFingerprint,
+      fingerprint: fingerprint.line,
+      now: Date.now(),
+    });
+    if (decision !== 'due') return { ran: false, reason: decision };
+
+    /* 打包体积 ≈ 整个照片库（STORE 模式不压缩），所以先看一眼剩多少空间。
+       手机快满时硬写一个几百 MB 的包，轻则写到一半失败留下一份残包，
+       重则把系统的可用空间挤到告警线 —— 这时宁可这次不备。 */
+    const needed = storageUsage().total;
+    let free = Number.POSITIVE_INFINITY;
+    try {
+      free = Paths.availableDiskSpace;
+    } catch {
+      // 拿不到就当作够用，继续往下走
+    }
+    if (Number.isFinite(free) && free < needed + 16 * 1024 * 1024) {
+      return { ran: false, reason: 'low-space' };
+    }
+
+    const result = await createBackupFile();
+    await markBackupDone(META_LAST_AUTO, fingerprint.line);
+    const pruned = cleanBackupFiles(BACKUP_KEEP_MAX).removed;
+    return { ran: true, reason: 'ok', result, pruned };
+  } catch {
+    return { ran: false, reason: 'error' };
   }
 }
 

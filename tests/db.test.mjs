@@ -75,6 +75,25 @@ async function makePhoto(id, itemId, sortOrder, thumb) {
   });
 }
 
+/**
+ * 造一个内置分类。
+ *
+ * 为什么不直接用种子里那些：`reset()` 会把 categories 整表清掉，
+ * 而播种只在 `open()` 里跑一次（进程内由 dbPromise 保证），不会补回来。
+ * 走 insertRawCategory 是「导入备份」那条真实通路，同样能置 builtin = 1。
+ */
+async function makeBuiltinCategory(id, name, months = null) {
+  await categories.insertRawCategory({
+    id,
+    name,
+    parentId: null,
+    defaultExpireMonths: months,
+    sortOrder: 0,
+    builtin: true,
+  });
+  return id;
+}
+
 /* ------------------------------------------------------------ 初始化 */
 
 test('首次打开：写入 schema 版本、建好索引、种下内置分类', async () => {
@@ -344,4 +363,102 @@ test('每档排序都用 id 兜底，同一毫秒写入的批次顺序稳定', a
   const second = (await items.listItems({ sort: 'recent' })).map((i) => i.id);
   assert.deepEqual(first, second, '两次查询顺序应完全一致');
   assert.deepEqual(first, ['a', 'b', 'c', 'd']);
+});
+
+/* ------------------------------------------------------------ 分类管理 */
+
+test('分类：新建带上默认保质期，重名（含只差大小写）被拒', async () => {
+  await reset();
+  const id = await categories.createCategory('相机镜头', 24);
+
+  const created = (await categories.listCategories()).find((c) => c.id === id);
+  assert.equal(created.name, '相机镜头');
+  assert.equal(created.defaultExpireMonths, 24);
+  assert.equal(created.builtin, false, '新建的一律是自定义分类');
+
+  await assert.rejects(() => categories.createCategory('相机镜头'), /已经有/, '同名应被拒');
+  await categories.createCategory('USB');
+  await assert.rejects(() => categories.createCategory('usb'), /已经有/, '只差大小写也算重名');
+  await assert.rejects(() => categories.createCategory('   '), /不能为空/);
+  await assert.rejects(() => categories.createCategory('一'.repeat(13)), /最多/);
+});
+
+test('分类：改名与改保质期，撞到别人名字时报错且不写入', async () => {
+  await reset();
+  const a = await categories.createCategory('甲类', 12);
+  const b = await categories.createCategory('乙类');
+
+  await categories.updateCategory(a, '甲类改', 6);
+  const renamed = (await categories.listCategories()).find((c) => c.id === a);
+  assert.equal(renamed.name, '甲类改');
+  assert.equal(renamed.defaultExpireMonths, 6);
+
+  // 改成自己当前的名字不该算冲突（判重要把自己排除在外）
+  await categories.updateCategory(a, '甲类改', 6);
+
+  await assert.rejects(() => categories.updateCategory(a, '乙类', 6), /已经有/);
+  const after = await categories.listCategories();
+  assert.equal(after.find((c) => c.id === a).name, '甲类改', '失败后不应被写坏');
+  assert.equal(after.find((c) => c.id === b).name, '乙类', '被撞的那条也不该被动过');
+});
+
+test('分类：自定义可删且物品回到未分类，内置不可删', async () => {
+  await reset();
+  const custom = await categories.createCategory('临时类');
+  await makeBuiltinCategory('b1', '数码');
+  await makeItem('i1', { categoryId: custom });
+  await makeItem('i2', { categoryId: custom });
+
+  assert.equal((await categories.deleteCategory(custom)).ok, true);
+
+  const list = await items.listItems();
+  assert.equal(list.length, 2, '删分类不能连物品一起删');
+  assert.ok(
+    list.every((i) => i.categoryId === null && i.categoryName === null),
+    '物品应回到未分类',
+  );
+
+  const refused = await categories.deleteCategory('b1');
+  assert.equal(refused.ok, false);
+  assert.match(refused.reason, /内置/);
+  assert.equal((await categories.getCategory('b1')).name, '数码', '内置分类应还在');
+});
+
+test('分类：顺序按传入数组整体重写，空数组是 no-op', async () => {
+  await reset();
+  const a = await categories.createCategory('一');
+  const b = await categories.createCategory('二');
+  const c = await categories.createCategory('三');
+
+  await categories.applyCategoryOrder([c, a, b]);
+  const ordered = await categories.listCategories();
+  assert.deepEqual(ordered.map((x) => x.id), [c, a, b]);
+  assert.deepEqual(ordered.map((x) => x.sortOrder), [0, 1, 2], '重写后应是连续序号');
+
+  await categories.applyCategoryOrder([]);
+  assert.deepEqual((await categories.listCategories()).map((x) => x.id), [c, a, b]);
+});
+
+test('分类：内置分类改名后旧名不复活，总数与内置标记都不变', async () => {
+  await reset();
+  await makeBuiltinCategory('b1', '数码');
+  const before = await categories.listCategories();
+
+  await categories.updateCategory('b1', '电子产品', null);
+
+  const after = await categories.listCategories();
+  assert.equal(after.length, before.length, '总数不变 —— 播种不该按旧名补第二条回来');
+  assert.equal(after.find((c) => c.id === 'b1').name, '电子产品');
+  assert.ok(!after.some((c) => c.name === '数码'), '旧名不该重新出现');
+  assert.equal(after.find((c) => c.id === 'b1').builtin, true, '改名不该丢掉内置标记');
+});
+
+test('分类：整表被清空后不会自动补种（否则内置名会被占用）', async () => {
+  await reset();
+  assert.equal((await categories.listCategories()).length, 0, 'wipeBusinessData 之后分类表应是真的空的');
+
+  // 「药品」是内置名。能建成功，说明播种没有在每次开库时重跑
+  // —— 若有人把 seedCategories 挪回按名补的写法，这里会直接抛「已经有」。
+  const id = await categories.createCategory('药品', 24);
+  assert.equal((await categories.listCategories()).find((c) => c.id === id).builtin, false);
 });

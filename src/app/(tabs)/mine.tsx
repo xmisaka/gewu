@@ -20,17 +20,22 @@ import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/l
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { DARK_THEME_KEY, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES, type ThemeKey } from '@/constants/theme';
 import {
+  AUTO_BACKUP_INTERVAL_DAYS,
+  backupCacheInfo,
+  cleanBackupFiles,
   exportItemsCsv,
   previewBackup,
   applyBackup,
   shareBackup,
   daysSinceLastBackup,
+  daysSinceAutoBackup,
   BACKUP_FORMAT_VERSION,
   type BackupPreview,
   type ImportStrategy,
   type PreviewOutcome,
 } from '@/lib/backup/backup';
 import { listAllForExport, listTrash } from '@/lib/db/items';
+import { listCategories } from '@/lib/db/categories';
 import { listAllPhotos } from '@/lib/db/photos';
 
 import { formatDateCN } from '@/lib/date';
@@ -62,26 +67,36 @@ export default function MineScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
+  /** 本机备份包被清理后 +1，只用来让上面的 metaState 重取一次 */
+  const [cacheTick, setCacheTick] = useState(0);
 
   const metaState = useAsyncData(
     async () => {
-      const [items, photos] = await Promise.all([listAllForExport(), listAllPhotos()]);
+      const [items, photos, categories] = await Promise.all([
+        listAllForExport(),
+        listAllPhotos(),
+        listCategories(),
+      ]);
       const trash = await listTrash();
       // 与其它统计一趟读回，避免挂载后再多一次异步把界面顶一下
-      const backupDays = await daysSinceLastBackup();
+      const [backupDays, autoDays] = await Promise.all([daysSinceLastBackup(), daysSinceAutoBackup()]);
       return {
         items: items.length,
         photos: photos.length,
         trash: trash.length,
+        categories: categories.length,
         storage: storageUsage(),
         backupDays,
+        autoDays,
+        backupFiles: backupCacheInfo(),
         earliest: items.reduce<number | null>(
           (min, it) => (min == null || it.createdAt < min ? it.createdAt : min),
           null,
         ),
       };
     },
-    [dataVersion],
+    // 清理本机备份包只动文件、不动库，所以不进 dataVersion，用本页自己的计数重取
+    [dataVersion, cacheTick],
     null,
   );
 
@@ -98,6 +113,45 @@ export default function MineScreen() {
     } finally {
       setBusy(null);
     }
+  };
+
+  /**
+   * 清理本机（cache）里的备份包，只留最新的一份。
+   *
+   * 自动备份会按份数 + 字节预算自己淘汰，用户本不必管这个；
+   * 这个入口是给「我现在就要腾空间」用的，所以口径比自动策略更狠（只留一份），
+   * 并在确认框里把「删的是缓存里的副本、已分享出去的包不受影响」写清楚 ——
+   * 否则用户看到「清理备份」四个字，第一反应是怕把备份删没了。
+   */
+  const runCleanBackups = () => {
+    const info = backupCacheInfo();
+    if (info.count === 0) return;
+    Alert.alert(
+      '清理本机备份包？',
+      [
+        `本机有 ${info.count} 份，共 ${formatBytes(info.bytes)}。`,
+        '清理后只保留最新的一份。',
+        '',
+        '这些是 App 缓存目录里的副本；已经发到微信或存进网盘的备份不受影响。',
+      ].join('\n'),
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '清理',
+          style: 'destructive',
+          onPress: () => {
+            const result = cleanBackupFiles();
+            setCacheTick((t) => t + 1);
+            Alert.alert(
+              result.removed > 0 ? '已清理' : '没什么可清理的',
+              result.removed > 0
+                ? `删掉 ${result.removed} 份，腾出 ${formatBytes(result.freedBytes)}。`
+                : '本机只剩一份备份包了。',
+            );
+          },
+        },
+      ],
+    );
   };
 
   const runExport = async () => {
@@ -196,14 +250,10 @@ export default function MineScreen() {
   const meta = metaState.data;
 
   const backupDays = meta?.backupDays ?? null;
-  const backupWhen =
-    backupDays == null
-      ? '还没备份过'
-      : backupDays === 0
-        ? '今天'
-        : backupDays === 1
-          ? '昨天'
-          : `${backupDays} 天前`;
+  const relativeDays = (days: number | null): string =>
+    days == null ? '—' : days === 0 ? '今天' : days === 1 ? '昨天' : `${days} 天前`;
+
+  const backupWhen = backupDays == null ? '还没备份过' : relativeDays(backupDays);
   /* 从没备份过、或者拖过了一个月，都算「该再备一次」：
      这张卡平时是提醒，只有到这一步才需要真的劝 */
   const backupStale = backupDays == null || backupDays >= BACKUP_STALE_DAYS;
@@ -222,6 +272,17 @@ export default function MineScreen() {
       : backupStale
         ? `距上次备份已经 ${backupDays} 天，这期间录入和修改的东西都还没有副本。`
         : '这块数据不联网、也没有云端副本。手机丢了或误卸载，几千件物品和照片会一起没。';
+
+  /* 自动备份的状态是**另一条**信息，不能并进上面那张卡：
+     上面说的是「包有没有离开这台手机」（这才是防丢），
+     自动备份只是本机 cache 里的一份回滚副本，手机丢了照样没。 */
+  const autoDays = meta?.autoDays ?? null;
+  const autoNote =
+    autoDays == null
+      ? `自动备份：每 ${AUTO_BACKUP_INTERVAL_DAYS} 天往本机存一份`
+      : `自动备份：已于 ${relativeDays(autoDays)}存到本机`;
+
+  const backupFiles = meta?.backupFiles ?? { count: 0, bytes: 0 };
 
   return (
     <Screen>
@@ -270,10 +331,24 @@ export default function MineScreen() {
               <SettingRow
                 label="导入备份"
                 value={busy === 'preview' ? '正在读包…' : busy === 'import' ? '处理中…' : undefined}
-                last
+                last={backupFiles.count === 0}
                 onPress={runImport}
               />
+              {/* 只在真有本机备份包时出现：新装用户看到一行「暂无」只是噪声 */}
+              {backupFiles.count > 0 ? (
+                <SettingRow
+                  label="清理本地备份包"
+                  value={`${backupFiles.count} 个 · ${formatBytes(backupFiles.bytes)}`}
+                  valueTone="ink3"
+                  last
+                  onPress={runCleanBackups}
+                />
+              ) : null}
             </Card>
+
+            <Meta tone="ink4" style={styles.autoNote}>
+              {autoNote}
+            </Meta>
 
             {/* 品牌卡（方案页的 brandcard）：备份是这件事里唯一「不做就会永久丢」的动作，
                 该被显眼地提出来，而不是混在一行设置里 */}
@@ -302,6 +377,12 @@ export default function MineScreen() {
           <Gutter>
             <Card padded={false}>
               <SettingRow label="柜子与格位" onPress={() => router.push('/cabinet/new')} />
+              <SettingRow
+                label="分类管理"
+                value={meta ? `${meta.categories} 个` : undefined}
+                valueTone="ink3"
+                onPress={() => router.push('/category')}
+              />
               <SettingRow
                 label="封面图源"
                 value={stockKeyStatus()}
@@ -427,6 +508,10 @@ const useStyles = makeStyles((Palette) => ({
   },
 
   warnText: { lineHeight: 20, fontSize: 13 },
+
+  /* 数据通道卡下面那行自动备份状态：与设置行的文字左对齐（行内距是 Space.lg），
+     贴着卡片下沿，别抢品牌卡的注意力 */
+  autoNote: { marginTop: Space.sm, paddingHorizontal: Space.lg },
 
   /* 备份品牌卡。左右边距由外层的 Gutter 给，这里不再自己扛
      —— 两处都写会叠成 34px，比方案页的 17px 宽一倍 */

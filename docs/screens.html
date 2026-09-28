@@ -125,7 +125,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
   <h1>格物</h1>
   <p class="lede">东西放在哪，你记得，它也记得。一套以「位置」为骨架、以「持有成本」为情绪回报的本地收纳记录工具。</p>
   <div class="meta">
-    <span>9 屏</span>
+    <span>10 屏</span>
     <span>四套浅色 + 系统深色自动接管</span>
     <span>暖棕纸感 &middot; 衬线叙述</span>
     <span>Android &middot; 纯本地</span>
@@ -158,14 +158,14 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
       <tr><td>关键数字</td><td><span class="t-num">&#165;24.4</span></td><td class="spec">无衬线 30 / 500 &middot; 等宽</td></tr>
     </tbody>
   </table>
-  <p class="small" style="margin-top:14px">上表是 App 里的<b>真实</b>字号（对应 <code>Type</code> 令牌表）。下面九屏的手机稿框固定 280px 宽，而真机常见 393dp，所以屏内文字按约 0.8 倍收细画 —— 直接用真字号，品名会在更窄的框里折成两行。两边不一致时，以这张表为准。</p>
+  <p class="small" style="margin-top:14px">上表是 App 里的<b>真实</b>字号（对应 <code>Type</code> 令牌表）。下面十屏的手机稿框固定 280px 宽，而真机常见 393dp，所以屏内文字按约 0.8 倍收细画 —— 直接用真字号，品名会在更窄的框里折成两行。两边不一致时，以这张表为准。</p>
 </section>
 
 <section>
   <div class="sec-head">
     <span class="sec-num">02</span>
     <h2>界面</h2>
-    <span class="note">九屏，按使用动线排列</span>
+    <span class="note">十屏，按使用动线排列</span>
   </div>
 
   <div class="screens">
@@ -294,7 +294,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           </div>
         </div>
       </div></div>
-      <figcaption><div class="no">02</div><div class="nm">物品详情 &middot; 持有成本卡</div><div class="ds">成本卡单独成块：摊到多少天、每天多少钱、一句折算说明 —— 全 App 唯一带情绪回报的信息，混进字段表就会被淹没。价格或日期任一缺失就整卡隐藏，绝不留「&#165;0.00 / 天」。（上一版稿里的「复制一条」按钮并不存在，复制物品还在待办里。）</div></figcaption>
+      <figcaption><div class="no">02</div><div class="nm">物品详情 &middot; 持有成本卡</div><div class="ds">成本卡单独成块：摊到多少天、每天多少钱、一句折算说明 —— 全 App 唯一带情绪回报的信息，混进字段表就会被淹没。价格或日期任一缺失就整卡隐藏，绝不留「&#165;0.00 / 天」。底部两个入口「编辑这件物品 / 复制为新物品」—— 同款买第二个走复制，只带过名称、分类、位置、品牌和单价，照片与备注按新物品处理（两个副本共用一份图，删掉其中一个另一个就白框）。这是 PRD 点名的「一键复制」，与连续录入、字段默认值并列为录入疲劳的三道对冲。</div></figcaption>
     </figure>
 
     <!-- 03 -->
@@ -620,44 +620,51 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <div style="color:#9A8D80;margin-top:3px">数据都在这台手机里，请留意备份</div>
         </div>
         <!-- 概览：MetricStrip 裸壳（framed=false）塞进一张 Card，总价值 / 占用收在下面一行小字 -->
-        <div style="margin:11px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;padding:2px 0 1px;flex:0 0 auto">
+        <div style="margin:11px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;padding:0;flex:0 0 auto">
           <div style="display:flex">
-            <div style="flex:1;text-align:center;padding:7px 6px 0">
+            <div style="flex:1;text-align:center;padding:5px 6px 0">
               <div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">328</div>
               <div style="color:#9A8D80;margin-top:1px;font-size:11px">物品</div>
             </div>
-            <div style="flex:1;text-align:center;padding:7px 6px 0;border-left:0.5px solid #EBE5DB">
+            <div style="flex:1;text-align:center;padding:5px 6px 0;border-left:0.5px solid #EBE5DB">
               <div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">1,024</div>
               <div style="color:#9A8D80;margin-top:1px;font-size:11px">照片</div>
             </div>
-            <div style="flex:1;text-align:center;padding:7px 6px 0;border-left:0.5px solid #EBE5DB">
+            <div style="flex:1;text-align:center;padding:5px 6px 0;border-left:0.5px solid #EBE5DB">
               <div style="font-size:14px;font-weight:600;font-variant-numeric:tabular-nums">3</div>
               <div style="color:#9A8D80;margin-top:1px;font-size:11px">回收站</div>
             </div>
           </div>
-          <div style="text-align:center;color:#C9BEB0;margin-top:3px">共 &#165;42,680 &middot; 占用 486 MB</div>
+          <div style="text-align:center;color:#C9BEB0;margin-top:2px">共 &#165;42,680 &middot; 占用 486 MB</div>
         </div>
-        <div style="margin:9px 17px 0;flex:0 0 auto">
-          <div style="color:#9A8D80;margin-bottom:4px">数据通道</div>
+        <div style="margin:8px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:3px">数据通道</div>
           <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden">
-            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">生成备份包</span><span style="color:#9A8D80;font-weight:500">3 天前 &nbsp;&#8250;</span></div>
-            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">导出物品清单</span><span style="color:#9A8D80;font-weight:500">CSV &nbsp;&#8250;</span></div>
-            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">导入备份</span><span style="color:#8C5A34">&#8250;</span></div>
+            <div class="fr" style="padding:3px 12px"><span style="color:#6B6055">生成备份包</span><span style="color:#9A8D80;font-weight:500">3 天前 &nbsp;&#8250;</span></div>
+            <div class="fr" style="padding:3px 12px"><span style="color:#6B6055">导出物品清单</span><span style="color:#9A8D80;font-weight:500">CSV &nbsp;&#8250;</span></div>
+            <div class="fr" style="padding:3px 12px"><span style="color:#6B6055">导入备份</span><span style="color:#8C5A34">&#8250;</span></div>
+            <div class="fr" style="padding:3px 12px"><span style="color:#6B6055">清理本地备份包</span><span style="color:#9A8D80;font-weight:500">2 个 &middot; 41 MB &nbsp;&#8250;</span></div>
           </div>
+          <!-- 自动备份的状态单独一行、不进上面那张卡：它和手动备份是两件不同的事。
+               手动那份的包**离开了这台手机**（发出去了），这才算防丢；
+               自动那份只是本机缓存里的回滚副本，手机丢了照样没。
+               两者混在一行，用户会以为「已经自动备过了」就等于安全了 -->
+          <div style="color:#C9BEB0;margin:4px 0 0 29px">自动备份：已于 3 天前存到本机</div>
           <!-- 品牌卡：备份是唯一「不做就会永久丢」的动作，单独提出来，整行宽按钮是这页唯一的主动作。
                回收站不再混在这里 —— 它属于「整理」 -->
-          <div style="margin-top:10px;background:#F3E9DE;border-radius:13px;padding:11px">
+          <div style="margin-top:10px;background:#F3E9DE;border-radius:13px;padding:9px">
             <div style="color:#6B4224;font-weight:500">上次备份：3 天前</div>
-            <div style="color:#8C5A34;margin-top:2px;font-size:11px;line-height:17px">这块数据不联网、也没有云端副本。手机丢了或误卸载，几千件物品和照片会一起没。</div>
-            <div style="margin-top:11px;background:#8C5A34;color:#fff;border-radius:10px;padding:7px 0;text-align:center;font-weight:600">立即备份</div>
+            <div style="color:#8C5A34;margin-top:2px;font-size:11px;line-height:16px">这块数据不联网、也没有云端副本。手机丢了或误卸载，几千件物品和照片会一起没。</div>
+            <div style="margin-top:9px;background:#8C5A34;color:#fff;border-radius:10px;padding:6px 0;text-align:center;font-weight:600">立即备份</div>
           </div>
         </div>
-        <div style="margin:7px 17px 0;flex:0 0 auto">
-          <div style="color:#9A8D80;margin-bottom:4px">整理</div>
+        <div style="margin:6px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:3px">整理</div>
           <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden">
-            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">柜子与格位</span><span style="color:#8C5A34">&#8250;</span></div>
-            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">封面图源</span><span style="color:#9A8D80;font-weight:500">已配置 &#8226;&#8226;&#8226;&#8226;&#8226;&#8226;7f2a &nbsp;&#8250;</span></div>
-            <div class="fr" style="padding:7px 12px"><span style="color:#6B6055">回收站</span><span style="color:#8C5A34;font-weight:500">3 件待处理 &nbsp;&#8250;</span></div>
+            <div class="fr" style="padding:3px 12px"><span style="color:#6B6055">柜子与格位</span><span style="color:#8C5A34">&#8250;</span></div>
+            <div class="fr" style="padding:3px 12px"><span style="color:#6B6055">分类管理</span><span style="color:#9A8D80;font-weight:500">14 个 &nbsp;&#8250;</span></div>
+            <div class="fr" style="padding:3px 12px"><span style="color:#6B6055">封面图源</span><span style="color:#9A8D80;font-weight:500">已配置 &#8226;&#8226;&#8226;&#8226;&#8226;&#8226;7f2a &nbsp;&#8250;</span></div>
+            <div class="fr" style="padding:3px 12px"><span style="color:#6B6055">回收站</span><span style="color:#8C5A34;font-weight:500">3 件待处理 &nbsp;&#8250;</span></div>
           </div>
         </div>
         <div class="tabbar" style="margin-top:0">
@@ -668,7 +675,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <div class="tb on"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#8C5A34" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#8C5A34" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">08</div><div class="nm">我的 &middot; 数据与备份</div><div class="ds">备份状态置顶、单独用品牌浅底，按钮占满整行 —— 纯本地方案里这是唯一的救命绳，混进设置行就会被当成一条普通设置。三个出口（生成备份包 / 导出 CSV 清单 / 导入备份）收在一组，回收站归到「整理」，不再和数据通道混在一起。这屏画的是首屏，再往下还有「外观」（主题入口 + 五枚色点）与「关于」两组，主题弹层见 09。</div></figcaption>
+      <figcaption><div class="no">08</div><div class="nm">我的 &middot; 数据与备份</div><div class="ds">备份状态置顶、单独用品牌浅底，按钮占满整行 —— 纯本地方案里这是唯一的救命绳，混进设置行就会被当成一条普通设置。四个出口（生成备份包 / 导出 CSV 清单 / 导入备份 / 清理本地备份包）收在一组，「整理」放柜子与格位、分类管理、封面图源、回收站四条 —— 位置和分类是同一类事，得挨着。<b>自动备份的状态刻意单独一行、不并进上面那张卡</b>：手动那份的包离开了这台手机才算防丢，自动那份只是本机缓存里的回滚副本，两者混在一起，用户会把「已经自动备过了」当成安全。清理入口只在本机确实有包时出现，新装用户看到一行「暂无」只是噪声。这屏画的是首屏，再往下还有「外观」（主题入口 + 五枚色点）与「关于」两组，主题弹层见 09。</div></figcaption>
     </figure>
 
     <!-- 09 -->
@@ -735,6 +742,85 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
       <figcaption><div class="no">09</div><div class="nm">主题 &middot; 底部弹层，只列四套浅色</div><div class="ds">和排序、分类选择器同构：底部弹出，不进路由。每一行前面那枚圆点取的是该套主题的品牌色，与「我的」页的色点指示器同源。深色档「玄夜」不进这个列表 —— 它不是「第五个选项」，是系统深色时的接管档，让用户手动选它等于要维护五套可选项。底部那行说明必须留着：否则用户在系统深色下选浅色会以为没生效。</div></figcaption>
     </figure>
 
+    <!-- 10 -->
+    <figure class="fig" data-slug="categories">
+      <div class="shot"><div class="ph">
+        <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
+        <!-- 栈内页：没有底部标签栏，退出口只剩左上角那颗返回，右侧挂总数当尺子 -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 9px 0;flex:0 0 auto">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M15 4.5 7.5 12 15 19.5" stroke="#2B241F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="color:#9A8D80;padding-right:8px">14 个</span>
+        </div>
+        <div style="padding:2px 17px 0;flex:0 0 auto">
+          <div class="hd">分类管理</div>
+          <div style="color:#9A8D80;margin-top:3px">给东西归类，列表里就能按类筛</div>
+        </div>
+
+        <!-- 新建分类：名称带出后可点；默认保质期是一排 chip，「不设」永远排第一 -->
+        <div style="margin:12px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:4px">新建分类</div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px">
+            <div style="display:flex;align-items:center;min-height:44px;padding:0 12px;border-bottom:0.5px solid #F1ECE4">
+              <span style="color:#6B6055;width:52px;flex:0 0 auto">名称</span>
+              <span style="flex:1;color:#2B241F">相机镜头</span>
+            </div>
+            <div style="padding:10px 12px 12px">
+              <div style="color:#9A8D80">默认保质期（选填）</div>
+              <!-- 真机 393dp 下这六个 chip 正好一行；280px 的稿框放不下，
+                   按文档第 01 节说的「约 0.8 倍收细」处理，不折行、不竖排 -->
+              <div style="display:flex;gap:3px;margin-top:6px;flex-wrap:nowrap;white-space:nowrap;font-size:10px">
+                <span style="padding:3px 5px;border-radius:999px;border:0.5px solid #E3DCD1;background:#FDFCFA;color:#6B6055">不设</span>
+                <span style="padding:3px 5px;border-radius:999px;border:0.5px solid #E3DCD1;background:#FDFCFA;color:#6B6055">3 个月</span>
+                <span style="padding:3px 5px;border-radius:999px;border:0.5px solid #E3DCD1;background:#FDFCFA;color:#6B6055">6 个月</span>
+                <span style="padding:3px 5px;border-radius:999px;border:0.5px solid #E3DCD1;background:#FDFCFA;color:#6B6055">1 年</span>
+                <span style="padding:3px 5px;border-radius:999px;background:#8C5A34;color:#fff">2 年</span>
+                <span style="padding:3px 5px;border-radius:999px;border:0.5px solid #E3DCD1;background:#FDFCFA;color:#6B6055">3 年</span>
+              </div>
+              <div style="color:#C9BEB0;margin-top:6px;line-height:16px">录物品时选到这一类，会自动按购买日期带出过期时间</div>
+              <div style="margin-top:10px;background:#8C5A34;color:#fff;border-radius:10px;padding:7px 0;text-align:center;font-weight:600">添加分类</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 已有分类：一行一类，右侧上下箭头就是首页筛选条的先后；首项上移已到底，画成浅一档 -->
+        <div style="margin:11px 17px 0;flex:1;min-height:0;overflow:hidden">
+          <div style="color:#9A8D80;margin-bottom:4px">已有分类（14）</div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:13px;overflow:hidden">
+            <div class="fr" style="padding:7px 12px">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:5px"><span style="font-weight:500">数码</span><span class="tgn" style="padding:1px 5px;border-radius:6px">内置</span></div>
+                <div style="color:#9A8D80;margin-top:1px">42 件 &middot; 不设默认保质期</div>
+              </div>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto"><path d="M4.5 10 8 6.5 11.5 10" stroke="#C9BEB0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto"><path d="M4.5 6 8 9.5 11.5 6" stroke="#9A8D80" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto"><path d="M4.5 6 8 9.5 11.5 6" stroke="#C9BEB0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="fr" style="padding:7px 12px">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:5px"><span style="font-weight:500">药品</span><span class="tgn" style="padding:1px 5px;border-radius:6px">内置</span></div>
+                <div style="color:#9A8D80;margin-top:1px">18 件 &middot; 默认保质期 2 年</div>
+              </div>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto"><path d="M4.5 10 8 6.5 11.5 10" stroke="#9A8D80" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto"><path d="M4.5 6 8 9.5 11.5 6" stroke="#9A8D80" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto"><path d="M4.5 6 8 9.5 11.5 6" stroke="#C9BEB0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="fr" style="padding:7px 12px">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:5px"><span style="font-weight:500">相机镜头</span></div>
+                <div style="color:#9A8D80;margin-top:1px">6 件 &middot; 默认保质期 3 年</div>
+              </div>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto"><path d="M4.5 10 8 6.5 11.5 10" stroke="#9A8D80" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto"><path d="M4.5 6 8 9.5 11.5 6" stroke="#9A8D80" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex:0 0 auto"><path d="M4.5 6 8 9.5 11.5 6" stroke="#C9BEB0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+          <!-- 页脚这句是这页的免责声明：不可删 + 排序影响哪里，都写清楚 -->
+          <div style="color:#C9BEB0;margin-top:11px;line-height:16px">内置分类 14 个不可删除 —— 打字时自动猜分类要靠它们挂靠。顺序就是首页筛选条的先后，用右侧箭头调整。</div>
+        </div>
+      </div></div>
+      <figcaption><div class="no">10</div><div class="nm">分类管理 &middot; 从「我的 &rarr; 整理」进</div><div class="ds">V1 一直只做到「能选」——建库时的十四个分类改不了、加不了、删不掉，想加一个「相机镜头」都没入口。这一页把三个仓储函数接出来：新建、改名、删除，再加一条排序。三条规矩：<b>内置分类不可删、但可以改名</b>（猜词结果得有实体可挂，命名权交回用户）；<b>排序用行右侧的上下箭头</b>，顺序就是首页筛选条的先后，让用户手填数字等于这个功能不存在；<b>默认保质期收在这一页</b>，录入页只消费它 —— 否则改了值看不出任何变化。改内置分类的名字时，编辑区里那行琥珀色提示必须留着：猜词词典按种子原名建索引，改名之后这一类就不再自动猜中。点行名（或右侧箭头）展开编辑区：名称输入框、保质期 chips、保存 / 取消，「删除」只出现在自定义分类上。</div></figcaption>
+    </figure>
+
   </div>
 </section>
 
@@ -742,7 +828,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
   <div class="sec-head">
     <span class="sec-num">03</span>
     <h2>设计取舍</h2>
-    <span class="note">五条贯穿全界面的决定</span>
+    <span class="note">七条贯穿全界面的决定</span>
   </div>
   <p class="small">画的过程中撞到几个 PRD 里没定死的地方，这几条最终都落进了实现，也是这套界面看起来「像回事」的原因：</p>
   <ol class="dl">
@@ -751,6 +837,8 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
     <li><b>「保存并录下一件」视觉权重高于「保存并完成」</b><span>主按钮给了「录下一件」，字号和面积都更大。这是刻意的：连续录入是 V1 成败的关键，界面要推着用户往前走，而不是引导他退出。</span></li>
     <li><b>V1 只有「过期时间」一个时间字段，没有保修</b><span>源码里查不到任何「保修」相关字段或文案——这一版不做。留的口子是：将来真加「保修到期」，直接复用现在这套琥珀色倒计时样式即可，视觉层不用改。别把这两件事画成两个色，那会让「即将到期」这个信号失去唯一性。</span></li>
     <li><b>缺失值统一显示「未设置」，且组合缺失时整行隐藏</b><span>单个字段缺失显示浅灰「未设置」；但成本卡这类依赖多个字段的组合指标，任一缺失就整卡隐藏。绝不显示「¥0.00 / 天」——那会让人以为东西是白来的。</span></li>
+    <li><b>内置分类不可删除，但可以改名</b><span>PRD 只写了「我的」页要有「分类管理」，没定内置分类算什么。这里的口径是：猜词结果必须有实体可挂靠，删掉「数码」会让一整类物品失去归处，所以不给删除；但「数码」「五金」未必贴合每个人的生活，命名权该交回用户，所以给改名。代价是改名后这一类不再自动猜中（词典按种子原名建索引）—— 这句话直接写在编辑区的琥珀色提示里，不藏着。一个悄悄失效的智能功能，比一开始就没有更伤人。</span></li>
+    <li><b>自动备份与手动备份是两个状态，不合并显示</b><span>手动那份的包**离开了这台手机**（发到微信 / 存进网盘），这才是防丢；自动那份只是本机缓存里的一份回滚副本，手机丢了照样没。所以「我的」页上它们是两行：品牌卡管手动（上次备份：3 天前 + 立即备份），下面一行小字管自动（已于 3 天前存到本机）。合在一起最省地方，代价是用户以为「已经自动备过了」就等于安全 —— 这个误解比多占一行贵得多。同理，自动备份只在 cache 里留最近几份、并按总字节封顶：一份包就是整个照片库的体积，不限量等于在手机里堆几个全量副本。</span></li>
   </ol>
 </section>
 

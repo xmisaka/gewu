@@ -35,7 +35,7 @@ import { formatMoney, parseMoneyInput } from '@/lib/format';
 import { deleteFiles, ingestMany, pickFromLibrary, type IngestedPhoto } from '@/lib/photos/pipeline';
 import { clearStockCache, downloadToCache, type CoverCandidate } from '@/lib/photos/stock';
 import { defaultExpireMonths, EXPIRY_PRESETS, guessCategory, UNCATEGORIZED } from '@/lib/suggest';
-import type { CabinetView , ItemDraft, ItemView, Photo } from '@/lib/types';
+import type { CabinetView, Item, ItemDraft, ItemView, Photo } from '@/lib/types';
 
 import { PhotoThumb } from './media';
 import { makeStyles } from '@/lib/theme';
@@ -59,6 +59,17 @@ export interface FormPayload {
 export interface ItemFormProps {
   /** 编辑模式传入；录入模式为 null */
   initialItem?: ItemView | null;
+  /**
+   * 复制模式：拿这件物品当模板预填，但**不是在改它**。
+   *
+   * 与 initialItem 的差别全在语义上 ——
+   *   1. 不自动聚焦名称（已经填好了，弹键盘反而挡住要看的东西）；
+   *   2. 分类视为「用户已定」，不被猜词覆盖（否则复制过来又被猜回老分类）；
+   *   3. 购买日期回到今天、过期时间按分类重新带（新买的一件，
+   *      照抄原件的日期会让持有成本和到期状态双双失真）。
+   * 传什么是调用方的决定（见 item/[id]/duplicate.tsx）：照片与备注由那里裁掉。
+   */
+  prefill?: ItemSeed | null;
   initialPhotos?: Photo[];
   categories: CategoryWithCount[];
   cabinets: CabinetView[];
@@ -76,6 +87,26 @@ export interface ItemFormProps {
   heading?: string;
 }
 
+/**
+ * 预填只需物品的这几个字段。
+ * 刻意用窄类型而不是 ItemView —— 否则调用方为了凑齐 categoryName / dailyCost
+ * 那些派生字段，得先编造一堆假值出来。
+ */
+export type ItemSeed = Pick<
+  Item,
+  | 'name'
+  | 'categoryId'
+  | 'locationId'
+  | 'purchaseDate'
+  | 'price'
+  | 'expireDate'
+  | 'brand'
+  | 'model'
+  | 'tags'
+  | 'note'
+  | 'sortOrder'
+>;
+
 interface DraftState {
   name: string;
   categoryId: string | null;
@@ -92,7 +123,7 @@ interface DraftState {
 }
 
 function stateFrom(
-  item: ItemView | null | undefined,
+  item: ItemSeed | null | undefined,
   defaults?: { categoryId?: string | null; locationId?: string | null },
 ): DraftState {
   return {
@@ -125,6 +156,7 @@ function parseSortValue(raw: string): number | null {
 
 export function ItemForm({
   initialItem,
+  prefill,
   initialPhotos = [],
   categories,
   cabinets,
@@ -137,10 +169,29 @@ export function ItemForm({
 }: ItemFormProps) {
   const styles = useStyles();
   const isEdit = !!initialItem;
-  const [draft, setDraft] = useState<DraftState>(() => stateFrom(initialItem, defaults));
+  const isPrefill = !isEdit && !!prefill;
 
-  /** 用户是否手动改过分类；改过就不再被猜词覆盖 */
-  const categoryTouched = useRef(isEdit);
+  const [draft, setDraft] = useState<DraftState>(() => {
+    const base = stateFrom(initialItem ?? prefill, defaults);
+    if (!isPrefill) return base;
+
+    /* 复制出来的是**新**买的一件：购买日期回到今天，
+       过期时间按分类重新带一份（原件的日期属于原件，抄过来就是错的）。 */
+    const start = base.purchaseDate ?? today();
+    const cat = categories.find((c) => c.id === base.categoryId);
+    const months = cat?.defaultExpireMonths ?? defaultExpireMonths(cat?.name ?? null);
+    return {
+      ...base,
+      purchaseDate: start,
+      expireDate: months == null ? base.expireDate : addMonths(start, months),
+    };
+  });
+
+  /**
+   * 用户是否手动改过分类；改过就不再被猜词覆盖。
+   * 编辑与复制都算「已定」—— 复制时被猜词改掉分类，等于复制功能白给。
+   */
+  const categoryTouched = useRef(isEdit || isPrefill);
   const nameRef = useRef<TextInput>(null);
 
   const [removedPhotoIds, setRemovedPhotoIds] = useState<string[]>([]);
@@ -195,13 +246,19 @@ export function ItemForm({
     if (!suggestion) return;
     categoryTouched.current = true;
     set('categoryId', suggestion.id);
-    applyExpiryTemplate(suggestion.name);
+    applyExpiryTemplate(suggestion.id);
   };
 
-  /** 按分类默认保质期带出过期时间；只在用户还没填过期时间时出手 */
+  /**
+   * 按分类的默认保质期带出过期时间；只在用户还没填过期时间时出手。
+   *
+   * 取值**优先走数据库里那一列**（「我的 → 分类管理」可改），内置词典只作兜底。
+   * 反过来会让新改的默认保质期看起来不生效 —— 用户改完来录入一次就该看到。
+   */
   const applyExpiryTemplate = useCallback(
-    (categoryName: string | null) => {
-      const months = defaultExpireMonths(categoryName);
+    (categoryId: string | null) => {
+      const cat = categories.find((c) => c.id === categoryId);
+      const months = cat?.defaultExpireMonths ?? defaultExpireMonths(cat?.name ?? null);
       if (months == null) return;
       setDraft((prev) => {
         if (prev.expireDate) return prev;
@@ -209,7 +266,7 @@ export function ItemForm({
         return { ...prev, expireDate: addMonths(base, months) };
       });
     },
-    [],
+    [categories],
   );
 
   /* ---------------------------------------------------------- 照片 */
@@ -444,7 +501,7 @@ export function ItemForm({
                   placeholder="例：Type-C 数据线 1 米"
                   placeholderTextColor={Palette.ink4}
                   style={styles.input}
-                  autoFocus={!isEdit}
+                  autoFocus={!isEdit && !isPrefill}
                   returnKeyType="next"
                   allowFontScaling={false}
                 />
@@ -659,10 +716,7 @@ export function ItemForm({
         onPick={(id) => {
           categoryTouched.current = true;
           set('categoryId', id);
-          if (id) {
-            const name = categories.find((c) => c.id === id)?.name ?? null;
-            applyExpiryTemplate(name);
-          }
+          if (id) applyExpiryTemplate(id);
         }}
       />
 

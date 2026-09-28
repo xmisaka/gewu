@@ -109,23 +109,20 @@ export async function writeMeta(db: Database, key: string, value: string): Promi
 /* ------------------------------------------------------------ seed */
 
 /**
- * 写入内置分类。幂等：按 name 判重，已存在则只补回被改动的 sort_order。
- * 内置分类不能被删除（builtin = 1），保证猜词结果永远有实体可挂。
+ * 写入内置分类。**只在空库时种一次**。
+ *
+ * 为什么不是「按 name 判重、缺谁补谁」：内置分类现在允许改名
+ * （我的 → 分类管理）。若仍按 name 补，用户把「数码」改成「电子产品」后，
+ * 下次启动会凭空冒出一个「数码」，而猜词词典还挂在旧名上 —— 两份数据都说不通。
+ * 内置分类不会被删除（deleteCategory 直接拒绝），所以「只种一次」不会漏。
  */
 async function seedCategories(db: Database): Promise<void> {
-  const existing = await db.getAllAsync<{ name: string }>('SELECT name FROM categories');
-  const known = new Set(existing.map((r) => r.name));
-
-  const missing = BUILTIN_CATEGORIES.filter((c) => !known.has(c.name));
-  if (missing.length === 0) return;
+  const row = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) AS c FROM categories');
+  if ((row?.c ?? 0) > 0) return;
 
   await db.withTransactionAsync(async () => {
     let order = 0;
     for (const cat of BUILTIN_CATEGORIES) {
-      if (known.has(cat.name)) {
-        order += 1;
-        continue;
-      }
       await db.runAsync(
         'INSERT INTO categories (id, name, parent_id, default_expire_months, sort_order, builtin) VALUES (?, ?, NULL, ?, ?, 1)',
         uuid(),

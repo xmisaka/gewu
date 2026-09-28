@@ -242,6 +242,14 @@ export default function ItemDetailScreen() {
             icon="create-outline"
             onPress={() => router.push({ pathname: '/item/[id]/edit', params: { id: item.id } })}
           />
+          {/* 复制走的是「新建」而不是「编辑」：同款买第二个是最常见的录入场景，
+              让它离详情页只有一步（PRD 把「一键复制」列为对冲录入疲劳的三项之一） */}
+          <Button
+            label="复制为新物品"
+            tone="secondary"
+            icon="copy-outline"
+            onPress={() => router.push({ pathname: '/item/[id]/duplicate', params: { id: item.id } })}
+          />
         </View>
       </ScrollView>
     </Screen>
