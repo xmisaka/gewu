@@ -14,9 +14,16 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import { CabinetGrid } from '@/components/domain/CabinetGrid';
 import { CategoryPickerModal } from '@/components/domain/CategoryPickerModal';
@@ -27,12 +34,11 @@ import {
   isItemSort,
   sortOptionOf,
 } from '@/components/domain/SortPickerModal';
-import { Collapse } from '@/components/ui/collapse';
 import { Chip, ChipRow, SearchField, Segmented } from '@/components/ui/controls';
 import { EmptyState, LegendStrip, Loading, MetricStrip } from '@/components/ui/feedback';
 import { Card, PageHeader, Screen } from '@/components/ui/layout';
 import { Body, Heading, Label, Meta } from '@/components/ui/typography';
-import { GUTTER, Palette, Space } from '@/constants/theme';
+import { GUTTER, Palette, Radius, Space } from '@/constants/theme';
 import { listCategories } from '@/lib/db/categories';
 import {
   DEFAULT_ITEM_SORT,
@@ -47,7 +53,6 @@ import { PREF_ITEM_SORT, readPref, writePref } from '@/lib/db/prefs';
 import { formatMoneyCompact } from '@/lib/format';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { useDebouncedSearch } from '@/lib/hooks/use-debounced-search';
-import { useScrollFold } from '@/lib/hooks/use-scroll-fold';
 import { filterCabinets } from '@/lib/search';
 import { useAppState } from '@/lib/store/app-state';
 import type { ItemSort, ItemView } from '@/lib/types';
@@ -55,22 +60,20 @@ import { makeStyles } from '@/lib/theme';
 
 type ViewMode = 'list' | 'location';
 
-/** 列表要在滚动里改头部高度，所以得用可动画的那份 FlatList */
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<ItemView>);
-
 export default function ItemsScreen() {
   const styles = useStyles();
   const router = useRouter();
   const { stats, dataVersion, bump } = useAppState();
 
-  /* 往下翻列表时把统计与筛选收起来，让位给物品本身；回到顶部一定放回来。
-     两条路：onScroll 走 UI 线程跟手折叠，松手时再让 JS 侧确认一次位置 */
-  const {
-    progress: foldProgress,
-    scrollHandler,
-    settle: settleFold,
-    expand: expandFold,
-  } = useScrollFold();
+  /* 统计、图例、分类筛选、排序这一整段，是列表的「头部」而不是页面的固定区。
+     做法是把它们交给 FlatList 的 ListHeaderComponent —— 滚下去时随原生滚动一起离开
+     屏幕，回到顶部自然又回来。
+
+     为什么不再用「跟手折叠高度」那一套：折叠要动 height，而 height 是布局属性，
+     240ms 的过渡里每一帧都要重排整页（头部 + 卡片 + 列表），列表卡本身还带圆角裁剪，
+     等于每帧重建一次离屏层。实测那几帧里出现了「同一行文字被复制成两层、偏移 3–4px」
+     的重影。现在滚动完全由原生列表驱动，一帧布局都不用做。 */
+  const listRef = useRef<FlatList<ItemView>>(null);
 
   const [mode, setMode] = useState<ViewMode>('list');
   const [query, setQuery] = useState('');
@@ -110,15 +113,16 @@ export default function ItemsScreen() {
     void writePref(PREF_ITEM_SORT, next).catch(() => undefined);
   }, []);
 
-  /* 换筛选 / 切视图时列表是程序化回到顶部的，不会有滚动回调来报位置 ——
-     头部得主动放回来。搜索词除外：那会儿用户正在打字，不该有东西往上顶 */
-  useEffect(() => {
-    expandFold();
-  }, [expandFold, mode, categoryId, sort]);
-
   /* 输入框是受控的、每次按键立刻回显；送给查询的那个值压了一档 ——
      库不大，但没理由每敲一个字就跑一次 SQLite。清空立即生效 */
   const debouncedQuery = useDebouncedSearch(query);
+
+  /* 换筛选 / 换排序 / 改搜索词之后，列表要回到顶部。
+     折叠头部现在长在列表里，停在半路就等于用户看不见自己刚改了什么 ——
+     筛选条本身已经滚出屏幕了，结果却从中间开始显示，会让人以为「点了没反应」 */
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [mode, debouncedQuery, categoryId, sort]);
 
   /* 手动排序的箭头只在「看得见整份列表」时才给。
      带着筛选调顺序，被过滤掉的物品会插在中间，用户看着像是点了没反应 */
@@ -288,76 +292,90 @@ export default function ItemsScreen() {
             placeholder={activeCategory ? `在「${activeCategory.name}」中搜索` : undefined}
           />
 
-          {/* 统计概览与筛选/排序一起构成那截「固定头部」，
-              全展开时约 185dp，小屏上接近三分之一屏。滚动时整段收起。 */}
-          <Collapse progress={foldProgress}>
-            <MetricStrip
-              metrics={[
-                { label: '在库', value: String(stats.total) },
-                { label: '总价值', value: formatMoneyCompact(stats.totalValue) },
-                {
-                  label: '即将到期',
-                  value: String(stats.expiringCount),
-                  tone: stats.expiringCount > 0 ? 'clay' : 'ink',
-                },
-              ]}
-            />
+          {/* 统计 / 图例 / 分类 / 排序这一整段是「列表的头部」，不是页面的固定区：
+              交给 FlatList 的 ListHeaderComponent，滚下去随原生滚动一起离开屏幕，
+              回到顶部自然又回来 —— 全程没有一处布局动画。
 
-            {/* 三项互斥、合计等于总数。空库时三行 0 没意义，直接不显示 */}
-            {stats.total > 0 ? (
-              <LegendStrip
-                items={[
-                  { tone: 'fine', label: '正常', count: stats.fineCount },
-                  { tone: 'soon', label: '将到期', count: stats.soonCount },
-                  { tone: 'overdue', label: '已过期', count: stats.overdueCount },
-                ]}
-              />
-            ) : null}
-          </Collapse>
-
-          <Collapse progress={foldProgress}>
-            <ChipRow>
-              <Chip label="全部" selected={categoryId === null} onPress={() => setCategoryId(null)} />
-              {categories.map((c) => (
-                <Chip
-                  key={c.id}
-                  label={c.name}
-                  count={c.itemCount}
-                  selected={categoryId === c.id}
-                  onPress={() => setCategoryId(categoryId === c.id ? null : c.id)}
+              外观仍是两段式：统计是一张独立小卡，图例 / 分类 / 排序浮在画布上，
+              再往下才是列表那张卡（由每一行拼出来，见 renderItem 的 rowShell）。
+              整段头部都在卡外，所以左右留白一律 GUTTER，和以前一致 */}
+          <FlatList
+            ref={listRef}
+            data={items}
+            keyExtractor={(item) => item.id}
+            style={styles.listFlex}
+            ListHeaderComponent={
+              <View style={styles.headBlock}>
+                <MetricStrip
+                  metrics={[
+                    { label: '在库', value: String(stats.total) },
+                    { label: '总价值', value: formatMoneyCompact(stats.totalValue) },
+                    {
+                      label: '即将到期',
+                      value: String(stats.expiringCount),
+                      tone: stats.expiringCount > 0 ? 'clay' : 'ink',
+                    },
+                  ]}
                 />
-              ))}
-            </ChipRow>
 
-            <View style={styles.sortRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`排序方式：${currentSort.label}`}
-                onPress={() => setSortOpen(true)}
-                hitSlop={6}
-                style={({ pressed }) => [styles.sortTrigger, pressed && styles.sortTriggerPressed]}>
-                <Ionicons name="swap-vertical-outline" size={13} color={Palette.brand} />
-                <Label tone="brand">排序 · {currentSort.label}</Label>
-                <Ionicons name="caret-down" size={11} color={Palette.brand} />
-              </Pressable>
-              <Meta tone="ink4" numberOfLines={1} style={styles.sortHint}>
-                {sortHint}
-              </Meta>
-            </View>
-          </Collapse>
+                {/* 三项互斥、合计等于总数。空库时三行 0 没意义，直接不显示 */}
+                {stats.total > 0 ? (
+                  <LegendStrip
+                    items={[
+                      { tone: 'fine', label: '正常', count: stats.fineCount },
+                      { tone: 'soon', label: '将到期', count: stats.soonCount },
+                      { tone: 'overdue', label: '已过期', count: stats.overdueCount },
+                    ]}
+                  />
+                ) : null}
 
-          {/* 列表整体收进一张卡片：行与行之间只留发丝线，外轮廓由卡片给圆角，
-              观感上从「一长条白底」变成「一张卡」，也顺带说明这张卡是可以滚的 */}
-          <Card padded={false} style={styles.listCard}>
-            <AnimatedFlatList
-              data={items}
-              onScroll={scrollHandler}
-              /* 松手与惯性结束各确认一次：停在顶部附近就一定把头部放出来 */
-              onScrollEndDrag={settleFold}
-              onMomentumScrollEnd={settleFold}
-              scrollEventThrottle={16}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item, index }) => (
+                <ChipRow>
+                  <Chip
+                    label="全部"
+                    selected={categoryId === null}
+                    onPress={() => setCategoryId(null)}
+                  />
+                  {categories.map((c) => (
+                    <Chip
+                      key={c.id}
+                      label={c.name}
+                      count={c.itemCount}
+                      selected={categoryId === c.id}
+                      onPress={() => setCategoryId(categoryId === c.id ? null : c.id)}
+                    />
+                  ))}
+                </ChipRow>
+
+                <View style={styles.sortRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`排序方式：${currentSort.label}`}
+                    onPress={() => setSortOpen(true)}
+                    hitSlop={6}
+                    style={({ pressed }) => [
+                      styles.sortTrigger,
+                      pressed && styles.sortTriggerPressed,
+                    ]}>
+                    <Ionicons name="swap-vertical-outline" size={13} color={Palette.brand} />
+                    <Label tone="brand">排序 · {currentSort.label}</Label>
+                    <Ionicons name="caret-down" size={11} color={Palette.brand} />
+                  </Pressable>
+                  <Meta tone="ink4" numberOfLines={1} style={styles.sortHint}>
+                    {sortHint}
+                  </Meta>
+                </View>
+              </View>
+            }
+            /* 列表的「卡」由每一行拼出来：左右边框每行都画，首行加上圆角与顶边，
+               末行加下圆角与底边 —— 接起来仍是一张有轮廓的卡，但它现在是列表内容，
+               可以整张随滚动走；外面不能再套一层容器，那会把头部一并包进去 */
+            renderItem={({ item, index }) => (
+              <View
+                style={[
+                  styles.rowShell,
+                  index === 0 && styles.rowShellFirst,
+                  index === items.length - 1 && styles.rowShellLast,
+                ]}>
                 <ItemRow
                   item={item}
                   selected={selected.has(item.id)}
@@ -371,13 +389,15 @@ export default function ItemsScreen() {
                   canMoveUp={index > 0}
                   canMoveDown={index < items.length - 1}
                 />
-              )}
-              contentContainerStyle={styles.listInner}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.brand} />
-              }
-              ListEmptyComponent={
-                itemsState.loading ? (
+              </View>
+            )}
+            contentContainerStyle={styles.listInner}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.brand} />
+            }
+            ListEmptyComponent={
+              <Card style={styles.emptyCard}>
+                {itemsState.loading ? (
                   <Loading />
                 ) : debouncedQuery || categoryId ? (
                   <EmptyState
@@ -398,10 +418,10 @@ export default function ItemsScreen() {
                     actionLabel="录入第一件"
                     onAction={() => router.push('/compose')}
                   />
-                )
-              }
-            />
-          </Card>
+                )}
+              </Card>
+            }
+          />
         </>
       ) : (
         <>
@@ -532,9 +552,49 @@ function BarAction({
 const useStyles = makeStyles((Palette) => ({
   /** 位置视图用（整页滚动，要避开 Tab 栏） */
   listContent: { paddingBottom: 120 },
-  /* 列表卡：左右让出边距，行的内容留白由 ItemRow 自己给 */
-  listCard: { flex: 1, marginHorizontal: GUTTER, marginTop: Space.md },
-  /** 卡片内列表：底部留白不必避开 Tab 栏，卡片底边就在它上面 */
+  /** 列表本体。它不再套外层卡，卡边由每一行的 rowShell 拼出来 */
+  listFlex: { flex: 1 },
+  /**
+   * 列表头部整段（统计卡 + 图例 + 分类 + 排序）。
+   *
+   * 它现在是列表内容，但整段都在卡外 —— 统计自带卡片外壳，其余三项浮在画布上，
+   * 所以左右留白一律交给各组件自己的 GUTTER，这里只负责与列表卡之间那点间距。
+   * ★ 别给这里再加 paddingHorizontal：各组件已经让过一次，叠起来边距会翻倍。
+   */
+  headBlock: { paddingBottom: Space.md },
+  /**
+   * 拼成「列表卡」的行壳。
+   *
+   * 头部要独立成卡，就不能再拿一张 Card 把整个 FlatList 包起来 —— 那会把头部
+   * 一起包进去，整片同色、只剩一条发丝线，看上去就是「连成一片」。
+   * 改由每一行提供卡边：左右边框每行都画，接起来是一条连续的竖线；
+   * 首行补上圆角与顶边，末行补下圆角与底边。
+   *
+   * 只有首行 / 末行需要 overflow:'hidden'，把 ItemRow 的矩形底色裁进圆角里；
+   * 中间行不裁剪 —— 少一层离屏层，也就没有「每帧重建离屏层」那类隐患。
+   */
+  rowShell: {
+    marginHorizontal: GUTTER,
+    backgroundColor: Palette.surface,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.line2,
+  },
+  rowShellFirst: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopLeftRadius: Radius.card,
+    borderTopRightRadius: Radius.card,
+    overflow: 'hidden',
+  },
+  rowShellLast: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomLeftRadius: Radius.card,
+    borderBottomRightRadius: Radius.card,
+    overflow: 'hidden',
+  },
+  /** 空态也得有卡片轮廓：头部在卡外，空态不给卡就成了一片裸底 */
+  emptyCard: { marginHorizontal: GUTTER, marginBottom: Space.xl },
+  /** 列表底部留白。列表不再被卡片包住，末行的下圆角要留在 Tab 栏上方 */
   listInner: { paddingBottom: Space.xl },
   sortRow: {
     flexDirection: 'row',

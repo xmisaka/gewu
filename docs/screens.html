@@ -188,31 +188,41 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <svg width="12" height="12" viewBox="0 0 13 13" fill="none"><circle cx="5.5" cy="5.5" r="4.1" stroke="#9A8D80" stroke-width="1.4"/><path d="M8.7 8.7 12 12" stroke="#9A8D80" stroke-width="1.4" stroke-linecap="round"/></svg>
           <span style="color:#C9BEB0;flex:1">搜索名称 / 品牌 / 分类 / 位置</span>
         </div>
-        <div style="margin:12px 17px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#EBE5DB;border-radius:12px;overflow:hidden">
+        <!-- 统计：一张独立的小卡（MetricStrip 自带外壳，圆角 Radius.button = 12）。
+             它不在任何卡片里，所以左右留白是 GUTTER，也就是 17px -->
+        <div style="margin:12px 17px 0;background:#fff;border-radius:12px;border:0.5px solid #EBE5DB;display:flex;overflow:hidden">
           <!-- MetricStrip 是「值在上、标签在下」：stripValue(17/600) 先渲染，stripLabel(11.5) 跟在后面 -->
-          <div class="cell"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums">328</span><span style="color:#9A8D80;margin-top:2px;font-size:11px">在库</span></div>
-          <div class="cell"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums">&#165;42,680</span><span style="color:#9A8D80;margin-top:2px;font-size:11px">总价值</span></div>
-          <div class="cell"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:#AA523D">3 件</span><span style="color:#9A8D80;margin-top:2px;font-size:11px">即将到期</span></div>
+          <div class="cell" style="flex:1;align-items:center;padding:9px 8px"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums">328</span><span style="color:#9A8D80;margin-top:2px;font-size:11px">在库</span></div>
+          <div class="cell" style="flex:1;align-items:center;padding:9px 8px;border-left:0.5px solid #EBE5DB"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums">&#165;42,680</span><span style="color:#9A8D80;margin-top:2px;font-size:11px">总价值</span></div>
+          <div class="cell" style="flex:1;align-items:center;padding:9px 8px;border-left:0.5px solid #EBE5DB"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:#AA523D">3 件</span><span style="color:#9A8D80;margin-top:2px;font-size:11px">即将到期</span></div>
         </div>
-        <div style="margin:12px 17px 0;display:flex;gap:8px">
-          <span style="padding:3px 10px;border-radius:999px;background:#EDF1E9;color:#5F7355;font-weight:600;font-size:12px">正常 325</span>
-          <span style="padding:3px 10px;border-radius:999px;background:#FBF1DF;color:#926521;font-weight:600;font-size:12px">将到期 2</span>
-          <span style="padding:3px 10px;border-radius:999px;background:#F9EAE5;color:#AA523D;font-weight:600;font-size:12px">已过期 1</span>
+
+        <!-- 图例 / 分类 / 排序：这三段浮在画布上、没有卡片外壳，左右同样是 GUTTER。
+             它们和上面那张统计卡、下面那张列表卡一起构成「列表的头部」——
+             交给 ListHeaderComponent，随原生滚动一起让位，不占固定高度 -->
+        <div style="margin:12px 17px 0;display:flex;gap:6px">
+          <span style="padding:3px 9px;border-radius:999px;background:#EDF1E9;color:#5F7355;font-weight:600;font-size:12px">正常 325</span>
+          <span style="padding:3px 9px;border-radius:999px;background:#FBF1DF;color:#926521;font-weight:600;font-size:12px">将到期 2</span>
+          <span style="padding:3px 9px;border-radius:999px;background:#F9EAE5;color:#AA523D;font-weight:600;font-size:12px">已过期 1</span>
         </div>
         <div style="margin:12px 17px 0;display:flex;gap:6px;flex-wrap:wrap">
           <span style="padding:5px 11px;border-radius:999px;background:#8C5A34;color:#fff">全部</span>
           <span style="padding:5px 11px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">数码 42</span>
           <span style="padding:5px 11px;border-radius:999px;background:#fff;border:0.5px solid #E3DCD1;color:#6B6055">工具 31</span>
         </div>
-        <div style="margin:12px 17px 4px;display:flex;align-items:center;justify-content:space-between;gap:8px">
-          <span style="display:inline-flex;align-items:center;gap:4px;color:#8C5A34;font-weight:600">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M5 3.5v9M5 12.5 3 10.6M5 12.5l2-1.9M11 12.5v-9M11 3.5 9 5.4M11 3.5l2 1.9" stroke="#8C5A34" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            排序 &middot; 最近变动
-            <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M2 3.6 5 6.6l3-3" stroke="#8C5A34" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </span>
-          <span style="color:#C9BEB0;font-size:11px">刚改过的排前面</span>
+        <div style="margin:0 17px;padding:12px 0 4px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <span style="display:inline-flex;align-items:center;gap:4px;color:#8C5A34;font-weight:600">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M5 3.5v9M5 12.5 3 10.6M5 12.5l2-1.9M11 12.5v-9M11 3.5 9 5.4M11 3.5l2 1.9" stroke="#8C5A34" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                排序 &middot; 最近变动
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M2 3.6 5 6.6l3-3" stroke="#8C5A34" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span style="color:#C9BEB0;font-size:11px">刚改过的排前面</span>
         </div>
-        <div style="margin:0 17px;background:#fff;border-radius:14px;border:0.5px solid #EBE5DB;overflow:hidden">
+
+        <!-- 列表卡：另一张卡。它的卡边由每一行拼出来（左右边框每行都画，
+             首行补上圆角与顶边、末行补下圆角与底边）—— 这样它既能保持整卡的轮廓，
+             又能作为列表内容整张随滚动走。外面不能再套一层卡，否则会把头部一起包进去 -->
+        <div style="margin:12px 17px 0;background:#fff;border-radius:14px;border:0.5px solid #EBE5DB;overflow:hidden">
           <div class="ir">
             <div class="th" style="width:43px;height:43px;background:#EFF1EA;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="7" y="2.5" width="10" height="19" rx="2.6" stroke="#4F5A45" stroke-width="1.6"/><circle cx="12" cy="18" r="1.1" fill="#4F5A45"/></svg></div>
             <div style="flex:1;min-width:0">
@@ -252,7 +262,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#A99C8E" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">01</div><div class="nm">首页 &middot; 物品列表</div><div class="ds">搜索常驻，下面概览 / 三色图例 / 分类 / 排序四段随滚动收起。排序切到「手动」且没有搜索与分类筛选时，每行右侧才会出现上下箭头 —— 让用户手填排序数字，等于这个功能不存在。</div></figcaption>
+      <figcaption><div class="no">01</div><div class="nm">首页 &middot; 物品列表</div><div class="ds">搜索常驻屏上；统计是一张独立小卡，三色图例 / 分类 / 排序浮在画布上，再往下才是列表那张卡（卡边由每行拼出来）。这两张卡连同中间那三段一起构成列表的头部，随原生滚动一起让位，不占固定高度。排序切到「手动」且没有搜索与分类筛选时，每行右侧才会出现上下箭头 —— 让用户手填排序数字，等于这个功能不存在。</div></figcaption>
     </figure>
 
     <!-- 02 -->

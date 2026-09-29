@@ -167,7 +167,12 @@ export function Chip({
   );
 }
 
-/** 横向滚动的 chip 行 */
+/**
+ * 横向滚动的 chip 行。
+ *
+ * 左右留白用 GUTTER：它浮在画布上、不在任何卡片里。真要塞进卡片，
+ * 得改用按卡内缘算的边距，直接叠 GUTTER 会翻倍。
+ */
 export function ChipRow({ children }: { children: ReactNode }) {
   const styles = useStyles();
   return (

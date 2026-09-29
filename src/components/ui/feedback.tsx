@@ -168,12 +168,11 @@ export type LegendTone = 'fine' | 'soon' | 'overdue';
  *
  * 三项互斥，合计必须等于总数 —— 用户会拿它对总数，对不上就会怀疑数据错了。
  * 所以数字由调用方保证（见 getStats 的 fineCount，用总数减出来）。
+ *
+ * 左右留白用 GUTTER：它浮在画布上、不在任何卡片里。真要塞进卡片，
+ * 得改用按卡内缘算的边距，直接叠 GUTTER 会翻倍。
  */
-export function LegendStrip({
-  items,
-}: {
-  items: { tone: LegendTone; label: string; count: number }[];
-}) {
+export function LegendStrip({ items }: { items: { tone: LegendTone; label: string; count: number }[] }) {
   const styles = useStyles();
   return (
     <View style={styles.legend}>
