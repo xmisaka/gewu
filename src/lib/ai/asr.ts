@@ -34,6 +34,8 @@ const EXTRA_LANGUAGE = 'android.speech.extra.LANGUAGE';
 const EXTRA_PROMPT = 'android.speech.extra.PROMPT';
 const EXTRA_MAX_RESULTS = 'android.speech.extra.MAX_RESULTS';
 const EXTRA_RESULTS = 'android.speech.extra.RESULTS';
+/** 出错时部分识别器会把它塞进 extras；没有它，就无从区分「用户取消」与「引擎报错」 */
+const EXTRA_ERROR_CODE = 'android.speech.extra.ERROR_CODE';
 
 /** LANGUAGE_MODEL_FREE_FORM：自由说，而不是网页搜索那种关键词模型 */
 const LANGUAGE_MODEL_FREE_FORM = 'free_form';
@@ -90,12 +92,38 @@ export async function listenOnce(prompt = '说出物品、放哪儿、保质期�
     return { kind: 'unsupported' };
   }
 
-  if (result.resultCode !== RESULT_OK) return { kind: 'canceled' };
+  /*
+   * ★ 识别引擎出错时返回的也是 RESULT_CANCELED，与「用户主动退出」在 resultCode 上
+   *   完全同形。能区分的只有 extras：部分识别器（小米 / 讯飞等）出错时会带上
+   *   `android.speech.extra.ERROR_CODE`，有的什么都不给。
+   *
+   *   带错误码的一律算失败 —— 真机上就是这一条被漏掉：系统弹完「似乎出错了呢」，
+   *   格物这边静默回到原状，用户以为 App 坏了。
+   *   拿不到错误码时仍然算取消：宁可少说一句，也不要在正常取消时弹提示。
+   */
+  if (result.resultCode !== RESULT_OK) {
+    return hasErrorPayload(result.extra) ? { kind: 'failed' } : { kind: 'canceled' };
+  }
 
-  const text = pickResult(result.extra);
-  if (text == null) return { kind: 'canceled' };
-  if (!text.trim()) return { kind: 'nomatch' };
-  return { kind: 'ok', text: text.trim() };
+  /*
+   * 走到这里说明 resultCode 是 RESULT_OK —— 识别流程本身跑完了。
+   * 那么「没拿到文本」的含义是「没听清」，不是「用户取消」：
+   * 取消在上面那条分支就分流走了。提示一句「再说一遍」，比静默退回上一屏有用。
+   */
+  const text = pickResult(result.extra)?.trim();
+  if (!text) return { kind: 'nomatch' };
+  return { kind: 'ok', text };
+}
+
+/**
+ * 取消时 extras 里是否带着错误码。
+ *
+ * 只认「有没有」，不去解析具体编号 —— 那些码是各家引擎自己的，
+ * 翻译成中文只会更含糊；而界面能给的行动建议（重试 / 改手动录入）在哪种错误下都一样。
+ */
+function hasErrorPayload(extra: unknown): boolean {
+  if (!extra || typeof extra !== 'object') return false;
+  return (extra as Record<string, unknown>)[EXTRA_ERROR_CODE] != null;
 }
 
 /**
@@ -105,8 +133,8 @@ export async function listenOnce(prompt = '说出物品、放哪儿、保质期�
  * 正常是 `string[]`；但各家识别引擎（Google / 讯飞 / 厂商自研）回来的
  * 类型并不保证一致，所以这里把「字符串数组」与「单个字符串」都认下来。
  *
- * 取不到就返回 null，由上层当成取消处理 —— 这比抛错好：
- * 「没说话」与「识别器没给结果」对用户是同一件事。
+ * 取不到就返回 null，由上层当成「没听清」处理 —— 这比抛错好：
+ * 走到这一步识别流程已经跑完，该给用户一个能行动的结论，而不是把错误交给界面。
  */
 function pickResult(extra: unknown): string | null {
   /* 原生侧回的是一个 Bundle，转换后是普通对象；但类型上只保证是 object，
@@ -132,7 +160,7 @@ export function asrMessage(outcome: AsrOutcome): string {
     case 'nomatch':
       return '没听清，再说一遍试试';
     case 'failed':
-      return '语音识别没有返回结果，重试或手动录入';
+      return '系统语音服务没能识别。去系统设置里给它授权，或改用手动录入';
     default:
       return '';
   }

@@ -1,7 +1,11 @@
 /**
  * 格物 · AI 网络层（跑腿的那一半）
  *
- * 职责只有两件：把图压成 ≤1024px 的副本、把消息发出去拿回文本。
+ * 职责只有一件：把消息发出去、把回来的东西翻译成人话。
+ * 图片压缩搬去了 `upload.ts`，错误类型搬去了 `error.ts` —— 后者是因为两个模块同时需要它；
+ * 前者是因为 `expo-image-manipulator` 的包入口是 node_modules 里的一个 `.ts`，
+ * `--experimental-strip-types` 拒绝加载：只要这里还 import 它，整层逻辑就一条测试都跑不了。
+ * （本轮那个「超时没真取消 → 撞并发限流」的 bug，正是从这个缺口里溜过去的。）
  * **不做任何解析** —— 抠 JSON、映射字段、清洗答案全在纯函数模块里，
  * 这样换模型、换供应商都不用动那些规则，而规则也不必为了测试去 mock fetch。
  *
@@ -15,58 +19,19 @@
  *    AI 是加速器，不是必经之路。
  */
 
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
-
 import {
   AI_CHAT_MODEL,
   AI_ENDPOINT,
   AI_TIMEOUT_MS,
-  AI_UPLOAD_MAX_EDGE,
-  AI_UPLOAD_QUALITY,
   AI_VISION_MODEL,
+  AI_VISION_TIMEOUT_MS,
   currentAiKey,
 } from './config';
+import { AiError } from './error';
 
-export type AiErrorKind =
-  /** 还没配 Key */
-  | 'no-key'
-  /** 连不上、超时、DNS 失败 */
-  | 'network'
-  /** 服务端回了非 2xx 或响应体不是预期形状 */
-  | 'api';
-
-export class AiError extends Error {
-  constructor(
-    message: string,
-    readonly kind: AiErrorKind,
-  ) {
-    super(message);
-    this.name = 'AiError';
-  }
-}
-
-/* ------------------------------------------------------------------ 图片 */
-
-/**
- * 把沙盒里的一张图压成长边 ≤1024 的 JPEG base64。
- *
- * 走 `saveAsync({ base64: true })` 而不是「先落盘再读文件」：
- * 那一步会多出一份临时文件和一次完整读盘，而这份副本的**唯一用途**就是发出去、
- * 用完即弃。让它连文件都不产生，是最省事也最不容易留垃圾的做法。
- *
- * ★ 只在长边超限时才缩，绝不放大 —— 与 photos/pipeline.ts 的 resizeAction 同一条规则。
- */
-export async function toUploadBase64(uri: string, width: number, height: number): Promise<string> {
-  const longEdge = Math.max(width, height);
-  let ctx = ImageManipulator.manipulate(uri);
-  if (longEdge > AI_UPLOAD_MAX_EDGE) {
-    ctx = width >= height ? ctx.resize({ width: AI_UPLOAD_MAX_EDGE }) : ctx.resize({ height: AI_UPLOAD_MAX_EDGE });
-  }
-  const ref = await ctx.renderAsync();
-  const out = await ref.saveAsync({ compress: AI_UPLOAD_QUALITY, format: SaveFormat.JPEG, base64: true });
-  if (!out.base64) throw new AiError('图片压缩失败', 'api');
-  return out.base64;
-}
+/* 错误类型与文案住在 ./error，这里转出一次，调用方不必改 import 路径 */
+export { AiError, describeAiError } from './error';
+export type { AiErrorKind } from './error';
 
 /* ------------------------------------------------------------------ 请求 */
 
@@ -92,30 +57,50 @@ async function chat(model: string, messages: ChatMessage[]): Promise<string> {
   if (!key) throw new AiError('还没配置 API Key', 'no-key');
 
   let res: Response;
+  /*
+   * ★ 超时必须**真的取消请求**，不能只是把自己这边的 await reject 掉。
+   *
+   * 智谱免费 Flash 系列的限制是「同一时刻只允许 1 条并发请求」。
+   * 超时后若不 abort，那条请求仍在服务端排队/推理，而我们这边已经报错、
+   * 用户可以立刻重试 —— 第二次就和第一条撞成 2 并发，被直接拒掉（HTTP 429）。
+   * 观感就是「刚打开 AI 就嫌我调用太频繁」，可用户其实只点了一两下。
+   */
+  /*
+   * AbortController 在 Hermes / RN 0.60+ 上是现成的全局对象；那句 `typeof` 防御是给
+   * 万一的环境 —— 缺了它也不该让整个请求失败，退化成「只是不等了」就行。
+   * （这里最早正是因为「不确定 Hermes 支不支持 signal」而没做取消，
+   *   结果真机上撞出了并发限流：超时后那条请求仍占着唯一一个并发位。）
+   */
+  const controller = typeof AbortController === 'undefined' ? null : new AbortController();
+  const timer = setTimeout(
+    () => controller?.abort(),
+    model === AI_VISION_MODEL.id ? AI_VISION_TIMEOUT_MS : AI_TIMEOUT_MS,
+  );
+
   try {
-    res = await withTimeout(
-      fetch(AI_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({ model, messages, temperature: 0.2, stream: false }),
-      }),
-    );
+    res = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ model, messages, temperature: 0.2, stream: false }),
+      signal: controller?.signal,
+    });
   } catch (err) {
-    throw new AiError(
-      err instanceof Error && err.name === 'AbortError' ? '等待太久，超时了' : '连不上模型服务',
-      'network',
-    );
+    const aborted = err instanceof Error && err.name === 'AbortError';
+    throw new AiError(aborted ? '等了太久还没返回' : '连不上模型服务', aborted ? 'timeout' : 'network');
+  } finally {
+    clearTimeout(timer);
   }
 
   if (res.status === 401 || res.status === 403) {
     throw new AiError('API Key 无效或没有权限，请重新复制一个', 'api');
   }
   if (res.status === 429) {
-    throw new AiError('调用太频繁了，等一会儿再试', 'api');
+    /* 免费模型是「同一时刻只允许一条请求」，等一会儿就恢复，不是额度用完了 */
+    throw new AiError('免费模型同一时刻只允许一条请求，稍等十几秒再试', 'api');
   }
   if (!res.ok) {
     throw new AiError(`模型服务返回了异常状态（${res.status}）`, 'api');
@@ -158,29 +143,6 @@ export function askText(system: string, user: string): Promise<string> {
   ]);
 }
 
-/**
- * 超时。
- * 不用 AbortController + signal：这里要的只是「不等了」，
- * 而 signal 在 Hermes 上对 fetch 的支持要额外确认一次，不值得为一个超时引入不确定性。
- */
-function withTimeout(promise: Promise<Response>): Promise<Response> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(Object.assign(new Error('timeout'), { name: 'AbortError' }));
-    }, AI_TIMEOUT_MS);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (err: unknown) => {
-        clearTimeout(timer);
-        reject(err);
-      },
-    );
-  });
-}
-
 /* ------------------------------------------------------------------ 自检 */
 
 /**
@@ -193,22 +155,4 @@ export async function pingAi(): Promise<void> {
   await askText('你是一个连通性自检助手。', '只回复两个字：正常');
 }
 
-/* ------------------------------------------------------------------ 文案 */
-
-/**
- * 失败态的用户可见文案。集中一处 —— 同一句话只该有一个措辞。
- * 三种失败对用户的动作**完全不同**（去填 Key / 检查网络 / 稍后重试），所以必须分开说。
- */
-export function describeAiError(err: unknown): string {
-  if (err instanceof AiError) {
-    switch (err.kind) {
-      case 'no-key':
-        return '还没配置 API Key，先到「我的 → AI 助手」填一个';
-      case 'network':
-        return '联网失败了，检查一下网络后重试';
-      default:
-        return err.message;
-    }
-  }
-  return 'AI 暂时用不了，稍后再试';
-}
+/* 失败态的文案在 ./error 的 `describeAiError`，已在文件顶部转出 */

@@ -62,6 +62,15 @@ export const AI_ENDPOINT = 'https://open.bigmodel.cn/api/paas/v4/chat/completion
  */
 export const AI_TIMEOUT_MS = 12_000;
 
+/**
+ * 识图单独给一条更宽的上限。
+ *
+ * 12 秒对纯文本够用，对识图不够：一张长边 1024 的 JPEG 要先传上去，
+ * 再让模型看一遍才出结果，流量网络下十几秒是常态。
+ * 卡在 12 秒的代价不只是「慢」—— 超时会把请求 abort 掉，用户重试等于白等一次。
+ */
+export const AI_VISION_TIMEOUT_MS = 30_000;
+
 /** 上传的识别副本长边上限。原图始终不出手机，这一条要写在界面上 */
 export const AI_UPLOAD_MAX_EDGE = 1024;
 

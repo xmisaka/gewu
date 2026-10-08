@@ -7,12 +7,16 @@
  * 于是「两边算法是否一致」不能靠代码共享来保证，只能靠这组测试来钉住。
  *
  * 覆盖：RFC 4648 标准向量、跨实现编解码一致、正常码通过、六类失败原因、
- * 篡改（载荷/签名/前缀/长度）、大小写与空白容错、公钥未配置时 fail-closed。
+ * 篡改（载荷/签名/前缀/长度）、大小写与空白容错、公钥未配置时 fail-closed、
+ * 以及本机真实私钥与仓库内置公钥的配对自检。
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import {
   verifyLicenseCode,
@@ -368,3 +372,39 @@ test('每个失败原因都有给人看的中文说明', () => {
     assert.ok(text.length > 0, reason);
   }
 });
+
+/* ==================== 9. 发版自检：本机私钥必须与仓库公钥配对 ==================== */
+
+/**
+ * 上一节那条「★ 发版自检」只证明得了三件事：公钥非空、32 字节、且不认陌生密钥签的码。
+ * 它证明不了**「这串公钥就是我那把私钥的公钥」** —— 粘贴时抄错一位字符，
+ * 上面所有测试照样全绿，而真实发出去的码用户一个都激活不了。
+ * 那是「发版当天才发现、且已经卖出去一批」的故障，所以单列一条钉死。
+ *
+ * 私钥只在本机（CI、别人的机器上没有），所以无密钥时跳过。
+ * 跳过要理解成「无从证明」，不是「证明成立」—— 发版前请在持有私钥的机器上跑 `npm run verify`。
+ */
+const LOCAL_KEY_FILE = path.join(os.homedir(), '.gewu', 'license_key.json');
+
+test(
+  '本机真实私钥签出的码能被仓库内置公钥验通',
+  { skip: fs.existsSync(LOCAL_KEY_FILE) ? false : `本机没有 ${LOCAL_KEY_FILE}` },
+  () => {
+    const keyFile = JSON.parse(fs.readFileSync(LOCAL_KEY_FILE, 'utf8'));
+
+    assert.equal(
+      keyFile.publicKey,
+      LICENSE_PUBLIC_KEY,
+      '密钥文件里的公钥与 src/lib/license.ts 的常量不一致 —— 其中一处被改过',
+    );
+
+    // 序号取一个大数、标识写 self-check：万一这条码意外进了台账，也一眼认得出来
+    const payloadJson = encodePayload({ subject: 'self-check@local', date: '1970-01-01', seq: 999001 });
+    const code = buildCode(payloadJson, keyFile.privateJwk);
+
+    const result = verifyLicenseCode(code);
+    assert.equal(result.ok, true, '真实私钥签的码没被内置公钥验通 —— 公钥很可能贴错了');
+    assert.equal(result.payload.serial, 999001);
+    assert.equal(result.payload.edition, 'supporter');
+  },
+);

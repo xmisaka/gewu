@@ -29,7 +29,8 @@ import { Loading } from '@/components/ui/feedback';
 import { Gutter, PageHeader, Screen } from '@/components/ui/layout';
 import { Meta } from '@/components/ui/typography';
 import { Space } from '@/constants/theme';
-import { askVision, describeAiError, toUploadBase64 } from '@/lib/ai/client';
+import { askVision, describeAiError } from '@/lib/ai/client';
+import { toUploadBase64 } from '@/lib/ai/upload';
 import { buildVisionPrompt, EMPTY_FIELDS, parseExtract } from '@/lib/ai/extract';
 import { today } from '@/lib/date';
 import { listCategories } from '@/lib/db/categories';
@@ -59,7 +60,7 @@ export default function ComposeScreen() {
   const [gateOpen, setGateOpen] = useState(false);
 
   const { entitled } = useEntitlement();
-  const { active: aiActive, record } = useAi();
+  const { active: aiActive, enabled: aiEnabled, record } = useAi();
 
   const categoryState = useAsyncData(() => listCategories(), [dataVersion], []);
   const cabinetState = useAsyncData(() => listCabinetViews(), [dataVersion], []);
@@ -84,7 +85,15 @@ export default function ComposeScreen() {
         return null;
       }
       if (!aiActive) {
-        return { error: '还没配置 AI：到「我的」页的「AI 助手」填上自己的 Key 就能用' };
+        /*
+         * 「开关没开」与「Key 没填」要分开说 —— 两件事用户要做的不一样。
+         * 混成一句「还没配置 AI」，填过 Key 却忘了开开关的人会找不到问题在哪。
+         */
+        return {
+          error: aiEnabled
+            ? '还没填 API Key：到「我的」页的「AI 助手」里填上自己的 Key'
+            : 'AI 助手还没打开：到「我的」页的「AI 助手」里打开总开关',
+        };
       }
 
       // 1) 取图（相机 / 相册各限一张：识物只需要一张实物照）

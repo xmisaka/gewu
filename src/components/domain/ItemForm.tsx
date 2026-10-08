@@ -413,6 +413,15 @@ export function ItemForm({
           return;
         }
         applyRecognition(outcome);
+      } catch (err) {
+        /*
+         * 取图 / 压缩 / 落盘 / 联网任何一环抛错，都收敛成一句用户能行动的提示。
+         * 原来没有这个 catch：异常变成 unhandled rejection，界面上什么都不发生 ——
+         * 与「点了没反应」是同一种观感，却连线索都不剩。
+         * 原始错误仍打到控制台，真机上用 adb logcat 过滤 [gewu] 能看到。
+         */
+        console.warn('[gewu] 识物失败：', err);
+        setHint('识物没能完成，再试一次；还不行就用左边的「添加」自己选张图');
       } finally {
         setRecognizing(false);
       }
@@ -691,6 +700,20 @@ export function ItemForm({
               图片会压缩后存入应用内，删除系统相册不影响这里
             </Meta>
           </Gutter>
+
+          {/*
+            ★ 识物的结果与失败都落在这里，紧贴触发它的那条「识物」。
+            原本这段渲染在表单最底部（提交按钮上方），而触发点在屏幕顶部的照片条 ——
+            用户点完识物停在原地，提示却出现在要滚到底才看得到的地方，
+            观感就是「点了没反应」。这条是照真机反馈改的，别再挪回去。
+          */}
+          {hint ? (
+            <Gutter>
+              <View style={styles.recognizeNotice}>
+                <Meta tone="clay">{hint}</Meta>
+              </View>
+            </Gutter>
+          ) : null}
         </SectionCard>
 
         <SectionCard title="必填">
@@ -920,14 +943,6 @@ export function ItemForm({
             </Gutter>
           </Card>
         </SectionCard>
-
-        {hint ? (
-          <Gutter>
-            <Meta tone="clay" style={styles.hint}>
-              {hint}
-            </Meta>
-          </Gutter>
-        ) : null}
 
         <View style={styles.actions}>
           {price != null && draft.purchaseDate ? (
@@ -1230,7 +1245,15 @@ const useStyles = makeStyles((Palette) => ({
     paddingVertical: Space.sm,
     paddingBottom: Space.md,
   },
-  hint: { marginTop: Space.md },
+  /* 识物的结果与失败提示。带底色的条，而不是一行浅色小字 ——
+     它紧跟在照片条下面，浅色小字会被当成装饰直接略过 */
+  recognizeNotice: {
+    marginTop: Space.sm,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.sm,
+    borderRadius: Radius.input,
+    backgroundColor: Palette.clayBg,
+  },
   actions: { paddingHorizontal: GUTTER, paddingTop: Space.xxl, gap: Space.sm, alignItems: 'stretch' },
   preview: { textAlign: 'center', marginBottom: Space.xs },
   mustName: { textAlign: 'center' },
