@@ -12,11 +12,24 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Palette, Radius, Space } from '@/constants/theme';
 import { describePurchase } from '@/lib/date';
 import { formatMoney } from '@/lib/format';
-import type { ItemView } from '@/lib/types';
-import { PlainTag, StatusTag } from '../ui/feedback';
-import { ItemText, Meta } from '../ui/typography';
+import { stockLabel } from '@/lib/stock';
+import type { ItemView, StockState } from '@/lib/types';
+import { PlainTag, StatusTag, type PlainTagTone } from '../ui/feedback';
+import { ItemText, Label, Meta } from '../ui/typography';
 import { PhotoThumb } from './media';
 import { makeStyles } from '@/lib/theme';
+
+/**
+ * 库存状态 → 胶囊配色。
+ * 三档语义色锁死：橄榄=还有余量，琥珀=即将见底，砖红=用完了。
+ * 与 StatusTones 是两套表，理由见 feedback.tsx 的 PlainTagTone。
+ */
+const STOCK_TONE: Record<StockState, PlainTagTone> = {
+  none: 'neutral',
+  ok: 'sage',
+  low: 'amber',
+  empty: 'clay',
+};
 
 export interface ItemRowProps {
   item: ItemView;
@@ -40,6 +53,22 @@ export interface ItemRowProps {
   onMoveDown?: () => void;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
+  /**
+   * 点数量胶囊 → 唤起底部快捷面板。
+   *
+   * ★ 胶囊本身**不改数据**，它只是把面板叫出来 —— 这是本方案与「行内放 −1 圆钮」
+   *   的根本区别：误触的代价是「多弹一个面板，关掉就完事」，不是「账上少了一件」。
+   *   传了才渲染成可点；不传就是一个纯展示的标签。
+   */
+  onOpenStock?: (item: ItemView) => void;
+  /**
+   * 行尾快捷「补货 +」，**只在到期页的「该补货了」分组里传**。
+   *
+   * 为什么这里允许放一个可点控件：那一页的用途就是「照着买」，
+   * 而且它只朝**安全方向**改数据 —— 多补一件最多是数多了，点一下就退回来；
+   * 首页列表上的 −1 是反过来的（误触就少一件，还得去翻撤销）。两者不是一回事。
+   */
+  onQuickRestock?: (item: ItemView) => void;
 }
 
 function expiryTextOf(item: ItemView): string {
@@ -60,6 +89,8 @@ export const ItemRow = memo(function ItemRow({
   onMoveDown,
   canMoveUp = true,
   canMoveDown = true,
+  onOpenStock,
+  onQuickRestock,
 }: ItemRowProps) {
   const styles = useStyles();
   const reorderable = !!onMoveUp || !!onMoveDown;
@@ -72,6 +103,20 @@ export const ItemRow = memo(function ItemRow({
       ? `${item.cabinetName} · ${item.locationName}`
       : item.locationName
     : null;
+
+  /* 库存元素的三条渲染条件：
+     ① 没启用库存（quantity 为 null）什么都不显示 —— 老数据是这一档，行为零变化；
+     ② 多选模式下整个胶囊不渲染，那时行内只该有勾选框；
+     ③ 调顺序时行尾整块让位给箭头，走的是另一条分支。 */
+  const stockEnabled = item.quantity !== null && !selecting;
+  const stockTag = stockEnabled ? (
+    <PlainTag
+      text={stockLabel(item.quantity)}
+      tone={STOCK_TONE[item.stock]}
+      numeric
+      style={styles.tailTag}
+    />
+  ) : null;
 
   return (
     <Pressable
@@ -135,6 +180,40 @@ export const ItemRow = memo(function ItemRow({
         </View>
       ) : (
         <View style={styles.tail}>
+          {/* 数量胶囊排在价格之上：价格与日均成本一个像素都不动，
+              行高也不会因为多了一行而变（缩略图 46 + 上下各 12 = 70，
+              三行加起来 56，还在预算里）。 */}
+          {onOpenStock && stockTag ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${item.name}，${stockLabel(item.quantity)}，打开库存面板`}
+              hitSlop={6}
+              onPress={() => onOpenStock(item)}
+              android_ripple={{ color: Palette.ripple, borderless: true }}
+              style={({ pressed }) => [styles.tailTagBtn, pressed && styles.tailTagPressed]}>
+              {stockTag}
+            </Pressable>
+          ) : (
+            stockTag
+          )}
+
+          {/* 「补货 +」排在胶囊下面而不是把它顶掉：那一组里「用完了」和「剩 1」
+              是两种紧急程度，正是用户决定先买哪个的依据，不能为了腾位置把它抹掉。
+              多出来的一行只出现在到期页的那一组里（那一页每组至多几件），
+              首页列表永远只有胶囊这一行，行高不变。 */}
+          {onQuickRestock && stockEnabled ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${item.name}，补一件`}
+              hitSlop={6}
+              onPress={() => onQuickRestock(item)}
+              android_ripple={{ color: Palette.ripple, borderless: true }}
+              style={({ pressed }) => [styles.restock, pressed && styles.tailTagPressed]}>
+              <Label style={styles.restockText}>补货</Label>
+              <Ionicons name="add" size={13} color={Palette.brand} />
+            </Pressable>
+          ) : null}
+
           {item.price != null ? (
             <ItemText style={styles.price}>{formatMoney(item.price)}</ItemText>
           ) : null}
@@ -211,6 +290,24 @@ const useStyles = makeStyles((Palette) => ({
   tail: { alignItems: 'flex-end', gap: 2, minWidth: 62 },
   price: { fontSize: 15 },
   daily: { fontSize: 11.5, fontVariant: ['tabular-nums'] },
+
+  /* 胶囊在 tail 里必须自己把 alignSelf 掰回右侧：
+     PlainTag 自带 alignSelf: 'flex-start'，不覆盖的话它会贴到这一列的左边，
+     而价格是右对齐的 —— 一左一右，看着像排版坏了（不报错）。 */
+  tailTag: { alignSelf: 'flex-end' },
+  tailTagBtn: { borderRadius: Radius.tag },
+  tailTagPressed: { opacity: 0.6 },
+  /* 「补货 +」与胶囊抢同一个位置，观感也保持一致 —— 同一列里出现两种形状会更乱 */
+  restock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: Radius.tag,
+    backgroundColor: Palette.brandBg,
+  },
+  restockText: { fontSize: 11, color: Palette.brand },
 
   /* 手动排序档的上下移。竖排两枚、总高 46 与缩略图齐平，
      行高不因此变化；24 宽也压得住，不至于把品名挤到只剩一个字 */

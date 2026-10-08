@@ -76,6 +76,18 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    // v3：物品表新增剩余件数（NULL = 单件物品）
+    //
+    // 刻意不加索引：低库存筛选只在到期页跑一次全表扫，个人规模下不到 1ms，
+    // 不值得多一个要在 CREATE_INDEXES 里维护、还要为老库补建的索引。
+    to: 3,
+    run: async (db) => {
+      if (!(await hasColumn(db, 'items', 'quantity'))) {
+        await db.execAsync('ALTER TABLE items ADD COLUMN quantity INTEGER;');
+      }
+    },
+  },
 ];
 
 async function hasColumn(db: Database, table: string, column: string): Promise<boolean> {

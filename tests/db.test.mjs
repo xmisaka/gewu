@@ -52,6 +52,7 @@ async function makeItem(id, patch = {}) {
     purchaseDate: patch.purchaseDate ?? null,
     price: patch.price ?? null,
     expireDate: patch.expireDate ?? null,
+    quantity: patch.quantity ?? null,
     brand: null,
     model: null,
     tags: patch.tags ?? [],
@@ -328,7 +329,44 @@ test('getStats：三个互斥分组之和等于总数', async () => {
   assert.equal(stats.fineCount, 2, '31 天后与未填的都算正常');
   assert.equal(stats.soonCount + stats.overdueCount + stats.fineCount, stats.total);
   assert.equal(stats.expiringCount, 3, '需要关注的口径含已过期');
+  assert.equal(stats.attentionCount, 3, '没有一件启用库存，两个口径此时相等');
   assert.equal(stats.totalValue, 60);
+});
+
+test('getStats：attentionCount 把「该补货」并进来，且与到期部分去重', async () => {
+  await reset();
+  const on = new Date();
+  const day = (offset) => {
+    const d = new Date(on.getFullYear(), on.getMonth(), on.getDate() + offset);
+    const p = (n) => (n < 10 ? `0${n}` : String(n));
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+
+  await makeItem('lowOnly', { quantity: 1 });
+  await makeItem('lowAndExpiring', { quantity: 0, expireDate: day(2) });
+  await makeItem('okStock', { quantity: 8 });
+  await makeItem('expiringOnly', { expireDate: day(-1) });
+  await makeItem('farAway', { expireDate: day(90) });
+  await makeItem('plain');
+
+  const stats = await items.getStats();
+  assert.equal(stats.expiringCount, 2, '到期口径：只数填了过期时间且 ≤30 天的');
+  assert.equal(
+    stats.attentionCount,
+    3,
+    '待办口径：lowOnly + lowAndExpiring + expiringOnly；lowAndExpiring 两个条件都命中，只算一件',
+  );
+  /* ★ 这一条是这次改动的要害：角标数与提醒页里实际列出的行数必须相等。
+     提醒页列的是「该补货了」+「已过期」+「30 天内到期」三组去重后的并集。 */
+  const groups = await items.listExpiring();
+  const low = await items.listLowStock();
+  const ids = new Set();
+  for (const g of groups) {
+    if (g.key === 'later') continue;
+    for (const it of g.items) ids.add(it.id);
+  }
+  for (const it of low) ids.add(it.id);
+  assert.equal(stats.attentionCount, ids.size, '角标必须等于提醒页里能数出来的件数');
 });
 
 test('listExpiring：三段两两互斥，并集等于全部填了过期时间的物品', async () => {

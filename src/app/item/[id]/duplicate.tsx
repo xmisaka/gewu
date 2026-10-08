@@ -40,6 +40,9 @@ function seedFrom(item: ItemView): ItemSeed {
     locationId: item.locationId,
     brand: item.brand,
     price: item.price,
+    // 数量属于「这一款还剩几件」而不是「这一次买了什么」，同款再买一份是常见场景，
+    // 所以带过；下面的购买日期 / 过期时间才是按「新录入」清空的那一批。
+    quantity: item.quantity,
     // 以下一律按「新录入」处理
     purchaseDate: null,
     expireDate: null,

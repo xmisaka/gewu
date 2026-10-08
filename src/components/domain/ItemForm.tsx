@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -26,12 +27,16 @@ import { CoverPickerModal } from '@/components/domain/CoverPickerModal';
 import { DatePickerModal } from '@/components/domain/DatePickerModal';
 import { LocationPickerModal } from '@/components/domain/LocationPickerModal';
 import { Button } from '@/components/ui/controls';
-import { Card, Gutter, SectionCard } from '@/components/ui/layout';
-import { Body, Label, Meta, Title } from '@/components/ui/typography';
+import { PlainTag } from '@/components/ui/feedback';
+import { Card, Divider, Gutter, SectionCard } from '@/components/ui/layout';
+import { Body, Heading, Label, Meta, Title } from '@/components/ui/typography';
 import { GUTTER, Palette, Radius, Space, Type } from '@/constants/theme';
+import type { ExtractedFields, ExtractedKey } from '@/lib/ai/extract';
+import { LOW_CONFIDENCE_HINT } from '@/lib/ai/extract';
 import { addMonths, formatDateCN, today } from '@/lib/date';
 import type { CategoryWithCount } from '@/lib/db/categories';
 import { formatMoney, parseMoneyInput } from '@/lib/format';
+import { normalizeQuantity } from '@/lib/stock';
 import { deleteFiles, ingestMany, pickFromLibrary, type IngestedPhoto } from '@/lib/photos/pipeline';
 import { clearStockCache, downloadToCache, type CoverCandidate } from '@/lib/photos/stock';
 import { defaultExpireMonths, EXPIRY_PRESETS, guessCategory, UNCATEGORIZED } from '@/lib/suggest';
@@ -54,6 +59,38 @@ export interface FormPayload {
    * 而 addPhoto 默认是追加到末尾，不特意提一下就会排到最后，等于白找。
    */
   coverPath: string | null;
+}
+
+/**
+ * 一次识物识别的结果。
+ *
+ * `photo` 是**已经落进沙盒**的那张照片 —— 识物与「找封面」不同：
+ * 用户拍的那张实物照本身就该成为物品的照片，所以它在网络往返之前
+ * 就已经走完了压缩与入库这条管道，识别失败也只是拿不到字段，
+ * 照片照旧留着。
+ */
+export interface AiRecognition {
+  fields: ExtractedFields;
+  /** 模型真的给出值的字段，界面只给这些挂 AI 标记 */
+  filled: ExtractedKey[];
+  confidence: number | null;
+  photo: IngestedPhoto | null;
+  /**
+   * 覆盖表单自动生成的那句提示。
+   *
+   * 存在的理由：识别在**网络那一步**失败时，照片早已落盘 ——
+   * 直接返回 `{ error }` 会让那张照片变成没人引用的孤儿文件。
+   * 所以那种情况返回带 `photo` 的空结果，用 `notice` 说清发生了什么。
+   */
+  notice?: string;
+}
+
+/** 识物来源 */
+export type AiRecognizeSource = 'camera' | 'library';
+
+/** 识别失败/被挡下时的返回：`error` 会直接显示在表单的提示行里 */
+export interface AiRecognizeError {
+  error: string;
 }
 
 export interface ItemFormProps {
@@ -85,6 +122,14 @@ export interface ItemFormProps {
   submitting?: boolean;
   /** 顶部标题，录入页用「录入物品」 */
   heading?: string;
+  /**
+   * 识物预填。**不传就不显示那个入口** —— 表单本身不知道什么叫「支持者档」、
+   * 也不该知道「AI 有没有配好」，那些判断留在调用页面里。
+   *
+   * 返回 `null` 表示「用户取消了」或「已经被挡下并给过提示」，表单什么都不做；
+   * 返回 `{ error }` 则把那句话显示在提示行里。
+   */
+  onAiRecognize?: (source: AiRecognizeSource) => Promise<AiRecognition | AiRecognizeError | null>;
 }
 
 /**
@@ -102,6 +147,7 @@ export type ItemSeed = Pick<
   | 'expireDate'
   | 'brand'
   | 'model'
+  | 'quantity'
   | 'tags'
   | 'note'
   | 'sortOrder'
@@ -116,6 +162,12 @@ interface DraftState {
   expireDate: string | null;
   brand: string;
   model: string;
+  /**
+   * 剩余件数，以文本持有。**空串与 `'0'` 是两回事**：
+   * 空 = 只此一件、不启用库存（老用户全是这一档）；`'0'` = 用完了。
+   * 这一点与 priceText / sortText 的处理方式一致，用字符串才分得清「留空」与 0。
+   */
+  quantityText: string;
   tagsText: string;
   note: string;
   /** 手动排序值，以文本持有以便区分「留空」与 0 */
@@ -136,6 +188,7 @@ function stateFrom(
     expireDate: item?.expireDate ?? null,
     brand: item?.brand ?? '',
     model: item?.model ?? '',
+    quantityText: item?.quantity != null ? String(item.quantity) : '',
     tagsText: (item?.tags ?? []).join('、'),
     note: item?.note ?? '',
     sortText: item?.sortOrder != null ? String(item.sortOrder) : '',
@@ -154,6 +207,19 @@ function parseSortValue(raw: string): number | null {
   return Number.isFinite(value) ? Math.trunc(value) : null;
 }
 
+/**
+ * 数量只收非负整数；**留空 → null**（不启用库存），`0` 是一个有效值（用完了）。
+ *
+ * 夹取走 stock.ts 的 normalizeQuantity，与 setQuantity 共用同一条规则 ——
+ * 表单里能粘进 `-3`，那种值落库后会让「剩 -3」直接上屏，而它既不报错也不告警。
+ */
+function parseQuantityValue(raw: string): number | null {
+  const text = raw.trim();
+  if (!text) return null;
+  const value = Number(text);
+  return Number.isFinite(value) ? normalizeQuantity(value) : null;
+}
+
 export function ItemForm({
   initialItem,
   prefill,
@@ -166,6 +232,7 @@ export function ItemForm({
   onSubmit,
   submitting,
   heading,
+  onAiRecognize,
 }: ItemFormProps) {
   const styles = useStyles();
   const isEdit = !!initialItem;
@@ -205,6 +272,17 @@ export function ItemForm({
   const [locationOpen, setLocationOpen] = useState(false);
   const [dateTarget, setDateTarget] = useState<'purchase' | 'expire' | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  /** 识物来源选择弹层 */
+  const [recognizeOpen, setRecognizeOpen] = useState(false);
+  const [recognizing, setRecognizing] = useState(false);
+  /**
+   * 模型填了、用户还没确认的字段。
+   *
+   * ★ 它是「信任」的载体：用户一眼要能分辨哪几个值是模型猜的。
+   *   所以用户一旦手动改了某个字段，就必须把它从这里移掉 ——
+   *   一个永远挂着的「AI」标，会让这个标记本身失去意义。
+   */
+  const [aiFields, setAiFields] = useState<Set<string>>(new Set());
 
   /** 提交后标记，避免卸载时把已入库的照片误删 */
   const committed = useRef(false);
@@ -229,6 +307,118 @@ export function ItemForm({
   const set = useCallback(<K extends keyof DraftState>(key: K, value: DraftState[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
   }, []);
+
+  /* ---------------------------------------------------------- AI 识物 */
+
+  /**
+   * 用户手动改过某个字段 → 摘掉那一行的「AI」标。
+   *
+   * 少了这一步，标记会永远挂着，用户很快就不再当真 ——
+   * 那时「哪些值是模型猜的」这个信息等于没有。
+   */
+  const clearAi = useCallback((...keys: string[]) => {
+    setAiFields((prev) => {
+      if (!keys.some((k) => prev.has(k))) return prev;
+      const next = new Set(prev);
+      for (const k of keys) next.delete(k);
+      return next;
+    });
+  }, []);
+
+  /**
+   * 把识别结果并进表单。
+   *
+   * 三条边界：
+   *   ① **只覆盖模型真给了值的字段** —— 它返回 null 的字段保留用户已经填的，
+   *      否则一次识别会把之前敲的字冲掉；
+   *   ② 分类名要能在库里的分类中找得到才生效，找不到就整条丢掉（见 extract 的注释）；
+   *   ③ 识别用的那张照片**同时就是这件物品的照片**，并且提到最前当封面 ——
+   *      用户拍它的意图就是「给这件东西配张图」。
+   */
+  const applyRecognition = useCallback(
+    (r: AiRecognition) => {
+      const f = r.fields;
+      const patch: Partial<DraftState> = {};
+      const marked = new Set<string>();
+
+      if (f.name) {
+        patch.name = f.name;
+        marked.add('name');
+      }
+      if (f.brand) {
+        patch.brand = f.brand;
+        marked.add('brand');
+      }
+      if (f.model) {
+        patch.model = f.model;
+        marked.add('model');
+      }
+      if (f.quantity != null) {
+        patch.quantityText = String(f.quantity);
+        marked.add('quantity');
+      }
+      if (f.expireDate) {
+        patch.expireDate = f.expireDate;
+        marked.add('expireDate');
+      }
+      if (f.tags.length > 0) {
+        patch.tagsText = f.tags.join('、');
+        marked.add('tags');
+      }
+      if (f.note) {
+        patch.note = f.note;
+        marked.add('note');
+      }
+      if (f.categoryName) {
+        const target = categories.find((c) => c.name === f.categoryName);
+        if (target) {
+          patch.categoryId = target.id;
+          marked.add('categoryId');
+        }
+      }
+
+      setDraft((prev) => ({ ...prev, ...patch }));
+      setAiFields(marked);
+      // 分类是模型定的，别再被猜词覆盖回去
+      if (marked.has('categoryId')) categoryTouched.current = true;
+
+      if (r.photo) {
+        setNewPhotos((prev) => [...prev, r.photo as IngestedPhoto]);
+        setCoverPath(r.photo.filePath);
+      }
+
+      setHint(
+        r.notice ??
+          (marked.size === 0
+            ? '识别没读出能用的字段，自己填一下'
+            : r.confidence != null && r.confidence < 0.5
+              ? LOW_CONFIDENCE_HINT
+              : `AI 填了 ${marked.size} 项，带 AI 标的地方请你确认一下`),
+      );
+    },
+    [categories],
+  );
+
+  const runRecognize = useCallback(
+    async (source: AiRecognizeSource) => {
+      if (!onAiRecognize || recognizing) return;
+      setRecognizeOpen(false);
+      setRecognizing(true);
+      setHint(null);
+      try {
+        const outcome = await onAiRecognize(source);
+        if (!outcome) return;
+        if ('error' in outcome) {
+          setHint(outcome.error);
+          return;
+        }
+        applyRecognition(outcome);
+      } finally {
+        setRecognizing(false);
+      }
+    },
+    [onAiRecognize, recognizing, applyRecognition],
+  );
 
   /* ---------------------------------------------------------- 猜分类 */
 
@@ -364,6 +554,7 @@ export function ItemForm({
         expireDate: draft.expireDate,
         brand: draft.brand.trim() || null,
         model: draft.model.trim() || null,
+        quantity: parseQuantityValue(draft.quantityText),
         tags,
         note: draft.note.trim() || null,
         sortOrder: parseSortValue(draft.sortText),
@@ -446,6 +637,27 @@ export function ItemForm({
               <Label color={canFindCover ? Palette.brand : Palette.ink4}>找封面</Label>
             </Pressable>
 
+            {/* 拍照识物。只有调用方提供了处理函数才出现 ——
+                表单自己不知道「支持者档」「有没有配 Key」这些事 */}
+            {onAiRecognize ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="拍照识物，自动填表"
+                accessibilityState={{ disabled: uploading || recognizing }}
+                onPress={() => setRecognizeOpen(true)}
+                disabled={uploading || recognizing}
+                style={[styles.photoAdd, styles.photoAi]}>
+                <Ionicons
+                  name={recognizing ? 'hourglass-outline' : 'scan-outline'}
+                  size={20}
+                  color={recognizing ? Palette.ink3 : Palette.brand}
+                />
+                <Label color={recognizing ? Palette.ink3 : Palette.brand}>
+                  {recognizing ? '识别中' : '识物'}
+                </Label>
+              </Pressable>
+            ) : null}
+
             {keptPhotos.map((p) => (
               <View key={p.id}>
                 <PhotoThumb thumb={p.thumbPath} name={draft.name || '照片'} size={72} radius={Radius.input} />
@@ -484,12 +696,13 @@ export function ItemForm({
         <SectionCard title="必填">
           <Card padded={false} style={styles.cardGutter}>
             <Gutter>
-              <FieldRow label="名称" required>
+              <FieldRow label="名称" required ai={aiFields.has('name')}>
                 <TextInput
                   ref={nameRef}
                   value={draft.name}
                   onChangeText={(t) => {
                     set('name', t);
+                    clearAi('name');
                     if (!categoryTouched.current) {
                       const guessed = guessCategory(t);
                       if (guessed) {
@@ -508,7 +721,12 @@ export function ItemForm({
               </FieldRow>
 
               {suggestion ? (
-                <Pressable onPress={applySuggestion} style={styles.suggest}>
+                <Pressable
+                  onPress={() => {
+                    clearAi('categoryId');
+                    applySuggestion();
+                  }}
+                  style={styles.suggest}>
                   <Ionicons name="sparkles-outline" size={13} color={Palette.brand} />
                   <Label tone="brand">猜它属于「{suggestion.name}」，点一下采纳</Label>
                 </Pressable>
@@ -520,7 +738,7 @@ export function ItemForm({
         <SectionCard title="归类">
           <Card padded={false} style={styles.cardGutter}>
             <Gutter>
-              <FieldRow label="分类">
+              <FieldRow label="分类" ai={aiFields.has('categoryId')}>
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => setCategoryOpen(true)}
@@ -576,7 +794,7 @@ export function ItemForm({
                 </View>
               </FieldRow>
 
-              <FieldRow label="过期时间" last={draft.expireDate == null}>
+              <FieldRow label="过期时间" ai={aiFields.has('expireDate')}>
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => setDateTarget('expire')}
@@ -597,6 +815,7 @@ export function ItemForm({
                       onPress={() => {
                         const base = draft.purchaseDate ?? today();
                         set('expireDate', addMonths(base, p.months));
+                        clearAi('expireDate');
                       }}
                       style={styles.preset}>
                       <Label tone="ink2">{p.label}</Label>
@@ -604,6 +823,26 @@ export function ItemForm({
                   ))}
                 </View>
               ) : null}
+
+              {/* 数量紧挨着过期时间：两者都是「耗材属性」，一起填符合心理模型。
+                  留空即单件、不启用库存 —— 这是老用户的默认档，不填任何东西行为不变。 */}
+              <FieldRow label="数量" ai={aiFields.has('quantity')} last>
+                <TextInput
+                  value={draft.quantityText}
+                  onChangeText={(t) => {
+                    set('quantityText', t);
+                    clearAi('quantity');
+                  }}
+                  placeholder="留空 = 只此一件"
+                  placeholderTextColor={Palette.ink4}
+                  keyboardType="number-pad"
+                  style={styles.input}
+                  allowFontScaling={false}
+                />
+              </FieldRow>
+              <Meta tone="ink4" style={styles.quantityHint}>
+                填了数字行尾才会显示数量胶囊，可以就地用掉 / 补一件；单位不用填，写在备注里即可
+              </Meta>
             </Gutter>
           </Card>
         </SectionCard>
@@ -611,40 +850,52 @@ export function ItemForm({
         <SectionCard title="更多信息（选填）">
           <Card padded={false} style={styles.cardGutter}>
             <Gutter>
-              <FieldRow label="品牌">
+              <FieldRow label="品牌" ai={aiFields.has('brand')}>
                 <TextInput
                   value={draft.brand}
-                  onChangeText={(t) => set('brand', t)}
+                  onChangeText={(t) => {
+                    set('brand', t);
+                    clearAi('brand');
+                  }}
                   placeholder="未设置"
                   placeholderTextColor={Palette.ink4}
                   style={styles.input}
                   allowFontScaling={false}
                 />
               </FieldRow>
-              <FieldRow label="型号">
+              <FieldRow label="型号" ai={aiFields.has('model')}>
                 <TextInput
                   value={draft.model}
-                  onChangeText={(t) => set('model', t)}
+                  onChangeText={(t) => {
+                    set('model', t);
+                    clearAi('model');
+                  }}
                   placeholder="未设置"
                   placeholderTextColor={Palette.ink4}
                   style={styles.input}
                   allowFontScaling={false}
                 />
               </FieldRow>
-              <FieldRow label="标签">
+              <FieldRow label="标签" ai={aiFields.has('tags')}>
                 <TextInput
                   value={draft.tagsText}
-                  onChangeText={(t) => set('tagsText', t)}
+                  onChangeText={(t) => {
+                    set('tagsText', t);
+                    clearAi('tags');
+                  }}
                   placeholder="用顿号分隔，如：办公、备用"
                   placeholderTextColor={Palette.ink4}
                   style={styles.input}
                   allowFontScaling={false}
                 />
               </FieldRow>
-              <FieldRow label="备注">
+              <FieldRow label="备注" ai={aiFields.has('note')}>
                 <TextInput
                   value={draft.note}
-                  onChangeText={(t) => set('note', t)}
+                  onChangeText={(t) => {
+                    set('note', t);
+                    clearAi('note');
+                  }}
                   placeholder="未设置"
                   placeholderTextColor={Palette.ink4}
                   style={[styles.input, styles.multiline]}
@@ -746,20 +997,125 @@ export function ItemForm({
         onClose={() => setCoverOpen(false)}
         onConfirm={useCoverPhoto}
       />
+
+      <RecognizeSourceSheet
+        visible={recognizeOpen}
+        busy={recognizing}
+        onClose={() => setRecognizeOpen(false)}
+        onPick={runRecognize}
+      />
     </KeyboardAvoidingView>
   );
 }
 
 /* ------------------------------------------------------------ 局部件 */
 
+/**
+ * 识物来源选择（拍一张 / 从相册选）。
+ *
+ * ★ 为什么单独弹一层、而不是点了直接进相机：
+ *   识物的典型场景确实是「对着一件东西拍包装」，但网购截图、别人发来的图
+ *   只能走相册。多问一句的成本，远低于进错入口白拍一张。
+ *   （与「添加照片」直接进相册不同：那个要的是多选，识物只要一张。）
+ */
+function RecognizeSourceSheet({
+  visible,
+  busy,
+  onClose,
+  onPick,
+}: {
+  visible: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onPick: (source: AiRecognizeSource) => void;
+}) {
+  const styles = useStyles();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+      <View style={styles.sheet}>
+        <View style={styles.sheetHandle} />
+        <View style={styles.sheetHead}>
+          <Heading>拍照识物</Heading>
+          <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} hitSlop={10}>
+            <Ionicons name="close" size={20} color={Palette.ink3} />
+          </Pressable>
+        </View>
+
+        <View style={styles.sheetBody}>
+          <SourceRow
+            icon="camera-outline"
+            label="拍一张"
+            hint="对着包装拍，识别最准"
+            disabled={busy}
+            onPress={() => onPick('camera')}
+          />
+          <Divider />
+          <SourceRow
+            icon="images-outline"
+            label="从相册选"
+            hint="网购截图、别人发来的图"
+            disabled={busy}
+            onPress={() => onPick('library')}
+          />
+        </View>
+
+        <View style={styles.sheetFoot}>
+          <Meta tone="ink3">
+            识别会把这件物品的照片上传给模型，只上传压到 1024px 的副本；读出的字段带「AI」标，保存前你自己确认。糊图或反光拍不清时，它宁可少填一个字段，也不会替你猜。
+          </Meta>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function SourceRow({
+  icon,
+  label,
+  hint,
+  disabled,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  hint: string;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  const styles = useStyles();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
+      onPress={onPress}
+      disabled={disabled}
+      android_ripple={{ color: Palette.ripple }}
+      style={styles.sourceRow}>
+      <Ionicons name={icon} size={18} color={disabled ? Palette.ink4 : Palette.brand} />
+      <Body style={styles.sourceLabel}>{label}</Body>
+      <Label tone="ink3">{hint}</Label>
+    </Pressable>
+  );
+}
+
 function FieldRow({
   label,
   required,
+  ai,
   last,
   children,
 }: {
   label: string;
   required?: boolean;
+  /**
+   * 这个值是不是模型填的 —— 是就在值右侧挂一个「AI」标。
+   *
+   * ★ 只标模型填的，不标规则带出的（分类默认保质期那条走的是 applyExpiryTemplate）。
+   *   两者混在一起标，用户就没法分辨「哪几个值需要他确认一下」，
+   *   而「保存前你说了算」这句话正是建立在能分辨之上的。
+   */
+  ai?: boolean;
   last?: boolean;
   children: React.ReactNode;
 }) {
@@ -770,7 +1126,10 @@ function FieldRow({
         {label}
         {required ? <Body color={Palette.clay}> *</Body> : null}
       </Body>
-      <View style={styles.fieldContent}>{children}</View>
+      <View style={styles.fieldContent}>
+        {children}
+        {ai ? <PlainTag text="AI" tone="brand" style={styles.fieldAi} /> : null}
+      </View>
     </View>
   );
 }
@@ -820,12 +1179,25 @@ const useStyles = makeStyles((Palette) => ({
   },
   /* 找封面：实线品牌描边，与「添加」的虚线中性态区分开 */
   photoFind: { borderStyle: 'solid', borderColor: Palette.brandBg, backgroundColor: Palette.surface },
+  /* 识物：同是实线品牌描边，但底色换成品牌浅底 —— 三个方块里它最像「主操作」，
+     用户第一眼要能挑出来，所以给实底色而不是另一个描边方块 */
+  photoAi: { borderStyle: 'solid', borderColor: Palette.brand, backgroundColor: Palette.brandBg },
   photoNote: { marginTop: Space.sm },
 
   fieldRow: { flexDirection: 'row', alignItems: 'center', minHeight: 50, paddingVertical: Space.sm },
   fieldRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Palette.line3 },
   fieldLabel: { width: 76, color: Palette.ink2 },
-  fieldContent: { flex: 1, alignItems: 'flex-end' },
+  /* ★ 横排而非纵排：这样「AI」标才能跟在值的右侧（设计稿是同行的），
+     而不是掉到值下面一行。单子元素时行为与改前一致 ——
+     TextInput 自带 flex:1 会占满，pickerValue 无 flex 则被 justifyContent 顶到右端。 */
+  fieldContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: Space.xs,
+  },
+  fieldAi: { alignSelf: 'center', flexShrink: 0 },
   input: {
     flex: 1,
     width: '100%',
@@ -836,6 +1208,8 @@ const useStyles = makeStyles((Palette) => ({
   },
   multiline: { minHeight: 44, textAlignVertical: 'top', paddingTop: 0 },
   sortHint: { paddingBottom: Space.md, textAlign: 'right' },
+  /* 数量行是这张卡的收尾，说明文字要留出底部内距，不然贴着卡片下缘 */
+  quantityHint: { paddingBottom: Space.md, textAlign: 'right', lineHeight: 17 },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   currency: { fontSize: 14 },
   priceInput: { textAlign: 'right' },
@@ -860,4 +1234,38 @@ const useStyles = makeStyles((Palette) => ({
   actions: { paddingHorizontal: GUTTER, paddingTop: Space.xxl, gap: Space.sm, alignItems: 'stretch' },
   preview: { textAlign: 'center', marginBottom: Space.xs },
   mustName: { textAlign: 'center' },
+
+  /* 识物来源弹层：与 SortPickerModal 同构（底部滑出、不进路由） */
+  sheetBackdrop: { flex: 1, backgroundColor: Palette.scrim },
+  sheet: {
+    backgroundColor: Palette.surface,
+    borderTopLeftRadius: Radius.sheet,
+    borderTopRightRadius: Radius.sheet,
+    paddingBottom: Space.xxl,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Palette.line,
+    alignSelf: 'center',
+    marginTop: Space.sm,
+  },
+  sheetHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: GUTTER,
+    paddingTop: Space.lg,
+    paddingBottom: Space.md,
+  },
+  sheetBody: { paddingHorizontal: GUTTER, paddingBottom: Space.sm },
+  sourceRow: { flexDirection: 'row', alignItems: 'center', gap: Space.sm, paddingVertical: Space.md },
+  sourceLabel: { flex: 1 },
+  sheetFoot: {
+    paddingHorizontal: GUTTER,
+    paddingTop: Space.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Palette.line3,
+  },
 }));

@@ -15,15 +15,27 @@ import { Button, FormRow, IconButton } from '@/components/ui/controls';
 import { Loading, PlainTag, StatusTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Display, Label, Meta, Num } from '@/components/ui/typography';
-import { GUTTER, Space } from '@/constants/theme';
+import { GUTTER, Palette, Space } from '@/constants/theme';
 import { formatDateCN, isJustAcquired } from '@/lib/date';
-import { getItemView, softDeleteItem } from '@/lib/db/items';
+import { adjustQuantity, getItemView, setQuantity, softDeleteItem } from '@/lib/db/items';
 import { listPhotos } from '@/lib/db/photos';
 import { formatMoney } from '@/lib/format';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
+import { stockLabel, stockStateText } from '@/lib/stock';
 import { useAppState } from '@/lib/store/app-state';
-import type { ItemView, Photo } from '@/lib/types';
+import type { ItemView, Photo, StockState } from '@/lib/types';
 import { makeStyles } from '@/lib/theme';
+
+/**
+ * 库存状态 → 文字色。三档语义色锁死，与列表胶囊、底部面板同一套。
+ * 写成函数而不是模块级常量表：Palette 是渲染期解析的代理。
+ */
+function stockColor(state: StockState): string {
+  if (state === 'empty') return Palette.clay;
+  if (state === 'low') return Palette.amber;
+  if (state === 'ok') return Palette.sage;
+  return Palette.ink3;
+}
 
 export default function ItemDetailScreen() {
   const styles = useStyles();
@@ -31,6 +43,8 @@ export default function ItemDetailScreen() {
   const router = useRouter();
   const { dataVersion, bump } = useAppState();
   const [activePhoto, setActivePhoto] = useState(0);
+  /** 库存加减正在落库，用于挡住连点 */
+  const [stockBusy, setStockBusy] = useState(false);
 
   const itemState = useAsyncData(() => getItemView(id), [id, dataVersion], null as ItemView | null);
   const photoState = useAsyncData(() => listPhotos(id), [id, dataVersion], [] as Photo[]);
@@ -52,6 +66,39 @@ export default function ItemDetailScreen() {
       },
     ]);
   }, [item, bump, router]);
+
+  /**
+   * 库存 ±1。落库后只 bump 一次，剩下的交给 useAsyncData 重新读回来 ——
+   * 不在这里自己维护一份数量副本，那会多出一个「和数据库不一致」的状态。
+   *
+   * 这里**不弹撤销条**：+1 就在旁边（这正是候选 E 的全部意义），
+   * 点错了原地再点一下即可，比去底部找撤销条快。撤销条留给首页那种
+   * 「操作完已经把面板关掉、按钮不在眼前」的场景。
+   */
+  const stepStock = useCallback(
+    async (delta: number) => {
+      if (!item || stockBusy) return;
+      setStockBusy(true);
+      try {
+        await adjustQuantity(item.id, delta);
+        bump();
+      } finally {
+        setStockBusy(false);
+      }
+    },
+    [item, stockBusy, bump],
+  );
+
+  const emptyStock = useCallback(async () => {
+    if (!item || stockBusy) return;
+    setStockBusy(true);
+    try {
+      await setQuantity(item.id, 0);
+      bump();
+    } finally {
+      setStockBusy(false);
+    }
+  }, [item, stockBusy, bump]);
 
   if (itemState.loading && !item) {
     return (
@@ -139,6 +186,79 @@ export default function ItemDetailScreen() {
           </View>
         </View>
 
+        {/* 库存卡：候选 E 的核心改动 —— 从「滚动才看得到」提到
+            照片正下方、持有成本卡之上。买了六瓶酱油的人打开这条记录，
+            十次里有九次是为了改数量，所以它排第一。
+            持有成本卡没被删，只是让了一位。
+            ★ 只在启用了库存（quantity 非 null）时渲染：绝大多数物品是单件，
+              给它们挂一张「未启用」的卡纯属噪音，还会把持有成本卡挤下去。 */}
+        {item.quantity !== null ? (
+          <View style={styles.stockWrap}>
+            <Card style={styles.stockCard}>
+              <View style={styles.stockHead}>
+                <Label tone="ink3" style={styles.stockEyebrow}>
+                  库存
+                </Label>
+                <Meta color={stockColor(item.stock)} style={styles.stockState}>
+                  {stockStateText(item.quantity)}
+                </Meta>
+              </View>
+
+              <View style={styles.stockMain}>
+                <View style={styles.stockNumWrap}>
+                  <Num color={stockColor(item.stock)} style={styles.stockNum}>
+                    {item.quantity}
+                  </Num>
+                  <Meta tone="ink4" style={styles.stockUnit}>
+                    件
+                  </Meta>
+                </View>
+              </View>
+
+              {/* 价格口径要印在卡里：看到「6 件」和「¥15.80」摆在一起，
+                  第一反应一定是「总价 94.8？」，得当场说清单件价不随数量变 */}
+              {item.price != null && item.quantity > 1 ? (
+                <Meta tone="ink4" style={styles.stockPriceNote}>
+                  {formatMoney(item.price)} 是单件价，日均成本也只按单件算
+                </Meta>
+              ) : null}
+
+              <View style={styles.stockBtns}>
+                <Button
+                  label="用掉一件"
+                  onPress={() => void stepStock(-1)}
+                  disabled={stockBusy || item.quantity === 0}
+                  block={false}
+                  style={styles.stockBtn}
+                />
+                <Button
+                  label="补一件"
+                  tone="secondary"
+                  onPress={() => void stepStock(1)}
+                  disabled={stockBusy}
+                  block={false}
+                  style={styles.stockBtn}
+                />
+              </View>
+
+              <View style={styles.stockLinks}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="标记用完"
+                  disabled={stockBusy || item.quantity === 0}
+                  hitSlop={8}
+                  onPress={() => void emptyStock()}>
+                  <Meta
+                    tone={item.quantity === 0 ? 'ink4' : 'brand'}
+                    style={styles.stockLinkText}>
+                    标记用完
+                  </Meta>
+                </Pressable>
+              </View>
+            </Card>
+          </View>
+        ) : null}
+
         {/* 持有成本卡：任一前提缺失则整卡隐藏，绝不显示 ¥0.00 / 天 */}
         {item.dailyCost != null && item.holdingDays != null ? (
           <View style={styles.costWrap}>
@@ -180,6 +300,14 @@ export default function ItemDetailScreen() {
                       : null
                   }
                 />
+              </FormRow>
+              {/* 数量在字段表里再留一行：库存卡上的大数字是「快速改」，
+                  这一行是「回头看」。没启用库存时 stockLabel 给空串，
+                  FieldValue 会显示「未设置」—— 与其它空字段一致。
+                  注意这里显示的是「剩 2」而不是「2 件」：同一个数字在
+                  胶囊、面板、这里三处口径一致，用户不必对账。 */}
+              <FormRow label="数量">
+                <FieldValue text={stockLabel(item.quantity)} />
               </FormRow>
               <FormRow label="购买日期">
                 <FieldValue text={item.purchaseDate ? formatDateCN(item.purchaseDate) : null} />
@@ -302,6 +430,24 @@ const useStyles = makeStyles((Palette) => ({
   costMain: { flexDirection: 'row', alignItems: 'flex-end', gap: Space.xs, marginTop: Space.xs },
   costUnit: { marginBottom: 5 },
   costNote: { fontSize: 12.5, opacity: 0.85, marginTop: Space.xs },
+
+  /* 库存卡。比持有成本卡矮一档、也不上品牌浅底 ——
+     一张卡上只有一个焦点，两个都在抢就没有焦点了。
+     卡片左右边距必须自己扛（Card 不负责），漏了不报错。 */
+  stockWrap: { paddingHorizontal: GUTTER, paddingTop: Space.xxl },
+  stockCard: { padding: Space.lg, gap: Space.xs },
+  stockHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  stockEyebrow: { letterSpacing: 1.2 },
+  stockState: { fontSize: 12.5 },
+  stockMain: { flexDirection: 'row', alignItems: 'flex-end' },
+  stockNumWrap: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
+  stockNum: { fontSize: 30, lineHeight: 36 },
+  stockUnit: { marginBottom: 6 },
+  stockPriceNote: { fontSize: 11.5, lineHeight: 16 },
+  stockBtns: { flexDirection: 'row', gap: Space.sm, marginTop: Space.sm },
+  stockBtn: { flex: 1 },
+  stockLinks: { alignItems: 'center', marginTop: Space.sm },
+  stockLinkText: { fontSize: 11.5 },
 
   fieldCard: { marginHorizontal: GUTTER },
   tagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.xs },

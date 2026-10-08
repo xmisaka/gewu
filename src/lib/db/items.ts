@@ -6,6 +6,7 @@
  */
 
 import { dailyCost, expiryState, holdingDays, today } from '../date';
+import { isStockEnabled, LOW_STOCK_THRESHOLD, nextQuantity, normalizeQuantity, stockState } from '../stock';
 import type { Database } from './index';
 import { getDatabase } from './index';
 import type {
@@ -30,6 +31,7 @@ interface ItemRow {
   expire_date: string | null;
   brand: string | null;
   model: string | null;
+  quantity: number | null;
   tags: string | null;
   note: string | null;
   sort_order: number | null;
@@ -62,7 +64,7 @@ interface ItemRow {
 const SELECT_VIEW = `
 SELECT
   i.id, i.name, i.category_id, i.location_id, i.purchase_date, i.price,
-  i.expire_date, i.brand, i.model, i.tags, i.note, i.sort_order,
+  i.expire_date, i.brand, i.model, i.quantity, i.tags, i.note, i.sort_order,
   i.created_at, i.updated_at, i.deleted_at,
   c.name  AS category_name,
   l.name  AS location_name,
@@ -104,6 +106,7 @@ function toItem(row: ItemRow): Item {
     expireDate: row.expire_date,
     brand: row.brand,
     model: row.model,
+    quantity: row.quantity ?? null,
     tags: parseTags(row.tags),
     note: row.note,
     sortOrder: row.sort_order ?? null,
@@ -129,6 +132,7 @@ function toItemView(row: ItemRow, on: DateString): ItemView {
     coverThumb: row.cover_thumb ?? null,
     expiry: state,
     daysToExpiry: days,
+    stock: stockState(base.quantity),
     holdingDays: holdingDays(base.purchaseDate, on),
     dailyCost: dailyCost(base.price, base.purchaseDate, on),
   };
@@ -278,8 +282,8 @@ export async function createItem(draft: ItemDraft): Promise<string> {
   await db.runAsync(
     `INSERT INTO items
       (id, name, category_id, location_id, purchase_date, price, expire_date,
-       brand, model, tags, note, sort_order, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+       brand, model, quantity, tags, note, sort_order, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
     id,
     draft.name.trim(),
     draft.categoryId,
@@ -289,6 +293,7 @@ export async function createItem(draft: ItemDraft): Promise<string> {
     draft.expireDate,
     draft.brand,
     draft.model,
+    draft.quantity,
     JSON.stringify(draft.tags ?? []),
     draft.note,
     draft.sortOrder,
@@ -318,6 +323,7 @@ export async function updateItem(id: string, patch: Partial<ItemDraft>): Promise
   if (patch.expireDate !== undefined) push('expire_date', patch.expireDate);
   if (patch.brand !== undefined) push('brand', patch.brand);
   if (patch.model !== undefined) push('model', patch.model);
+  if (patch.quantity !== undefined) push('quantity', patch.quantity);
   if (patch.tags !== undefined) push('tags', JSON.stringify(patch.tags));
   if (patch.note !== undefined) push('note', patch.note);
   if (patch.sortOrder !== undefined) push('sort_order', patch.sortOrder);
@@ -328,6 +334,78 @@ export async function updateItem(id: string, patch: Partial<ItemDraft>): Promise
   args.push(id);
 
   await db.runAsync(`UPDATE items SET ${sets.join(', ')} WHERE id = ?`, ...args);
+}
+
+/* ------------------------------------------------------------ 库存 */
+
+/**
+ * 加减若干件。返回**变动之前**的数量，供撤销条回滚；没动成则返回 `null`。
+ *
+ * ★ 返回 0 是合法结果（原本就是 0 件），所以调用方必须判 `!== null` 而不是真值判断 ——
+ *   写成 `if (before)` 会让「用完了的物品点补一件」这条路径悄悄走丢。
+ *
+ * ★ 先读后写，绝不在 SQL 里写 `quantity = quantity + ?`：
+ *   SQLite 的单参数 `max()` 是**聚合函数**、双参数才是标量函数，
+ *   写成 `max(quantity - 1, 0)` 少了一个括号不会报错，语义却完全变了。
+ *   夹取放在纯函数 `nextQuantity()` 里（有单测兜着），这里只管读写。
+ *
+ * ★ 刻意**不动 `updated_at`**：与 setManualOrder 同一个判断 ——
+ *   「用掉一瓶酱油」不是内容编辑，动它会让首页「最近变动」排序被打乱。
+ */
+export async function adjustQuantity(id: string, delta: number): Promise<number | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ quantity: number | null }>(
+    'SELECT quantity FROM items WHERE id = ?',
+    id,
+  );
+  if (!row || !isStockEnabled(row.quantity)) return null;
+
+  const before = row.quantity as number;
+  const after = nextQuantity(before, delta) as number;
+  // 0 再减还是 0：写一次库换回同样的值没有意义，直接回旧值让调用方照样能弹撤销条
+  if (after === before) return before;
+
+  await db.runAsync('UPDATE items SET quantity = ? WHERE id = ?', after, id);
+  return before;
+}
+
+/**
+ * 直接设定剩余件数（面板里「改成别的数」、详情页库存卡的编辑入口都走它）。
+ *
+ * 传 `null` 是**退订**：退回「单件物品」，列表行的胶囊随之消失。
+ * 同样不动 `updated_at`，理由见 adjustQuantity。
+ */
+export async function setQuantity(id: string, value: number | null): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    'UPDATE items SET quantity = ? WHERE id = ?',
+    value === null ? null : normalizeQuantity(value),
+    id,
+  );
+}
+
+/**
+ * 「该补货了」：启用了库存、且余量已到阈值线（含 0）。
+ *
+ * 阈值不在 SQL 里另写一遍 `<= 1`，而是引用 `LOW_STOCK_THRESHOLD` ——
+ * 将来把「只剩最后一件」放宽成两件时只改一处，界面与查询不会各说各话。
+ *
+ * 排序：用完了的排最前（最急），然后余量少的靠前，同档按最近变动。
+ * ★ 刻意不走 SORT_SQL：那五种是给用户在首页自选的展示偏好，
+ *   这里要的是一个固定的紧急度顺序，混进去会让排序切换器的语义变模糊。
+ */
+export async function listLowStock(): Promise<ItemView[]> {
+  const db = await getDatabase();
+  const on = today();
+  const rows = await db.getAllAsync<ItemRow>(
+    `${SELECT_VIEW}
+     WHERE i.deleted_at IS NULL
+       AND i.quantity IS NOT NULL
+       AND i.quantity <= ?
+     ORDER BY i.quantity ASC, i.updated_at DESC`,
+    LOW_STOCK_THRESHOLD,
+  );
+  return rows.map((r) => toItemView(r, on));
 }
 
 /* ------------------------------------------------------------ 批量整理 */
@@ -484,6 +562,22 @@ export async function getStats(): Promise<ItemStats> {
        AND julianday(expire_date) - julianday(?) <= 30`,
     on,
   );
+  /* 「需要关注」= 快到期 ∪ 该补货。和上面那条分开查，不是重复劳动 ——
+     expiringCount 是**到期口径**（首页统计卡「即将到期」用它，标签就得是这一个），
+     attentionCount 是**待办口径**（提醒页顶部那句、标签栏角标用它）。
+     ★ 一条 SQL 里用 OR 写，天然去重：一件既过期又只剩 1 的东西只算一件 ——
+       分两次查再相加就会多出来，而用户会拿这个数去对提醒页里的行数。 */
+  const attentionRow = await db.getFirstAsync<{ c: number }>(
+    `SELECT COUNT(*) AS c FROM items
+     WHERE deleted_at IS NULL
+       AND (
+         (expire_date IS NOT NULL AND expire_date <> ''
+          AND julianday(expire_date) - julianday(?) <= 30)
+         OR (quantity IS NOT NULL AND quantity <= ?)
+       )`,
+    on,
+    LOW_STOCK_THRESHOLD,
+  );
   // 两个互斥分组。fineCount 用总数减出来，不再查第三遍 ——
   // 少一次查询，也天然保证「三格合计等于总数」
   const groupRow = await db.getFirstAsync<{ overdue: number | null; soon: number | null }>(
@@ -507,6 +601,7 @@ export async function getStats(): Promise<ItemStats> {
     total,
     totalValue: valueRow?.s ?? 0,
     expiringCount: expiringRow?.c ?? 0,
+    attentionCount: attentionRow?.c ?? 0,
     soonCount,
     overdueCount,
     fineCount: Math.max(0, total - soonCount - overdueCount),
@@ -567,8 +662,8 @@ export async function insertRaw(item: Item): Promise<void> {
   await db.runAsync(
     `INSERT INTO items
       (id, name, category_id, location_id, purchase_date, price, expire_date,
-       brand, model, tags, note, sort_order, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       brand, model, quantity, tags, note, sort_order, created_at, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name          = excluded.name,
        category_id   = excluded.category_id,
@@ -578,6 +673,7 @@ export async function insertRaw(item: Item): Promise<void> {
        expire_date   = excluded.expire_date,
        brand         = excluded.brand,
        model         = excluded.model,
+       quantity      = excluded.quantity,
        tags          = excluded.tags,
        note          = excluded.note,
        sort_order    = excluded.sort_order,
@@ -593,6 +689,8 @@ export async function insertRaw(item: Item): Promise<void> {
     item.expireDate,
     item.brand,
     item.model,
+    // 老备份包里没有这个字段，缺省补 null（与 sortOrder 当年加列时的处理一致）
+    item.quantity ?? null,
     JSON.stringify(item.tags ?? []),
     item.note,
     // 老备份包里没有这个字段，缺省补 null

@@ -5,6 +5,9 @@
  *
  * 只列四套浅色 —— 深色档（玄夜）不进这个列表。它不是「第五个选项」，
  * 而是系统深色时的自动接管，让用户手动选它等于要维护五套可选项。
+ *
+ * 免费档只保留「素笺」：另外三套带「支持者」标，点它不换肤、改为弹门控浮层。
+ * 判断走 lib/entitlement 里那张唯一的表，这里不自己写规则。
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -19,18 +22,23 @@ import {
   THEMES,
   type ThemeKey,
 } from '@/constants/theme';
-import { makeStyles } from '@/lib/theme';
+import { isThemeLocked } from '@/lib/entitlement';
+import { useEntitlement } from '@/lib/store/entitlement';
+import { makeStyles, useTheme } from '@/lib/theme';
+import { PlainTag } from '../ui/feedback';
 import { Divider } from '../ui/layout';
 import { Body, Heading, Meta } from '../ui/typography';
 
 export interface ThemePickerModalProps {
   visible: boolean;
-  /** 用户当前选择的浅色主题 */
+  /** 用户当前**生效**的浅色主题 */
   value: ThemeKey;
   /** 系统此刻是否处于深色 —— 用于提示所选浅色暂未生效 */
   systemDark: boolean;
   onClose: () => void;
   onPick: (key: ThemeKey) => void;
+  /** 点到被挡下的主题时：由外层关掉本弹层并弹门控浮层 */
+  onLockedPick: (key: ThemeKey) => void;
 }
 
 export function ThemePickerModal({
@@ -39,8 +47,12 @@ export function ThemePickerModal({
   systemDark,
   onClose,
   onPick,
+  onLockedPick,
 }: ThemePickerModalProps) {
   const styles = useStyles();
+  const { entitled } = useEntitlement();
+  const { preferredLightKey, lightKeyLocked } = useTheme();
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
@@ -57,17 +69,31 @@ export function ThemePickerModal({
           {LIGHT_THEME_KEYS.map((key, index) => (
             <View key={key}>
               {index > 0 ? <Divider /> : null}
-              <ThemeOption themeKey={key} active={key === value} onPress={() => onPick(key)} />
+              <ThemeOption
+                themeKey={key}
+                active={key === value}
+                locked={isThemeLocked(key, entitled)}
+                onPress={() => (isThemeLocked(key, entitled) ? onLockedPick(key) : onPick(key))}
+              />
             </View>
           ))}
         </View>
 
         <View style={styles.foot}>
-          <Meta tone="ink3">
-            {systemDark
-              ? '系统当前是深色模式，界面正用「玄夜」，上面四套暂时看不到效果；关掉系统深色即可。这个选择已经记住了。'
-              : '深色档跟随系统：系统切到深色时界面自动换成「玄夜」，这里的浅色选择会留着 —— 白天切回来还是这套。'}
-          </Meta>
+          {/* 被挡下的是「用户自己挑过的那一套」时，必须解释一句 ——
+              否则他上次明明选的是靛青，这次进来看到素笺，只会当成 bug */}
+          {lightKeyLocked ? (
+            <Meta tone="ink3">
+              {`你之前选的「${THEMES[preferredLightKey].name}」属于支持者功能，现在按「素笺」显示。
+              激活之后它会自动回来，不用再选一次。`}
+            </Meta>
+          ) : (
+            <Meta tone="ink3">
+              {systemDark
+                ? '系统当前是深色模式，界面正用「玄夜」，上面四套暂时看不到效果；关掉系统深色即可。这个选择已经记住了。'
+                : '深色档跟随系统：系统切到深色时界面自动换成「玄夜」，这里的浅色选择会留着 —— 白天切回来还是这套。'}
+            </Meta>
+          )}
         </View>
       </View>
     </Modal>
@@ -77,10 +103,12 @@ export function ThemePickerModal({
 function ThemeOption({
   themeKey,
   active,
+  locked,
   onPress,
 }: {
   themeKey: ThemeKey;
   active: boolean;
+  locked: boolean;
   onPress: () => void;
 }) {
   const styles = useStyles();
@@ -89,20 +117,27 @@ function ThemeOption({
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ selected: active }}
-      accessibilityLabel={`主题 ${def.name}`}
+      accessibilityState={{ selected: active, disabled: locked }}
+      accessibilityLabel={locked ? `主题 ${def.name}，支持者功能` : `主题 ${def.name}`}
       onPress={onPress}
       android_ripple={{ color: Palette.ripple }}
       style={styles.option}>
-      {/* 色点取该套主题的品牌色，与「我的」页指示器同源 */}
-      <View style={[styles.dot, { backgroundColor: def.tokens.brand }]} />
+      {/* 色点取该套主题的品牌色，与「我的」页指示器同源。
+          被挡下时降透明度而不是换成灰色 —— 灰点会让用户以为这套配色本身是灰的 */}
+      <View
+        style={[styles.dot, { backgroundColor: def.tokens.brand }, locked && styles.dotLocked]}
+      />
 
       <View style={styles.optionBody}>
         <Body>{def.name}</Body>
         <Meta tone="ink3">{def.note}</Meta>
       </View>
 
-      {active ? <Ionicons name="checkmark" size={18} color={Palette.brand} /> : null}
+      {locked ? (
+        <PlainTag text="支持者" tone="brand" />
+      ) : active ? (
+        <Ionicons name="checkmark" size={18} color={Palette.brand} />
+      ) : null}
     </Pressable>
   );
 }
@@ -139,6 +174,8 @@ const useStyles = makeStyles((Palette) => ({
     paddingVertical: Space.md,
   },
   dot: { width: 26, height: 26, borderRadius: 13 },
+  /* 被挡下的色点降透明度：把「现在不能用」表达出来，同时保留它本来的颜色 */
+  dotLocked: { opacity: 0.45 },
   optionBody: { flex: 1, gap: 1 },
   foot: {
     paddingHorizontal: GUTTER,

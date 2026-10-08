@@ -10,15 +10,22 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { ContactSection } from '@/components/domain/ContactSection';
 import { ThemePickerModal } from '@/components/domain/ThemePickerModal';
 import { SettingRow } from '@/components/ui/controls';
 import { StockKeyModal, stockKeyStatus } from '@/components/domain/StockKeyModal';
-import { Loading, MetricStrip } from '@/components/ui/feedback';
+import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
+import { Loading, MetricStrip, PlainTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { DARK_THEME_KEY, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES, type ThemeKey } from '@/constants/theme';
+import { AFDIAN_URL, SITE_URL } from '@/constants/site';
+import { isThemeLocked, type SupporterFeature } from '@/lib/entitlement';
+import { useEntitlement } from '@/lib/store/entitlement';
+import { useUpdate } from '@/lib/store/update';
+import { updateStatusText } from '@/lib/update/policy';
 import {
   AUTO_BACKUP_INTERVAL_DAYS,
   backupCacheInfo,
@@ -42,6 +49,7 @@ import { formatDateCN } from '@/lib/date';
 import { formatBytes, formatCount, formatMoney, formatStamp } from '@/lib/format';
 import { storageUsage } from '@/lib/photos/pipeline';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
+import { useAi } from '@/lib/store/ai';
 import { useAppState } from '@/lib/store/app-state';
 import { makeStyles, useTheme } from '@/lib/theme';
 
@@ -62,13 +70,21 @@ export default function MineScreen() {
   const styles = useStyles();
   const router = useRouter();
   const { stats, dataVersion, bump } = useAppState();
-  const { key: activeKey, lightKey, setLightKey, systemDark } = useTheme();
+  const { key: activeKey, lightKey, lightKeyLocked, preferredLightKey, setLightKey, systemDark } =
+    useTheme();
+  const { entitled } = useEntitlement();
+  const { active: aiActive, hasKey: aiHasKey } = useAi();
+  const { status, local, checkNow } = useUpdate();
   const activeTheme = THEMES[activeKey];
   const [busy, setBusy] = useState<string | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   /** 本机备份包被清理后 +1，只用来让上面的 metaState 重取一次 */
   const [cacheTick, setCacheTick] = useState(0);
+  /** 被挡下的功能（null = 不显示门控浮层）。目前只有皮肤会走到这里 */
+  const [gateFeature, setGateFeature] = useState<SupporterFeature | null>(null);
+  /** 用户在选择器里点到的那套皮肤，带进激活页，激活完就地生效 */
+  const [gateTheme, setGateTheme] = useState<ThemeKey | null>(null);
 
   const metaState = useAsyncData(
     async () => {
@@ -284,6 +300,19 @@ export default function MineScreen() {
 
   const backupFiles = meta?.backupFiles ?? { count: 0, bytes: 0 };
 
+  /* 「AI 助手」那一行右侧的状态。四种情形对用户的含义完全不同，
+     所以不能笼统写成「可用 / 不可用」：
+     ★ 「未配置」与「已关闭」必须分开 —— 前者要去填 Key，后者只要把开关打开，
+       写成同一句话会让已经配好的人再去找一遍 Key。 */
+  const aiRowValue = !entitled
+    ? '支持者功能'
+    : aiActive
+      ? '已开启'
+      : aiHasKey
+        ? '已关闭'
+        : '未配置';
+  const aiRowTone = aiActive ? 'brand' : 'ink3';
+
   return (
     <Screen>
       <PageHeader title="我的" subtitle="数据都在这台手机里，请留意备份" />
@@ -389,6 +418,18 @@ export default function MineScreen() {
                 valueTone="ink3"
                 onPress={() => setKeyOpen(true)}
               />
+              {/* AI 助手紧跟在「封面图源」后面：两行都是「填一个自己的 Key 换一项联网能力」，
+                  摆在一起用户才容易理解它们的共同点 —— 都是你申请、格物不代管。
+                  免费档点它弹门控浮层（而不是藏掉），理由同 01 屏那枚星标。 */}
+              <SettingRow
+                label="AI 助手"
+                value={aiRowValue}
+                valueTone={aiRowTone}
+                onPress={() => {
+                  if (entitled) router.push('/ai');
+                  else setGateFeature('ai');
+                }}
+              />
               <SettingRow
                 label="回收站"
                 value={meta && meta.trash > 0 ? `${meta.trash} 件待处理` : '空的'}
@@ -419,13 +460,20 @@ export default function MineScreen() {
               </Pressable>
 
               {/* 五枚色点，当前生效的那枚戴一圈墨色环 —— 环下垫 2px 卡片面，
-                  与圆点之间留出空隙，深色档下才不会糊成一坨 */}
+                  与圆点之间留出空隙，深色档下才不会糊成一坨。
+                  免费档下另外三枚降透明度：指示器也要说实话，不能摆出「都可用」的样子 */}
               <View style={styles.dots}>
                 {THEME_DOT_ORDER.map((themeKey) => (
                   <View
                     key={themeKey}
                     style={[styles.dotRing, themeKey === activeKey && styles.dotRingOn]}>
-                    <View style={[styles.dot, { backgroundColor: THEMES[themeKey].tokens.brand }]} />
+                    <View
+                      style={[
+                        styles.dot,
+                        { backgroundColor: THEMES[themeKey].tokens.brand },
+                        isThemeLocked(themeKey, entitled) && styles.dotLocked,
+                      ]}
+                    />
                   </View>
                 ))}
               </View>
@@ -433,27 +481,94 @@ export default function MineScreen() {
 
             <Card tone="inset" style={styles.themeTip}>
               <Body tone="ink2" style={styles.warnText}>
-                {systemDark
-                  ? '系统当前是深色模式，四套浅色暂时不生效 —— 界面正用「玄夜」。关掉系统深色就能看到所选配色。'
-                  : '四套浅色随你挑。系统切到深色时，界面会自动换成「玄夜」，不用另外设置。'}
+                {lightKeyLocked
+                  ? `你之前选的「${THEMES[preferredLightKey].name}」属于支持者功能，现在按「素笺」显示。激活之后它会自动回来，不用再选一次。`
+                  : systemDark
+                    ? '系统当前是深色模式，四套浅色暂时不生效 —— 界面正用「玄夜」。关掉系统深色就能看到所选配色。'
+                    : entitled
+                      ? '五套主题全都解锁了。系统切到深色时，界面会自动换成「玄夜」，不用另外设置。'
+                      : '「素笺」免费；另外三套属于支持者功能。系统切到深色时，界面会自动换成「玄夜」，不用另外设置。'}
               </Body>
             </Card>
+          </Gutter>
+        </SectionCard>
+
+        {/* 「支持格物」不放在最上面：这一页的第一顺位是备份（不做会永久丢数据），
+            付费入口排在它后面，是刻意的顺序 */}
+        <SectionCard title="支持格物">
+          <Gutter>
+            <Card padded={false}>
+              {AFDIAN_URL.length > 0 ? (
+                <SettingRow
+                  label="去爱发电支持"
+                  value="¥28 一次买断"
+                  onPress={() => router.push('/supporter')}
+                />
+              ) : null}
+              <SettingRow
+                label="支持者状态"
+                value={entitled ? '已激活 · 不限设备' : '未激活'}
+                valueTone={entitled ? 'brand' : 'ink3'}
+                onPress={() => router.push('/supporter')}
+              />
+              {/* 按方案页 04 屏，这一行落在「支持格物」卡里（而不是「关于」）——
+                  对一个没有商店的 App 来说，「支持我」和「有新版本去哪拿」是同一件事的两面。
+                  检查中不再响应点击：连点两次等于开两次网，结果却一样 */}
+              <SettingRow
+                label="检查更新"
+                value={updateStatusText(status, local)}
+                valueTone={status === 'available' ? 'brand' : 'ink3'}
+                last
+                onPress={status === 'checking' ? undefined : () => void checkNow()}
+              />
+            </Card>
+
+            <Meta tone="ink4" style={styles.supportNote}>
+              {entitled
+                ? '激活码不绑设备、不限台数。换手机把同一串码再粘一次即可，不需要联网。'
+                : '支持者档一次买断，不影响免费档 —— 收纳、到期、库存、照片、备份恢复全部照旧。'}
+            </Meta>
           </Gutter>
         </SectionCard>
 
         <SectionCard title="关于">
           <Gutter>
             <Card>
-              <Title style={styles.aboutName}>格物</Title>
+              <View style={styles.aboutHead}>
+                <Title style={styles.aboutName}>格物</Title>
+                <PlainTag text={entitled ? '支持者版' : '免费版'} tone={entitled ? 'brand' : 'neutral'} />
+              </View>
               <Meta tone="ink3" style={styles.aboutLine}>
                 本地优先 · 数据不出手机 · 仅找封面时联网
               </Meta>
               <Meta tone="ink4" style={styles.aboutLine}>
-                版本 {APP_VERSION}（V1）· 数据格式 v{BACKUP_FORMAT_VERSION}
+                版本 {APP_VERSION}（V2）· 数据格式 v{BACKUP_FORMAT_VERSION}
               </Meta>
+              {/* 这两句必须同时出现，否则「AI 属于支持者档」看起来与「AI 不收费」自相矛盾：
+                  门控的是功能入口，不是调用量；Key 始终是用户自己的，账记在他自己的账号上 */}
+              <Meta tone="ink4" style={styles.aboutLine}>
+                支持者档包含 AI 功能入口；AI 的 Key 由你自己申请、调用量记在你自己的账号上，格物不代出 Key、也不按量收费。
+              </Meta>
+            </Card>
+
+            {/* 官网放在「关于」而不是「联系我」：它是 App 的身份入口（介绍、更新说明、
+                下载页都在这里），找官网的人第一眼看的是「关于」；
+                想找我本人的人才去看微信。两件事别塞进同一张卡 */}
+            <Card padded={false} style={styles.siteCard}>
+              <SettingRow
+                label="官网"
+                value={SITE_URL.replace(/^https?:\/\//, '')}
+                valueTone="ink3"
+                last
+                /* 打不开浏览器（极少数定制系统）不值得弹错误：
+                   地址已经写在行尾，用户看得见、也抄得下来 */
+                onPress={() => void Linking.openURL(SITE_URL).catch(() => undefined)}
+              />
             </Card>
           </Gutter>
         </SectionCard>
+
+        <ContactSection />
 
         {busy ? (
           <View style={styles.busyRow}>
@@ -480,6 +595,23 @@ export default function MineScreen() {
         onPick={(next) => {
           setLightKey(next);
           setThemeOpen(false);
+        }}
+        // 点到被挡下的那套：先关选择器再弹门控 ——
+        // 两个 Modal 叠在一起在安卓上会互相抢返回键
+        onLockedPick={(next) => {
+          setThemeOpen(false);
+          setGateTheme(next);
+          setGateFeature('theme');
+        }}
+      />
+
+      <SupporterGateSheet
+        visible={gateFeature !== null}
+        feature={gateFeature ?? 'theme'}
+        themeIntent={gateTheme ?? undefined}
+        onClose={() => {
+          setGateFeature(null);
+          setGateTheme(null);
         }}
       />
 
@@ -557,12 +689,18 @@ const useStyles = makeStyles((Palette) => ({
   dotRing: { padding: 2, borderRadius: 999, borderWidth: 1.5, borderColor: 'transparent' },
   dotRingOn: { borderColor: Palette.ink2 },
   dot: { width: 26, height: 26, borderRadius: 13 },
+  /* 免费档下另外三枚色点降透明度，与选择器里的处理保持一致 */
+  dotLocked: { opacity: 0.45 },
   themeTip: { marginTop: Space.md, padding: Space.md },
+
+  supportNote: { marginTop: Space.sm, paddingHorizontal: Space.lg, lineHeight: 19 },
 
   /* 行被按下时的反馈，供设置行与外观入口共用 */
   rowPressed: { backgroundColor: Palette.surface2 },
 
-  aboutName: { fontSize: 18, marginBottom: Space.xs },
+  aboutHead: { flexDirection: 'row', alignItems: 'center', gap: Space.sm, marginBottom: Space.xs },
+  aboutName: { fontSize: 18 },
   aboutLine: { marginTop: 2 },
+  siteCard: { marginTop: Space.md },
   busyRow: { paddingTop: Space.lg },
 }));

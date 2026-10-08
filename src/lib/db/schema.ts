@@ -9,7 +9,7 @@
 export const DB_NAME = 'gewu.db';
 
 /** schema 版本号；递增时需在 migrate 中补对应步骤 */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const PRAGMAS = [
   'PRAGMA journal_mode = WAL;',
@@ -46,6 +46,12 @@ CREATE TABLE IF NOT EXISTS items (
   expire_date   TEXT,
   brand         TEXT,
   model         TEXT,
+  -- v3 新增：同批同款的剩余件数。
+  --   NULL  = 单件物品，不启用库存（老数据全部落在这里，行为零变化）
+  --   数字  = 还有几件；0 是「用完了」，由查询实时派生，不落状态字段
+  -- 放在 model 之后只是为了让新装用户的表可读；老库靠 ALTER TABLE 补列，
+  -- 实际会排在表末尾 —— 列序不同，所以读写一律显式列名。
+  quantity      INTEGER,
   tags          TEXT    NOT NULL DEFAULT '[]',
   note          TEXT,
   -- v2 新增：手动排序值。可空 —— 空表示未指定，手动排序时排在最后。

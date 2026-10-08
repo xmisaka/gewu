@@ -523,6 +523,10 @@ export async function exportItemsCsv(): Promise<{ uri: string; fileName: string;
     '格位',
     '购买日期',
     '价格',
+    // 「数量」紧跟价格：两列都是「值多少钱/还有多少」这一类，放一起读起来顺。
+    // ★ 只给启用了库存的物品填值，其余留空 —— 空串代表「单件物品」，
+    //   不要写成 0，那会被读回成「用完了」。
+    '数量',
     '过期时间',
     '品牌',
     '型号',
@@ -541,6 +545,7 @@ export async function exportItemsCsv(): Promise<{ uri: string; fileName: string;
       cabinet ? (loc?.name ?? '') : '',
       item.purchaseDate ?? '',
       item.price ?? '',
+      item.quantity ?? '',
       item.expireDate ?? '',
       item.brand ?? '',
       item.model ?? '',

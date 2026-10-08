@@ -27,6 +27,19 @@ export interface Item {
   expireDate: DateString | null;
   brand: string | null;
   model: string | null;
+  /**
+   * 同批同款的剩余件数。
+   *
+   * `null` = 单件物品，不启用库存 —— 这是「六根不同寿命的数据线各建一条」的入口：
+   * 老数据全部落在 `null`，行为零变化。
+   * 数字 = 还有几件。**0 是「用完了」**，由查询实时派生，不落状态字段，
+   * 因此不构成 PRD §11 明确排除的「物品使用状态机」。
+   *
+   * 语义边界（写进 PRD 例外条款的那两条）：
+   *   - 一条记录 = 一个批次：过期时间只有一个，六瓶不同批次的药仍建六条；
+   *   - `price` 仍是**单件价**，数量不参与日均成本。
+   */
+  quantity: number | null;
   tags: string[];
   note: string | null;
   /**
@@ -92,6 +105,16 @@ export interface Photo {
 
 export type ExpiryState = 'none' | 'fine' | 'soon' | 'overdue';
 
+/**
+ * 库存状态。与 ExpiryState 同构：**由查询实时算出，不落库**。
+ *
+ *   none  未启用库存（quantity === null），界面上一律不渲染库存相关元素
+ *   ok    还有余量
+ *   low   即将见底（剩 LOW_STOCK_THRESHOLD 件）
+ *   empty 用完了（quantity === 0）—— 这是一条能恢复的派生状态，不是删除
+ */
+export type StockState = 'none' | 'ok' | 'low' | 'empty';
+
 /** 列表行 / 详情页共用的聚合结果 */
 export interface ItemView extends Item {
   categoryName: string | null;
@@ -104,6 +127,8 @@ export interface ItemView extends Item {
   expiry: ExpiryState;
   /** 距离到期天数，负数为已过期 */
   daysToExpiry: number | null;
+  /** 库存状态，由 quantity 派生。口径与 expiry 一样只在这里算一次 */
+  stock: StockState;
   /** 派生指标，任一前提不满足则为 null（→ 整行隐藏） */
   holdingDays: number | null;
   dailyCost: number | null;
@@ -119,7 +144,14 @@ export interface ItemView extends Item {
 export interface ItemStats {
   total: number;
   totalValue: number;
+  /** 到期口径：已过期 + 今天起 30 天内。首页统计卡「即将到期」用它 */
   expiringCount: number;
+  /**
+   * 待办口径：快到期 **∪** 该补货（quantity ≤ 1），**去重后**的件数。
+   * 提醒页顶部那句与标签栏角标用它 —— 角标是「有几件事要去看」，
+   * 和提醒页里实际列出的行数必须是同一个数，否则点进去一眼就对不上。
+   */
+  attentionCount: number;
   /** 即将到期：今天起 30 天内，不含已过期 */
   soonCount: number;
   /** 已过期 */
@@ -147,7 +179,11 @@ export interface CabinetView extends StorageLocation {
 /* ---------------------------------------------------------------- 到期 */
 
 export interface ExpiringGroup {
-  key: 'overdue' | 'soon' | 'later';
+  /**
+   * `low` 是「余量见底」而不是「快到期」，但它和另外三组共用同一套分组列表
+   * 与行组件，所以并进同一个联合类型 —— 页面渲染完全走同一条代码路径。
+   */
+  key: 'overdue' | 'soon' | 'later' | 'low';
   title: string;
   items: ItemView[];
 }

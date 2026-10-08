@@ -33,6 +33,8 @@ import {
   type Tokens,
 } from '@/constants/theme';
 import { PREF_THEME, readPref, writePref } from '@/lib/db/prefs';
+import { isThemeLocked } from '@/lib/entitlement';
+import { useEntitlement } from '@/lib/store/entitlement';
 
 export interface ThemeValue {
   /** 当前生效的主题 */
@@ -43,10 +45,15 @@ export interface ThemeValue {
   /** 系统是否处于深色 */
   systemDark: boolean;
   /**
-   * 用户挑的浅色主题。深色生效时它依然保留着 ——
+   * **生效**的浅色主题。深色生效时它依然保留着 ——
    * 白天切回浅色系统，看到还是原来那套，不会被打回默认值。
+   * 若用户挑的那套属于支持者档而当前是免费档，这里已经是回退后的「素笺」。
    */
   lightKey: ThemeKey;
+  /** 用户自己挑的那套，**不做档位回退**。激活之后 lightKey 会自动回到它 */
+  preferredLightKey: ThemeKey;
+  /** preferredLightKey 是否因为档位不够而被挡住 */
+  lightKeyLocked: boolean;
   setLightKey: (key: ThemeKey) => void;
 }
 
@@ -59,6 +66,7 @@ function isLightThemeKey(value: string): value is ThemeKey {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const scheme = useColorScheme();
   const systemDark = scheme === 'dark';
+  const { entitled } = useEntitlement();
   const [lightKey, setLightKeyState] = useState<ThemeKey>(DEFAULT_THEME_KEY);
 
   // 读回上次的选择。首次启动或读取失败都退回默认，不阻塞渲染。
@@ -76,7 +84,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const key: ThemeKey = systemDark ? DARK_THEME_KEY : lightKey;
+  /*
+   * 档位回退：用户挑的那套若属于支持者档而当前是免费档，只在**显示上**退回素笺，
+   * 不回写偏好。这样激活之后它自己就回来了，用户不用再选一次 ——
+   * 把偏好改掉等于替用户做了一个他没法撤销的决定。
+   *
+   * 玄夜不参与判断：它是系统深色时的自动接管，不在选择器里，也不是权益。
+   */
+  const lightKeyLocked = isThemeLocked(lightKey, entitled);
+  const effectiveLightKey: ThemeKey = lightKeyLocked ? DEFAULT_THEME_KEY : lightKey;
+  const key: ThemeKey = systemDark ? DARK_THEME_KEY : effectiveLightKey;
 
   // 在渲染阶段同步推进全局主题值：样式表是在 React 渲染之外构建的，
   // 必须保证子组件渲染那一刻，模块级 activeKey 已经是本次的主题。
@@ -96,10 +113,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       tokens: THEMES[key].tokens,
       isDark: THEMES[key].mode === 'dark',
       systemDark,
-      lightKey,
+      lightKey: effectiveLightKey,
+      preferredLightKey: lightKey,
+      lightKeyLocked,
       setLightKey,
     }),
-    [key, systemDark, lightKey, setLightKey],
+    [key, systemDark, effectiveLightKey, lightKey, lightKeyLocked, setLightKey],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

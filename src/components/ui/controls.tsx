@@ -237,11 +237,20 @@ export function SearchField({
      占位符得跟上 —— 否则用户不会想到可以搜「药品」或「书房」 */
   placeholder = '搜索名称 / 品牌 / 分类 / 位置',
   onClear,
+  right,
 }: {
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
   onClear?: () => void;
+  /**
+   * 输入框右缘的动作区（首页放的是语音与问一问两格）。
+   *
+   * 放在框**内**而不是框外右侧，是为了不破坏这个组件的左右留白契约：
+   * 它自带 `marginHorizontal: GUTTER` 与 GUTTER 对齐，一旦改成「框 + 外部按钮」的
+   * 横排，那些调用方（位置视图也用它）就得各自处理边距，迟早有一边会叠成两倍。
+   */
+  right?: ReactNode;
 }) {
   const styles = useStyles();
   return (
@@ -269,6 +278,7 @@ export function SearchField({
           <Ionicons name="close-circle" size={16} color={Palette.ink4} />
         </Pressable>
       ) : null}
+      {right}
     </View>
   );
 }

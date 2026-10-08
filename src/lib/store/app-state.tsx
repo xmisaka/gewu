@@ -37,6 +37,7 @@ const EMPTY_STATS: ItemStats = {
   total: 0,
   totalValue: 0,
   expiringCount: 0,
+  attentionCount: 0,
   soonCount: 0,
   overdueCount: 0,
   fineCount: 0,

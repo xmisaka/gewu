@@ -41,6 +41,15 @@ import {
   EXPIRY_PRESETS,
   UNCATEGORIZED,
 } from '../src/lib/suggest.ts';
+import {
+  LOW_STOCK_THRESHOLD,
+  isStockEnabled,
+  stockState,
+  nextQuantity,
+  normalizeQuantity,
+  stockLabel,
+  stockStateText,
+} from '../src/lib/stock.ts';
 
 /** 相对今天的日期串，供依赖 today() 的函数使用 */
 function dayOffset(offset) {
@@ -270,4 +279,84 @@ test('保质期模板与内置词典的月份取值为正整数', () => {
 
 test('today() 与解析后的日期往返一致', () => {
   assert.equal(toDateString(parseDate(today())), today());
+});
+
+/* ------------------------------------------------------------ 库存 */
+
+test('isStockEnabled：只有有限数字才算启用，null / NaN / Infinity 都不算', () => {
+  for (const v of [0, 1, 12, -3]) {
+    assert.equal(isStockEnabled(v), true, `${v} 应算启用`);
+  }
+  for (const v of [null, undefined, NaN, Infinity, -Infinity]) {
+    assert.equal(isStockEnabled(v), false, `${String(v)} 不该算启用`);
+  }
+});
+
+test('stockState：四档分界（0 是「用完了」，null 是「没启用」，两者不能混）', () => {
+  assert.equal(stockState(null), 'none', 'null 是单件物品，不是 0');
+  assert.equal(stockState(undefined), 'none');
+  assert.equal(stockState(-1), 'empty', '负数只可能来自异常数据，按最急档兜住');
+  assert.equal(stockState(0), 'empty');
+  assert.equal(stockState(LOW_STOCK_THRESHOLD), 'low');
+  assert.equal(stockState(LOW_STOCK_THRESHOLD + 1), 'ok');
+  assert.equal(stockState(12), 'ok');
+});
+
+test('nextQuantity：null 原样返回，不会变成「剩 0」', () => {
+  assert.equal(nextQuantity(null, 1), null);
+  assert.equal(nextQuantity(null, -1), null);
+  assert.equal(nextQuantity(undefined, 1), null);
+});
+
+test('nextQuantity：减法永远夹到 0，不会出现「剩 −1」', () => {
+  // 0 再减、连减到底、一次减过头，三种都得停在 0
+  assert.equal(nextQuantity(0, -1), 0);
+  assert.equal(nextQuantity(1, -1), 0);
+  assert.equal(nextQuantity(1, -2), 0);
+  assert.equal(nextQuantity(1, -99), 0);
+  assert.equal(nextQuantity(3, -1), 2, '正常减一');
+  assert.equal(nextQuantity(1, 0), 1, 'delta 为 0 时是恒等');
+  assert.equal(nextQuantity(3, 1), 4, '正常加一');
+
+  // 穷举一遍：只要 delta ≤ 0，结果就不该为负
+  for (let q = 0; q <= 20; q++) {
+    for (let d = -25; d <= 25; d++) {
+      const next = nextQuantity(q, d);
+      assert.ok(next >= 0, `quantity=${q} delta=${d} 算出了 ${next}`);
+      if (d < 0) assert.equal(next, Math.max(0, q + d));
+      else assert.equal(next, q + d);
+    }
+  }
+});
+
+test('normalizeQuantity：取整并夹到 0 以上，非有限数按 0 处理', () => {
+  assert.equal(normalizeQuantity(-3), 0);
+  assert.equal(normalizeQuantity(2.5), 2, '表单里的小数向下取整，不四舍五入');
+  assert.equal(normalizeQuantity(0), 0);
+  assert.equal(normalizeQuantity(7), 7);
+  assert.equal(normalizeQuantity(NaN), 0);
+  assert.equal(normalizeQuantity(Infinity), 0, 'Infinity 写成数量会让 tabular-nums 排版崩掉');
+});
+
+test('stockLabel：未启用返回空串（调用方据此整块不渲染）', () => {
+  assert.equal(stockLabel(null), '', '空串 = 什么都不显示，别把 null 渲染成「剩 0」');
+  assert.equal(stockLabel(undefined), '');
+  assert.equal(stockLabel(0), '用完了');
+  assert.equal(stockLabel(1), '剩 1');
+  assert.equal(stockLabel(12), '剩 12');
+});
+
+test('stockStateText：三档各一个词，未启用返回空串', () => {
+  assert.equal(stockStateText(null), '', '未启用时该返回空串，由调用方决定整卡不渲染');
+  assert.equal(stockStateText(undefined), '');
+
+  const words = [stockStateText(0), stockStateText(LOW_STOCK_THRESHOLD), stockStateText(12)];
+  for (const w of words) assert.ok(w.length > 0, '三档都不能留白');
+  assert.equal(new Set(words).size, 3, '三档文案应各不相同，否则用户看不出差别');
+});
+
+test('stockState 与 stockLabel 口径一致：label 为空 ⟺ state 为 none', () => {
+  for (const q of [null, undefined, -1, 0, 1, 2, 12]) {
+    assert.equal(stockLabel(q) === '', stockState(q) === 'none', `quantity=${String(q)} 两处口径不一致`);
+  }
 });

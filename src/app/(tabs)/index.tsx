@@ -29,23 +29,28 @@ import { CabinetGrid } from '@/components/domain/CabinetGrid';
 import { CategoryPickerModal } from '@/components/domain/CategoryPickerModal';
 import { ItemRow } from '@/components/domain/ItemRow';
 import { LocationPickerModal } from '@/components/domain/LocationPickerModal';
+import { StockSheet, type StockSheetTarget } from '@/components/domain/StockSheet';
 import {
   SortPickerModal,
   isItemSort,
   sortOptionOf,
 } from '@/components/domain/SortPickerModal';
-import { Chip, ChipRow, SearchField, Segmented } from '@/components/ui/controls';
-import { EmptyState, LegendStrip, Loading, MetricStrip } from '@/components/ui/feedback';
+import { Chip, ChipRow, IconButton, SearchField, Segmented } from '@/components/ui/controls';
+import { EmptyState, LegendStrip, Loading, MetricStrip, UndoBar, type UndoAction } from '@/components/ui/feedback';
 import { Card, PageHeader, Screen } from '@/components/ui/layout';
 import { Body, Heading, Label, Meta } from '@/components/ui/typography';
 import { GUTTER, Palette, Radius, Space } from '@/constants/theme';
+import { describeRemaining } from '@/lib/date';
+import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { listCategories } from '@/lib/db/categories';
 import {
   DEFAULT_ITEM_SORT,
+  adjustQuantity,
   assignCategory,
   assignLocation,
   listItems,
   setManualOrder,
+  setQuantity,
   softDeleteMany,
 } from '@/lib/db/items';
 import { listCabinetViews } from '@/lib/db/locations';
@@ -54,7 +59,9 @@ import { formatMoneyCompact } from '@/lib/format';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { useDebouncedSearch } from '@/lib/hooks/use-debounced-search';
 import { filterCabinets } from '@/lib/search';
+import { nextQuantity, stockLabel } from '@/lib/stock';
 import { useAppState } from '@/lib/store/app-state';
+import { useEntitlement } from '@/lib/store/entitlement';
 import type { ItemSort, ItemView } from '@/lib/types';
 import { makeStyles } from '@/lib/theme';
 
@@ -64,6 +71,7 @@ export default function ItemsScreen() {
   const styles = useStyles();
   const router = useRouter();
   const { stats, dataVersion, bump } = useAppState();
+  const { entitled } = useEntitlement();
 
   /* 统计、图例、分类筛选、排序这一整段，是列表的「头部」而不是页面的固定区。
      做法是把它们交给 FlatList 的 ListHeaderComponent —— 滚下去时随原生滚动一起离开
@@ -93,6 +101,33 @@ export default function ItemsScreen() {
   /** 多选模式：低摩擦录入的补偿机制，用于批量补分类 / 改位置 / 删除 */
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const selecting = selected.size > 0;
+
+  /** 库存面板正对着的那件物品；null = 面板关着 */
+  const [stockTarget, setStockTarget] = useState<StockSheetTarget | null>(null);
+  /** 面板里的操作正在进行，用于挡住连点（连点两下很容易真的扣掉两件） */
+  const [stockBusy, setStockBusy] = useState(false);
+  /** 撤销条。★ 只在面板关掉之后才浮出来 —— 见下面 closeStock 的注释 */
+  const [undo, setUndo] = useState<UndoAction | null>(null);
+  /** 面板打开时那件物品的原始数量；撤销条回滚的是整段操作，不是最后一次点击 */
+  const [stockBase, setStockBase] = useState<number | null>(null);
+
+  /** 免费档点「问一问」时弹的门控浮层（语音不门控，见 openAsk） */
+  const [gateOpen, setGateOpen] = useState(false);
+
+  /**
+   * 搜索框右侧那两格。
+   *
+   * 语音不门控：它走系统识别对话框，不需要 Key、不联网、也不申请权限，
+   * 是纯粹的录入辅助 —— 把它锁进支持者档，等于给「记东西」这件事本身加门槛。
+   * 问一问要门控：它依赖库内检索的整理能力（以及可选的模型润色）。
+   */
+  const openAsk = useCallback(() => {
+    if (!entitled) {
+      setGateOpen(true);
+      return;
+    }
+    router.push('/ask');
+  }, [entitled, router]);
 
   // 排序方式记在库里，下次进来还是上次那档。读失败就安静地用默认值。
   useEffect(() => {
@@ -254,6 +289,95 @@ export default function ItemsScreen() {
     [items, movingId, bump],
   );
 
+  /* ---------------------------------------------------------- 库存 */
+
+  /**
+   * 打开库存面板。只有启用了库存的物品才会走到这里 ——
+   * 单件物品的行尾根本没有那个胶囊，点不出这个回调。
+   */
+  const openStock = useCallback((item: ItemView) => {
+    if (item.quantity === null) return;
+    setStockTarget({
+      id: item.id,
+      name: item.name,
+      quantity: item.quantity,
+      expireText: describeRemaining(item.daysToExpiry),
+    });
+    // 记下面板刚打开时的数量：撤销条回滚的是**整段操作**，
+    // 不是最后一次点击 —— 连点三下 −1 之后按撤销，应该整段退回去
+    setStockBase(item.quantity);
+  }, []);
+
+  /**
+   * 关面板。★ 撤销条**只在这里**浮出来。
+   *
+   * 面板开着的时候不弹撤销条：它贴在屏幕底部，会和面板叠在一起，
+   * 两个东西抢同一块地方，还容易被当成面板的一部分去点。
+   * 而且面板上的大数字本身就是确认，用户看得见自己刚做了什么。
+   *
+   * 计时也从这一刻才开始 —— 若在面板打开时就把它挂出去，用户在面板里
+   * 多待十秒，撤销条早就过期了，等于没给。
+   */
+  const closeStock = useCallback(() => {
+    const target = stockTarget;
+    const base = stockBase;
+    if (target && base !== null && target.quantity !== base) {
+      const used = base - target.quantity;
+      setUndo({
+        message: `${used > 0 ? `已用掉 ${used} 件` : `已补回 ${-used} 件`} · ${stockLabel(target.quantity)}`,
+        onUndo: () => {
+          void setQuantity(target.id, base).then(bump);
+        },
+      });
+    }
+    setStockTarget(null);
+    setStockBase(null);
+  }, [stockTarget, stockBase, bump]);
+
+  /**
+   * 面板里 ±1 与「本次用完」共用的落库路径。
+   *
+   * 面板刻意不关：连用两件是常见场景，按完关掉会逼用户重新点开。
+   * 所以这里只更新面板上的数字，让列表与统计靠 bump() 跟上。
+   */
+  const applyStock = useCallback(
+    async (delta: number) => {
+      const target = stockTarget;
+      if (!target || stockBusy) return;
+      setStockBusy(true);
+      try {
+        const before = await adjustQuantity(target.id, delta);
+        if (before === null) {
+          // 中途被改成「单件物品」了，什么都没发生。直接把面板收掉，
+          // 免得用户对着一个不会动的数字一直点
+          setStockTarget(null);
+          setStockBase(null);
+          return;
+        }
+        // 新值走纯函数，不在 SQL 里写 quantity - 1 —— 见 stock.ts 的注释
+        const after = nextQuantity(before, delta) as number;
+        setStockTarget({ ...target, quantity: after });
+        bump();
+      } finally {
+        setStockBusy(false);
+      }
+    },
+    [stockTarget, stockBusy, bump],
+  );
+
+  const emptyStock = useCallback(async () => {
+    const target = stockTarget;
+    if (!target || stockBusy || target.quantity === 0) return;
+    setStockBusy(true);
+    try {
+      await setQuantity(target.id, 0);
+      setStockTarget({ ...target, quantity: 0 });
+      bump();
+    } finally {
+      setStockBusy(false);
+    }
+  }, [stockTarget, stockBusy, bump]);
+
   const headerRight = selecting ? (
     <Meta tone="brand" onPress={clearSelection} suppressHighlighting>
       取消
@@ -290,6 +414,27 @@ export default function ItemsScreen() {
             value={query}
             onChange={setQuery}
             placeholder={activeCategory ? `在「${activeCategory.name}」中搜索` : undefined}
+            /* 右侧两格：麦克风（说一句话录入）与星标（问一问）。
+               设计稿 01 屏把它们并排画在这里，而不是挤进底部第五格 ——
+               底部五格是「找东西」的骨架，AI 是辅助，不该占黄金位 */
+            right={
+              <View style={styles.searchActions}>
+                <IconButton
+                  icon="mic-outline"
+                  size={18}
+                  tone="ink3"
+                  accessibilityLabel="语音录入"
+                  onPress={() => router.push('/voice')}
+                />
+                <IconButton
+                  icon="sparkles-outline"
+                  size={18}
+                  tone={entitled ? 'brand' : 'ink3'}
+                  accessibilityLabel="问一问"
+                  onPress={openAsk}
+                />
+              </View>
+            }
           />
 
           {/* 统计 / 图例 / 分类 / 排序这一整段是「列表的头部」，不是页面的固定区：
@@ -383,6 +528,9 @@ export default function ItemsScreen() {
                   showSortOrder={sort === 'manual'}
                   onPress={openItem}
                   onLongPress={(it) => setSelected(new Set([it.id]))}
+                  /* 多选状态下不接库存面板：那会儿整行是「待处理的勾选项」，
+                     点尾巴弹出的应该是勾选，不是库存 */
+                  onOpenStock={selecting ? undefined : openStock}
                   /* 多选状态下不给排序钮：两套操作抢同一个手势区，谁都点不准 */
                   onMoveUp={manualReorder && !selecting ? () => void moveItem(item.id, -1) : undefined}
                   onMoveDown={manualReorder && !selecting ? () => void moveItem(item.id, 1) : undefined}
@@ -519,6 +667,28 @@ export default function ItemsScreen() {
         onClose={() => setSortOpen(false)}
         onPick={changeSort}
       />
+
+      {/* 库存面板挂在页面根上，不挂在 ItemRow 里 —— 行会被虚拟化反复重挂，
+          Modal 跟着重建就会自己关掉。 */}
+      <StockSheet
+        target={stockTarget}
+        busy={stockBusy}
+        onClose={closeStock}
+        onStep={(delta) => void applyStock(delta)}
+        onSetEmpty={() => void emptyStock()}
+        onEditQuantity={() => {
+          const target = stockTarget;
+          closeStock();
+          if (target) router.push({ pathname: '/item/[id]/edit', params: { id: target.id } });
+        }}
+      />
+
+      {/* 撤销条放在面板之后、且在面板关掉之前不会出现（见 closeStock） */}
+      <UndoBar action={undo} onDismiss={() => setUndo(null)} />
+
+      {/* 免费档点「问一问」时的门控。文案与浮层复用与皮肤同一套，
+          不为 AI 再写一个 —— 「哪个功能要支持者」这张表只有一处实现 */}
+      <SupporterGateSheet visible={gateOpen} feature="ai" onClose={() => setGateOpen(false)} />
     </Screen>
   );
 }
@@ -608,6 +778,9 @@ const useStyles = makeStyles((Palette) => ({
   sortTrigger: { flexDirection: 'row', alignItems: 'center', gap: Space.xs },
   sortTriggerPressed: { opacity: 0.6 },
   sortHint: { flexShrink: 1 },
+  /* 搜索框内右缘的两格。IconButton 自带 Space.xs 的内边距，两枚之间不再另加 gap，
+     否则右边会多出一截空白，看起来像输入框没对齐 */
+  searchActions: { flexDirection: 'row', alignItems: 'center', marginRight: -Space.xs },
   locationIntro: { paddingHorizontal: GUTTER, paddingTop: Space.lg, paddingBottom: Space.sm },
   locationHint: { marginTop: 2 },
   selectionBar: {
