@@ -294,12 +294,24 @@ function fakeRetrieval(over = {}) {
   };
 }
 
-test('buildAnswerPrompt：四条硬性要求一条都不能少', () => {
+test('buildAnswerPrompt：反幻觉那几条一个字都不能少', () => {
   const { system } = buildAnswerPrompt('x', fakeRetrieval(), 7);
-  assert.ok(system.includes('只能使用给定事实里出现过的信息'));
-  assert.ok(system.includes('不要列举物品清单'), '缺了「别重复清单」这条 —— 界面已经用卡片展示了');
-  assert.ok(system.includes('不超过 60 字'));
-  assert.ok(system.includes('照实说没找到'));
+  assert.ok(system.includes('只能使用给定事实里出现过的信息'), '★ 这一条是整套可信度的支点');
+  assert.ok(system.includes('照实说没找到'), '★ 没找到时不许安慰、不许编造');
+  assert.ok(system.includes('不要用 markdown'));
+});
+
+test('★ 措辞松了，但「别把清单抄一遍」这条没松', () => {
+  const { system } = buildAnswerPrompt('x', fakeRetrieval(), 7);
+
+  /* 2026-10-09：原来写的是「不要列举物品清单」，把模型逼成了复读机 ——
+     它只能说「有几件快到期」，不能说「酸奶和牛奶快到期了」。
+     现在允许点名一两件，只禁止抄清单。下面两条一起钉住这个新口径。 */
+  assert.ok(system.includes('最相关的一两件'), '要允许它点名，否则答案永远是「有几件…」');
+  assert.ok(system.includes('不要把清单抄一遍'), '仍然不许把全部结果抄一遍 —— 界面已经用卡片展示了');
+
+  /* 顺序与字数都放宽了，但都要有明确的边界，不能含糊 */
+  assert.ok(/一到两句话/.test(system));
 });
 
 test('buildAnswerPrompt：事实与候选清单都要铺进 user，日期要写成中文口径', () => {

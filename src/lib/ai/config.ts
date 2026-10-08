@@ -19,20 +19,106 @@
 /* ------------------------------------------------------------------ 供应商与模型 */
 
 /**
- * 只对接智谱一家，而且**不做供应商切换**。
+ * 支持的供应商。
  *
- * 理由不是懒：多供应商意味着要维护 N 套请求格式、N 种报错文案、
- * N 份「哪里去注册」的说明，而格物的 AI 是「可选的一只手」，
- * 换供应商的收益远小于它带来的维护面。真要加，就在这个文件里加一组常量。
+ * ── 为什么从「只对接智谱一家」改成可切换 ──────────────────────────
+ * 原来这里写着「不做供应商切换」，理由是「多供应商＝维护 N 套请求格式」。
+ * 那个理由现在不成立了：**业界已经收敛到 OpenAI 兼容格式**，
+ * 换一家只是换一组常量（端点 + 模型名 + 注册地址），请求体一个字节都不用改。
+ * 而收益是实打实的：智谱免费档慢、并发只给一条，用久了体验很差，
+ * 用户想换成 DeepSeek / Kimi 或自建端点，不该由我发版来决定。
+ *
+ * ★★ 两条**必须**守住的：
+ *
+ * 1. **不是每家都能识图。** DeepSeek 的 V4 系列是纯文本模型（看不了图），
+ *    `deepseek-v4-flash-vision-exp` 是实验性的、不保证可用。
+ *    所以这里用一个可空的 `visionModel` 表达「这家不支持识图」——
+ *    少了这个字段，用户一选 DeepSeek，识物会在点下去的瞬间坏掉，
+ *    而且报的是模型侧的错，完全看不出是「这家本来就不支持」。
+ *
+ * 2. **模型名会变。** `deepseek-chat` / `deepseek-reasoner` 这两个用了一年的名字
+ *    在 2026-07-24 被官方**直接下线**（不是废弃，是请求直接失败）。
+ *    所以模型名必须让用户能改 —— 见 `customVisionModel` / `customChatModel`。
+ *    写死在这里的名字，早晚有一天会变成一条报错。
  */
-export const AI_PROVIDER = {
-  name: '智谱 BigModel',
-  /** 注册与控制台地址，界面上可点 */
-  keyUrl: 'https://bigmodel.cn',
-  /** 一句话说清门槛，用户最关心的就是「要不要钱、要不要实名」 */
-  signupNote: '手机号注册即可领取，免费模型不需要充值',
-} as const;
+export interface AiProviderDef {
+  /** 存进 meta 的标识，改了就等于让所有人的选择失效，别动 */
+  key: string;
+  name: string;
+  /** 去哪注册、去哪拿 Key。界面上可点 */
+  keyUrl: string;
+  /** 一句话说清门槛 —— 用户最关心「要不要钱、要不要实名」 */
+  signupNote: string;
+  /** 完整的 chat/completions 地址 */
+  endpoint: string;
+  /** 识图模型名；**null = 这家看不了图**，识物入口据此隐藏 */
+  visionModel: string | null;
+  /** 问答模型名，作为默认值填进输入框 */
+  chatModel: string;
+  /** 是否官方免费档。界面据此决定要不要写「免费」两个字 */
+  free: boolean;
+}
 
+export const AI_PROVIDERS: readonly AiProviderDef[] = [
+  {
+    key: 'zhipu',
+    name: '智谱 BigModel',
+    keyUrl: 'https://bigmodel.cn',
+    signupNote: '手机号注册即可。GLM-4.6V / 4.7-Flash 免费，但同一时刻只允许一条请求',
+    endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    visionModel: 'glm-4.6v-flash',
+    chatModel: 'glm-4.7-flash',
+    free: true,
+  },
+  {
+    key: 'deepseek',
+    name: 'DeepSeek',
+    keyUrl: 'https://platform.deepseek.com',
+    signupNote: '要充值才能用。便宜，但**看不了图**，识物用不了',
+    endpoint: 'https://api.deepseek.com/chat/completions',
+    /* ★ 纯文本 —— 见上面第 1 条。留 null 而不是填个实验性名字，
+       是因为那个名字随时可能消失，填了就是把「偶尔能用」当成「一直能用」 */
+    visionModel: null,
+    chatModel: 'deepseek-v4-flash',
+    free: false,
+  },
+  {
+    key: 'moonshot',
+    name: '月之暗面 Kimi',
+    keyUrl: 'https://platform.moonshot.cn',
+    signupNote: '新账号送一点额度，之后要充值。识图走 vision-preview 系列',
+    endpoint: 'https://api.moonshot.cn/v1/chat/completions',
+    visionModel: 'moonshot-v1-8k-vision-preview',
+    chatModel: 'kimi-k2-0905-preview',
+    free: false,
+  },
+  {
+    key: 'custom',
+    name: '自定义（任意 OpenAI 兼容端点）',
+    keyUrl: '',
+    signupNote: '中转站、自建服务、国外模型都走这里。填完整地址，结尾到 /chat/completions',
+    endpoint: '',
+    visionModel: '',
+    chatModel: '',
+    free: false,
+  },
+] as const;
+
+/** 找不到时的兜底 —— 一定是「永远可用」的那家，不能是空表 */
+export const DEFAULT_PROVIDER_KEY = 'zhipu';
+
+export function findProvider(key: string): AiProviderDef {
+  return AI_PROVIDERS.find((p) => p.key === key) ?? AI_PROVIDERS[0];
+}
+
+/**
+ * 各家在界面上展示用的「模型清单」，以及——
+ * 每个月最多能花多少钱，用于 `estimateMonthlyCost` 折算。
+ *
+ * ★ 这里的价格是**每百万 token 的美元单价**，只用于给用户一个数量级感知。
+ *   价格会变，而且各家还有峰谷价、缓存价，所以界面上永远写「≈」。
+ *   免费档记 0 —— 那是唯一能确定的事。
+ */
 export interface AiModelDef {
   /** 请求体里 model 字段用的名称 */
   id: string;
@@ -40,13 +126,23 @@ export interface AiModelDef {
   label: string;
   /** 是否官方免费档。界面据此决定要不要写「免费」这两个字 */
   free: boolean;
+  /** 每百万输出 token 的美元价，用于估个数量级 */
+  usdPerMillionOut?: number;
 }
 
 /** 识图：GLM-4.6V-Flash，官方免费 */
-export const AI_VISION_MODEL: AiModelDef = { id: 'glm-4.6v-flash', label: 'GLM-4.6V-Flash', free: true };
+export const AI_VISION_MODEL: AiModelDef = {
+  id: 'glm-4.6v-flash',
+  label: 'GLM-4.6V-Flash',
+  free: true,
+};
 
 /** 问答：GLM-4.7-Flash，官方免费，200K 上下文对「把库摘要塞进去」绰绰有余 */
-export const AI_CHAT_MODEL: AiModelDef = { id: 'glm-4.7-flash', label: 'GLM-4.7-Flash', free: true };
+export const AI_CHAT_MODEL: AiModelDef = {
+  id: 'glm-4.7-flash',
+  label: 'GLM-4.7-Flash',
+  free: true,
+};
 
 /**
  * 接口地址。写死一处 —— 供应商只有一家，不需要可配置。
@@ -179,21 +275,54 @@ export const ENV_API_KEY = (process.env.EXPO_PUBLIC_ZHIPU_API_KEY ?? '').trim();
 const META_KEY = 'ai.key';
 const META_ENABLED = 'ai.enabled';
 const META_USAGE = 'ai.usage';
+const META_PROVIDER = 'ai.provider';
+/** 自定义端点的三件套，只在 provider === 'custom' 时有意义 */
+const META_CUSTOM_ENDPOINT = 'ai.custom.endpoint';
+const META_CUSTOM_VISION = 'ai.custom.vision';
+const META_CUSTOM_CHAT = 'ai.custom.chat';
+
+/**
+ * Key 按供应商分开存：`ai.key.<providerKey>`。
+ *
+ * ★ 不共用一个槽位：换了供应商再换回来，Key 不该丢。
+ * ★ `ai.key`（无后缀）是上一版的槽位，**升级时迁到智谱名下** ——
+ *   直接改成带后缀会让所有老用户一觉醒来「没配 Key」，
+ *   而界面上只会显示「还没填 API Key」，完全看不出是迁移漏了。
+ */
+const keySlot = (providerKey: string) => `${META_KEY}.${providerKey}`;
 
 let runtimeKey: string | null = null;
 let runtimeEnabled: boolean | null = null;
+let runtimeProvider: string | null = null;
+let runtimeCustom: { endpoint: string; vision: string; chat: string } | null = null;
 let hydrated = false;
 
-/** 启动时调一次，把用户存过的 Key / 开关 / 用量读进内存 */
+/** 启动时调一次，把用户存过的 Key / 开关 / 用量 / 供应商读进内存 */
 export async function hydrateAi(): Promise<void> {
   if (hydrated) return;
   hydrated = true;
   try {
     const { getDatabase, readMeta } = await import('../db');
     const db = await getDatabase();
-    const [key, enabled] = await Promise.all([readMeta(db, META_KEY), readMeta(db, META_ENABLED)]);
-    if (key) runtimeKey = key;
+    const [legacyKey, enabled, provider, endpoint, vision, chat] = await Promise.all([
+      readMeta(db, META_KEY),
+      readMeta(db, META_ENABLED),
+      readMeta(db, META_PROVIDER),
+      readMeta(db, META_CUSTOM_ENDPOINT),
+      readMeta(db, META_CUSTOM_VISION),
+      readMeta(db, META_CUSTOM_CHAT),
+    ]);
+
     if (enabled != null) runtimeEnabled = enabled === '1';
+    if (provider) runtimeProvider = provider;
+    if (endpoint != null || vision != null || chat != null) {
+      runtimeCustom = { endpoint: endpoint ?? '', vision: vision ?? '', chat: chat ?? '' };
+    }
+
+    /* 老槽位迁移：先读新的，没有才看老的 */
+    const active = runtimeProvider ?? DEFAULT_PROVIDER_KEY;
+    const saved = (await readMeta(db, keySlot(active))) ?? (active === DEFAULT_PROVIDER_KEY ? legacyKey : null);
+    if (saved) runtimeKey = saved;
   } catch {
     // 库还没热起来时按「未配置」走：宁可不给，也不要默认开着一个联网能力
   }
@@ -207,15 +336,107 @@ export async function saveAiKey(key: string): Promise<void> {
   try {
     const { getDatabase, writeMeta } = await import('../db');
     const db = await getDatabase();
-    await writeMeta(db, META_KEY, trimmed);
+    const slot = keySlot(activeProviderKey());
+    await writeMeta(db, slot, trimmed);
+    /* 老槽位一起清掉并改写成新槽位，免得下次启动又从老的读回来 */
+    if (slot !== META_KEY) await writeMeta(db, META_KEY, '');
   } catch {
     // 写不进去就只在本次会话生效，界面会照实提示
   }
 }
 
-/** 当前生效的 Key：用户填的优先，没填回落编译期 */
+/* ---------------------------------------------------------- 供应商与模型解析 */
+
+/** 当前选中的供应商标识。没选过时用默认那家 */
+export function activeProviderKey(): string {
+  return runtimeProvider ?? DEFAULT_PROVIDER_KEY;
+}
+
+/** 当前选中的供应商配置 */
+export function activeProvider(): AiProviderDef {
+  return findProvider(activeProviderKey());
+}
+
+/**
+ * 切换供应商。
+ *
+ * ★ 换供应商时**顺手把 runtimeKey 换成那一家的** —— 不换的话，
+ *   用户切到 DeepSeek 却还在用智谱的 Key，服务端回 401，
+ *   而界面上 Key 那一行显示得好好的（它有内容），排查会非常绕。
+ */
+export async function saveAiProvider(key: string): Promise<void> {
+  runtimeProvider = key;
+  hydrated = true;
+  runtimeKey = null;
+  try {
+    const { getDatabase, readMeta, writeMeta } = await import('../db');
+    const db = await getDatabase();
+    await writeMeta(db, META_PROVIDER, key);
+    const saved = await readMeta(db, keySlot(key));
+    if (saved) runtimeKey = saved;
+  } catch {
+    // 同上
+  }
+}
+
+/** 自定义端点三件套的当前值 */
+export function customEndpointSettings(): { endpoint: string; vision: string; chat: string } {
+  return runtimeCustom ?? { endpoint: '', vision: '', chat: '' };
+}
+
+/** 写入自定义端点。三项一次写全，免得出现半套配置 */
+export async function saveCustomEndpoint(patch: Partial<{ endpoint: string; vision: string; chat: string }>): Promise<void> {
+  const next = { ...customEndpointSettings(), ...patch };
+  runtimeCustom = next;
+  hydrated = true;
+  try {
+    const { getDatabase, writeMeta } = await import('../db');
+    const db = await getDatabase();
+    await Promise.all([
+      writeMeta(db, META_CUSTOM_ENDPOINT, next.endpoint),
+      writeMeta(db, META_CUSTOM_VISION, next.vision),
+      writeMeta(db, META_CUSTOM_CHAT, next.chat),
+    ]);
+  } catch {
+    // 同上
+  }
+}
+
+/** 当前生效的端点。自定义那家读用户填的 */
+export function endpointUrl(): string {
+  const p = activeProvider();
+  return p.key === 'custom' ? customEndpointSettings().endpoint.trim() : p.endpoint;
+}
+
+/**
+ * 当前生效的识图模型名；**空串表示这家看不了图**。
+ *
+ * 界面拿它决定识物入口露不露脸；`askVision` 再兜一道，
+ * 免得别处漏判时把请求发出去换个语焉不详的模型侧错误。
+ */
+export function visionModelName(): string {
+  const p = activeProvider();
+  if (p.key === 'custom') return customEndpointSettings().vision.trim();
+  return p.visionModel ?? '';
+}
+
+/** 当前生效的问答模型名 */
+export function chatModelName(): string {
+  const p = activeProvider();
+  if (p.key === 'custom') return customEndpointSettings().chat.trim();
+  return p.chatModel;
+}
+
+/** 这家供应商能不能识图 */
+export function providerSupportsVision(): boolean {
+  return visionModelName().length > 0;
+}
+
+/** 当前生效的 Key：用户填的优先，没填回落编译期（只对智谱有意义） */
 export function currentAiKey(): string {
-  return (runtimeKey ?? ENV_API_KEY).trim();
+  const own = (runtimeKey ?? '').trim();
+  if (own) return own;
+  return activeProviderKey() === DEFAULT_PROVIDER_KEY ? ENV_API_KEY.trim() : '';
 }
 
 /** 有没有 Key。界面据此区分「去配 Key」与「AI 坏了」两种提示 */

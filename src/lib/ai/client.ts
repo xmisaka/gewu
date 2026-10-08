@@ -20,12 +20,12 @@
  */
 
 import {
-  AI_CHAT_MODEL,
-  AI_ENDPOINT,
   AI_TIMEOUT_MS,
-  AI_VISION_MODEL,
   AI_VISION_TIMEOUT_MS,
+  chatModelName,
   currentAiKey,
+  endpointUrl,
+  visionModelName,
 } from './config';
 import { AiError } from './error';
 
@@ -63,11 +63,25 @@ const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
  * 识图与问答共用它：差别只在 `content` 是字符串还是一段带 image_url 的数组，
  * 而 OpenAI 兼容格式把这两件事统一在同一个字段里。
  *
+ * ★ `isVision` 显式传，不靠「比较模型名」判断超时档位。
+ *   模型名现在可以由用户改（见 config 里的供应商表），拿它当判据，
+ *   用户换个名字就会静默退回 12 秒超时 —— 正是识图最需要的那个窗口。
+ *
  * `attempt` 仅供 429 的一次自动重试用，调用方不要传。
  */
-async function chat(model: string, messages: ChatMessage[], attempt = 0): Promise<string> {
+async function chat(
+  model: string,
+  messages: ChatMessage[],
+  { isVision = false, attempt = 0 }: { isVision?: boolean; attempt?: number } = {},
+): Promise<string> {
   const key = currentAiKey();
   if (!key) throw new AiError('还没配置 API Key', 'no-key');
+
+  const endpoint = endpointUrl();
+  if (!endpoint) {
+    /* 自定义那家没填地址。这里必须拦住：fetch('') 会抛一个和「网址不对」毫无关系的错 */
+    throw new AiError('还没填自定义端点地址，到「我的 → AI 助手」补上', 'no-key');
+  }
 
   let res: Response;
   /*
@@ -85,13 +99,10 @@ async function chat(model: string, messages: ChatMessage[], attempt = 0): Promis
    *   结果真机上撞出了并发限流：超时后那条请求仍占着唯一一个并发位。）
    */
   const controller = typeof AbortController === 'undefined' ? null : new AbortController();
-  const timer = setTimeout(
-    () => controller?.abort(),
-    model === AI_VISION_MODEL.id ? AI_VISION_TIMEOUT_MS : AI_TIMEOUT_MS,
-  );
+  const timer = setTimeout(() => controller?.abort(), isVision ? AI_VISION_TIMEOUT_MS : AI_TIMEOUT_MS);
 
   try {
-    res = await fetch(AI_ENDPOINT, {
+    res = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${key}`,
@@ -115,7 +126,7 @@ async function chat(model: string, messages: ChatMessage[], attempt = 0): Promis
     /* 免费模型是「同一时刻只允许一条请求」，等一会儿就恢复，不是额度用完了 */
     if (attempt === 0) {
       await delay(RETRY_AFTER_429_MS);
-      return chat(model, messages, 1);
+      return chat(model, messages, { isVision, attempt: 1 });
     }
     throw new AiError('免费模型同一时刻只允许一条请求，稍等十几秒再试', 'api');
   }
@@ -141,20 +152,32 @@ async function chat(model: string, messages: ChatMessage[], attempt = 0): Promis
 
 /** 识图：把一段提示词和一张压缩副本发过去 */
 export function askVision(userPrompt: string, imageBase64: string): Promise<string> {
-  return chat(AI_VISION_MODEL.id, [
-    {
-      role: 'user',
-      content: [
-        { type: 'text', text: userPrompt },
-        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
-      ],
-    },
-  ]);
+  const model = visionModelName();
+  /*
+   * 这家看不了图（比如 DeepSeek 的纯文本模型）。
+   * 界面上识物入口本该已经藏起来了，这里再拦一道 —— 漏判时至少给一句
+   * 能看懂的话，而不是把图发出去换个语焉不详的模型侧报错。
+   */
+  if (!model) throw new AiError('当前选的模型看不了图，换一家或改用「问一问」', 'no-key');
+
+  return chat(
+    model,
+    [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: userPrompt },
+          { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+        ],
+      },
+    ],
+    { isVision: true },
+  );
 }
 
 /** 文本问答 */
 export function askText(system: string, user: string): Promise<string> {
-  return chat(AI_CHAT_MODEL.id, [
+  return chat(chatModelName(), [
     { role: 'system', content: system },
     { role: 'user', content: user },
   ]);

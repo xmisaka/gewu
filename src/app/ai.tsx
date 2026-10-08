@@ -20,12 +20,21 @@ import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { AiKeyModal } from '@/components/domain/AiKeyModal';
+import { AiEndpointModal, AiProviderModal } from '@/components/domain/AiProviderModals';
 import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta } from '@/components/ui/typography';
 import { Palette, Space } from '@/constants/theme';
-import { AI_CHAT_MODEL, AI_PROVIDER, AI_VISION_MODEL, estimateMonthlyCost } from '@/lib/ai/config';
+import {
+  activeProvider,
+  activeProviderKey,
+  chatModelName,
+  customEndpointSettings,
+  estimateMonthlyCost,
+  providerSupportsVision,
+  visionModelName,
+} from '@/lib/ai/config';
 import { ASR_AVAILABLE } from '@/lib/ai/asr';
 import { useAi } from '@/lib/store/ai';
 import { useEntitlement } from '@/lib/store/entitlement';
@@ -38,6 +47,15 @@ export default function AiSettingsScreen() {
   const { entitled } = useEntitlement();
   const { enabled, hasKey, keyMask, usage, active, setEnabled, refresh } = useAi();
   const [keyOpen, setKeyOpen] = useState(false);
+  const [providerOpen, setProviderOpen] = useState(false);
+  const [endpointOpen, setEndpointOpen] = useState(false);
+  /** 供应商或端点改过之后要重渲染 —— 它们不是 React state，靠这个计数强制刷新 */
+  const [, bumpProvider] = useState(0);
+
+  const provider = activeProvider();
+  const isCustom = provider.key === 'custom';
+  const canSee = providerSupportsVision();
+  const endpoint = customEndpointSettings().endpoint;
 
   const monthCost = estimateMonthlyCost(usage);
 
@@ -111,7 +129,19 @@ export default function AiSettingsScreen() {
         <SectionCard title="供应商与凭证">
           <Gutter>
             <Card padded={false}>
-              <Row label="供应商" value={AI_PROVIDER.name} />
+              <Row
+                label="供应商"
+                value={isCustom ? '自定义端点' : provider.name}
+                onPress={() => setProviderOpen(true)}
+              />
+              {isCustom ? (
+                <Row
+                  label="接口地址"
+                  value={endpoint || '未填写，点这里填'}
+                  valueTone={endpoint ? 'ink3' : 'brand'}
+                  onPress={() => setEndpointOpen(true)}
+                />
+              ) : null}
               <Row
                 label="API Key"
                 value={hasKey ? keyMask : '未配置，点这里填'}
@@ -121,23 +151,31 @@ export default function AiSettingsScreen() {
               />
             </Card>
             <Meta tone="ink4" style={styles.note}>
-              {`没有 Key？到 ${AI_PROVIDER.keyUrl.replace(/^https?:\/\//, '')} 免费注册即可领取，手机号就行。`}
+              {provider.signupNote}
             </Meta>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => void Linking.openURL(AI_PROVIDER.keyUrl).catch(() => undefined)}
-              style={styles.link}>
-              <Ionicons name="open-outline" size={13} color={Palette.brand} />
-              <Label tone="brand">打开 {AI_PROVIDER.name} 注册页</Label>
-            </Pressable>
+            {provider.keyUrl ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void Linking.openURL(provider.keyUrl).catch(() => undefined)}
+                style={styles.link}>
+                <Ionicons name="open-outline" size={13} color={Palette.brand} />
+                <Label tone="brand">打开 {provider.name} 控制台</Label>
+              </Pressable>
+            ) : null}
           </Gutter>
         </SectionCard>
 
         <SectionCard title="模型">
           <Gutter>
             <Card padded={false}>
-              <Row label="识图" value={modelText(AI_VISION_MODEL.label, AI_VISION_MODEL.free)} />
-              <Row label="问答" value={modelText(AI_CHAT_MODEL.label, AI_CHAT_MODEL.free)} />
+              {/* 这家看不了图时，识图那一行要**明说**，不能只留空 ——
+                  用户会以为「是不是没加载出来」 */}
+              <Row
+                label="识图"
+                value={canSee ? visionModelName() : '这家看不了图，识物已隐藏'}
+                valueTone={canSee ? 'ink3' : 'clay'}
+              />
+              <Row label="问答" value={chatModelName() || '未填写'} valueTone={chatModelName() ? 'ink3' : 'brand'} />
               {/* 语音单独一行：它跟上面两个不是一回事 —— 不需要 Key、不联网、
                   也不申请麦克风权限（走系统识别对话框）。写清楚这一点，
                   用户才不会以为「关掉 AI 就没有语音录入」 */}
@@ -147,6 +185,10 @@ export default function AiSettingsScreen() {
                 last
               />
             </Card>
+            <Meta tone="ink4" style={styles.note}>
+              模型名可以随服务商的调整而变。如果哪天报「模型不存在」，多半是官方改了名字，
+              {isCustom ? '回到上面把模型名改成文档里的新名字即可。' : '换成「自定义」填上新名字即可，不必等 App 更新。'}
+            </Meta>
             <Meta tone="ink4" style={styles.note}>
               语音走手机自带的识别对话框，不消耗模型调用，也不需要 API Key。关掉上面的开关不影响它。
             </Meta>
@@ -166,8 +208,10 @@ export default function AiSettingsScreen() {
               </View>
               <Meta tone="ink4" style={styles.usageFoot}>
                 {usage.vision + usage.chat > 0
-                  ? '均由免费模型承担，账单记在你自己账号上'
-                  : '还没用过。两个模型都是官方免费档，用多少都是 0'}
+                  ? provider.free
+                    ? '账单记在你自己账号上；这家有免费档，用多少都是 0'
+                    : '账单记在你自己账号上，按用量的实际花费以服务商账单为准'
+                  : '还没用过。这里只记调用次数，实际花了多少要看服务商的账单'}
               </Meta>
             </Card>
           </Gutter>
@@ -179,6 +223,12 @@ export default function AiSettingsScreen() {
               <Body tone="ink2" style={styles.privacy}>
                 识别时上传的是长边 ≤1024 的压缩副本，用完即弃，服务器上不留存；原图与物品数据始终留在这台手机里。
               </Body>
+              <Meta tone="ink4" style={styles.privacy}>
+                {/* 换成自选供应商之后，这句话必须写清楚：数据发去哪一家、
+                    那一家在不在境内，都由用户自己选 —— 不是格物能替他回答的 */}
+                {`上传的目标是你自己选的那家（当前：${isCustom ? '自定义端点' : provider.name}）。`}
+                发给哪家、数据落在哪，都由这次选择决定；格物不中转、不留存、也不知道你选了什么。
+              </Meta>
               <Meta tone="ink4" style={styles.privacy}>
                 Key 存在本机数据库里，不会上传，也不会打进安装包。
               </Meta>
@@ -192,12 +242,28 @@ export default function AiSettingsScreen() {
         onClose={() => setKeyOpen(false)}
         onSaved={() => void refresh()}
       />
+
+      <AiProviderModal
+        visible={providerOpen}
+        currentKey={activeProviderKey()}
+        onClose={() => {
+          setProviderOpen(false);
+          bumpProvider((n) => n + 1);
+          /* 换了供应商，Key 也换了一家 —— 让 store 重新读一次，
+             否则 `hasKey` 还停在旧值，界面上会显示一个不存在的『已配置』 */
+          void refresh();
+        }}
+      />
+
+      <AiEndpointModal
+        visible={endpointOpen}
+        onClose={() => {
+          setEndpointOpen(false);
+          bumpProvider((n) => n + 1);
+        }}
+      />
     </Screen>
   );
-}
-
-function modelText(label: string, free: boolean): string {
-  return free ? `${label} · 免费` : label;
 }
 
 /** 一行只读信息。与 SettingRow 长得一样，但这一页的值都比较长，右侧要能换行 */
@@ -210,13 +276,19 @@ function Row({
 }: {
   label: string;
   value: string;
-  valueTone?: 'brand' | 'ink3' | 'ink';
+  valueTone?: 'brand' | 'ink3' | 'ink' | 'clay';
   onPress?: () => void;
   last?: boolean;
 }) {
   const styles = useStyles();
   const color =
-    valueTone === 'brand' ? Palette.brand : valueTone === 'ink3' ? Palette.ink3 : Palette.ink;
+    valueTone === 'brand'
+      ? Palette.brand
+      : valueTone === 'clay'
+        ? Palette.clay
+        : valueTone === 'ink3'
+          ? Palette.ink3
+          : Palette.ink;
   const inner = (
     <>
       <Body tone="ink2">{label}</Body>

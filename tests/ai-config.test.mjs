@@ -25,8 +25,20 @@ import {
   AI_TIMEOUT_MS,
   AI_UPLOAD_MAX_EDGE,
   AI_UPLOAD_QUALITY,
+  AI_PROVIDERS,
   AI_VISION_MODEL,
   AI_VISION_TIMEOUT_MS,
+  DEFAULT_PROVIDER_KEY,
+  activeProvider,
+  activeProviderKey,
+  chatModelName,
+  customEndpointSettings,
+  endpointUrl,
+  findProvider,
+  providerSupportsVision,
+  saveAiProvider,
+  saveCustomEndpoint,
+  visionModelName,
   EMPTY_USAGE,
   ENV_API_KEY,
   currentAiKey,
@@ -199,4 +211,123 @@ test('saveAiEnabled：开关状态当场生效，且同样不依赖库写成功'
 
 test('readAiUsage：读不到库时给一份当月清零的用量，而不是抛错', async () => {
   assert.deepEqual(await readAiUsage('2026-10'), { month: '2026-10', vision: 0, chat: 0 });
+});
+
+/* ============================================================ 供应商表 */
+
+test('★ 供应商表的三条不变量：标识唯一、端点合法、模型名非空', () => {
+  const keys = AI_PROVIDERS.map((p) => p.key);
+  assert.equal(new Set(keys).size, keys.length, '标识重复 —— 存进 meta 的选择会指向错的那家');
+
+  for (const p of AI_PROVIDERS) {
+    assert.ok(p.name.length > 0, `${p.key} 没有名字`);
+    assert.ok(p.signupNote.length > 0, `${p.key} 没写清门槛，用户会以为接大模型一定要花钱`);
+
+    if (p.key === 'custom') {
+      /* 自定义那家的地址与模型名都由用户填，表里留空是设计 */
+      assert.equal(p.endpoint, '');
+      assert.equal(p.chatModel, '');
+      assert.equal(p.visionModel, '');
+      continue;
+    }
+
+    assert.ok(p.chatModel.length > 0, `${p.key} 没给问答模型名`);
+    assert.ok(p.endpoint.startsWith('https://'), `${p.key} 的端点必须是 https`);
+    assert.ok(
+      p.endpoint.endsWith('/chat/completions'),
+      `${p.key} 的端点要一路写到 /chat/completions —— 各家拼法不同，留一半让用户猜必然出事`,
+    );
+    assert.ok(p.keyUrl.startsWith('https://'), `${p.key} 要给出去哪拿 Key 的地址`);
+  }
+});
+
+test('★ DeepSeek 必须标成「看不了图」—— 它的 V4 是纯文本模型', () => {
+  /* 这一条是整张表里最容易搞错、后果也最直接的一格：
+     填了模型名，用户一选它，识物就会在点下去的瞬间坏掉，
+     而报的是模型侧的错，完全看不出是「这家本来就不支持」。 */
+  const deepseek = findProvider('deepseek');
+  assert.equal(deepseek.visionModel, null, 'DeepSeek 没有可用的视觉模型，别填名字');
+});
+
+test('至少有一家支持识图，否则识物功能形同不存在', () => {
+  assert.ok(
+    AI_PROVIDERS.some((p) => p.visionModel !== null && p.visionModel !== ''),
+    '一家能识图的都没有',
+  );
+});
+
+test('没选过时用默认那家，且默认那家一定在表里', () => {
+  assert.equal(activeProviderKey(), DEFAULT_PROVIDER_KEY);
+  assert.ok(AI_PROVIDERS.some((p) => p.key === DEFAULT_PROVIDER_KEY));
+  assert.equal(activeProvider().key, DEFAULT_PROVIDER_KEY);
+});
+
+test('findProvider：不认识的标识兜回默认那家，而不是返回 undefined', () => {
+  /* 返回 undefined 的话，上层第一次读 .name 就会崩 —— 而触发条件是
+     「用户存过一个已经不存在的供应商标识」（换了表、或手工改过库） */
+  assert.equal(findProvider('不存在的供应商').key, DEFAULT_PROVIDER_KEY);
+  assert.equal(findProvider('').key, DEFAULT_PROVIDER_KEY);
+});
+
+test('解析函数与当前供应商一致：端点、两个模型名', () => {
+  const p = activeProvider();
+  assert.equal(endpointUrl(), p.endpoint);
+  assert.equal(visionModelName(), p.visionModel ?? '');
+  assert.equal(chatModelName(), p.chatModel);
+  assert.equal(providerSupportsVision(), true, '默认那家是支持识图的');
+});
+
+test('切到 DeepSeek：端点跟着换，且识图模型名变成空串', async () => {
+  await saveAiProvider('deepseek');
+  try {
+    assert.equal(activeProviderKey(), 'deepseek');
+    assert.equal(endpointUrl(), 'https://api.deepseek.com/chat/completions');
+    assert.equal(chatModelName(), 'deepseek-v4-flash');
+    assert.equal(visionModelName(), '', '看不了图时必须给空串，界面靠它决定藏不藏识物入口');
+    assert.equal(providerSupportsVision(), false);
+  } finally {
+    await saveAiProvider(DEFAULT_PROVIDER_KEY);
+  }
+});
+
+test('★ 切供应商会把运行时 Key 一起换掉', async () => {
+  /* 不换的话：用户切到 DeepSeek 却还在用智谱的 Key，服务端回 401，
+     而界面上 Key 那一行显示得好好的（它有内容），排查会非常绕 */
+  await saveAiKey('sk-zhipu-key-123456');
+  assert.equal(currentAiKey(), 'sk-zhipu-key-123456');
+
+  await saveAiProvider('deepseek');
+  assert.equal(currentAiKey(), '', '换了供应商就不该继续用上一家的 Key');
+
+  await saveAiProvider(DEFAULT_PROVIDER_KEY);
+  await saveAiKey('   ');
+});
+
+test('自定义端点：填了才生效，没填时端点为空串（由 client 拦住并给提示）', async () => {
+  await saveAiProvider('custom');
+  try {
+    assert.equal(endpointUrl(), '');
+    assert.equal(chatModelName(), '');
+    assert.equal(providerSupportsVision(), false, '没填识图模型名＝用不了识物');
+
+    await saveCustomEndpoint({ endpoint: 'https://example.com/v1/chat/completions', chat: 'my-model' });
+    assert.equal(endpointUrl(), 'https://example.com/v1/chat/completions');
+    assert.equal(chatModelName(), 'my-model');
+
+    /* 只补识图模型名时，另外两项不能被清掉 —— patch 语义 */
+    await saveCustomEndpoint({ vision: 'my-vision' });
+    assert.equal(endpointUrl(), 'https://example.com/v1/chat/completions');
+    assert.equal(chatModelName(), 'my-model');
+    assert.equal(visionModelName(), 'my-vision');
+    assert.equal(providerSupportsVision(), true);
+
+    assert.deepEqual(customEndpointSettings(), {
+      endpoint: 'https://example.com/v1/chat/completions',
+      vision: 'my-vision',
+      chat: 'my-model',
+    });
+  } finally {
+    await saveCustomEndpoint({ endpoint: '', vision: '', chat: '' });
+    await saveAiProvider(DEFAULT_PROVIDER_KEY);
+  }
 });

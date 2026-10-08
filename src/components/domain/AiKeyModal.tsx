@@ -16,7 +16,7 @@ import { Modal, Pressable, TextInput, View } from 'react-native';
 
 import { GUTTER, Palette, Radius, Space, Type } from '@/constants/theme';
 import { describeAiError, pingAi } from '@/lib/ai/client';
-import { AI_PROVIDER, maskKey } from '@/lib/ai/config';
+import { activeProvider, maskKey } from '@/lib/ai/config';
 import { useAi } from '@/lib/store/ai';
 import { makeStyles } from '@/lib/theme';
 import { Button } from '../ui/controls';
@@ -32,6 +32,8 @@ export interface AiKeyModalProps {
 export function AiKeyModal({ visible, onClose, onSaved }: AiKeyModalProps) {
   const styles = useStyles();
   const { keyMask, saveKey } = useAi();
+  /* 挂在当前选中的供应商上 —— 换了供应商，这一屏的文案与存储槽位都要跟着换 */
+  const provider = activeProvider();
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -92,10 +94,10 @@ export function AiKeyModal({ visible, onClose, onSaved }: AiKeyModalProps) {
 
         <View style={styles.body}>
           <Body tone="ink2" style={styles.desc}>
-            {`识物与问一问用的是${AI_PROVIDER.name}的模型，需要你自己的 API Key。`}
+            {`识物与问一问用的是${provider.name}的模型，需要你自己的 API Key。`}
           </Body>
           <Meta color={Palette.brand} style={styles.emphasis}>
-            {AI_PROVIDER.signupNote}
+            {provider.signupNote}
           </Meta>
 
           <Label tone="ink3" style={styles.fieldLabel}>
@@ -108,7 +110,7 @@ export function AiKeyModal({ visible, onClose, onSaved }: AiKeyModalProps) {
                 setDraft(next);
                 if (message) setMessage(null);
               }}
-              placeholder="粘贴智谱的 API Key"
+              placeholder={`粘贴 ${provider.name} 的 API Key`}
               placeholderTextColor={Palette.ink4}
               style={styles.inputField}
               autoCapitalize="none"

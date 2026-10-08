@@ -44,7 +44,10 @@ export function ContactSection() {
         );
       }
     } catch (err) {
-      Alert.alert('分享失败', err instanceof Error ? err.message : '未知错误');
+      /* 原始错误多半是英文技术细节（比如 expo-sharing 的 scheme 报错），直接给用户看没有意义。
+         打到控制台留线索，界面上只说接下来该怎么做。 */
+      console.warn('[gewu] 分享二维码失败：', err);
+      Alert.alert('分享失败', '重试一次；还不行就点开二维码截屏，在微信里从相册选这张图识别。');
     } finally {
       setSharing(false);
     }

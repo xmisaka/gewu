@@ -30,6 +30,7 @@ import { Gutter, PageHeader, Screen } from '@/components/ui/layout';
 import { Meta } from '@/components/ui/typography';
 import { Space } from '@/constants/theme';
 import { askVision, describeAiError } from '@/lib/ai/client';
+import { providerSupportsVision } from '@/lib/ai/config';
 import { toUploadBase64 } from '@/lib/ai/upload';
 import { buildVisionPrompt, EMPTY_FIELDS, parseExtract } from '@/lib/ai/extract';
 import { today } from '@/lib/date';
@@ -61,6 +62,10 @@ export default function ComposeScreen() {
 
   const { entitled } = useEntitlement();
   const { active: aiActive, enabled: aiEnabled, record } = useAi();
+
+  /* 识物要求「这家供应商能看图」。DeepSeek 的纯文本模型看不了 ——
+     选了它却还摆着识物按钮，用户点下去只会拿到一个模型侧的报错 */
+  const canRecognize = providerSupportsVision();
 
   const categoryState = useAsyncData(() => listCategories(), [dataVersion], []);
   const cabinetState = useAsyncData(() => listCabinetViews(), [dataVersion], []);
@@ -150,7 +155,7 @@ export default function ComposeScreen() {
         };
       }
     },
-    [entitled, aiActive, record, categoryNames],
+    [entitled, aiActive, aiEnabled, record, categoryNames],
   );
 
   const handleSubmit = async (payload: FormPayload, action: 'primary' | 'secondary') => {
@@ -211,7 +216,10 @@ export default function ComposeScreen() {
           secondaryLabel="保存并完成"
           onSubmit={handleSubmit}
           submitting={submitting}
-          onAiRecognize={recognize}
+          /* 当前这家看不了图（比如 DeepSeek 的纯文本模型）时不传这个回调 ——
+             `ItemForm` 没有它就不渲染识物入口。留一个点了必然报错的按钮，
+             比没有这个按钮更糟：用户会以为是自己哪里配错了。 */
+          onAiRecognize={canRecognize ? recognize : undefined}
         />
       )}
 
