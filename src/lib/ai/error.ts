@@ -44,7 +44,7 @@ export function describeAiError(err: unknown): string {
       case 'network':
         return '联网失败了，检查一下网络后重试';
       case 'timeout':
-        return '模型这次回得太慢。稍等一会儿再试一次';
+        return '这次太慢了，多半是网络。换个信号好点的地方再试';
       default:
         return err.message;
     }

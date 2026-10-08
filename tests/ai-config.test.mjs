@@ -26,6 +26,7 @@ import {
   AI_UPLOAD_MAX_EDGE,
   AI_UPLOAD_QUALITY,
   AI_VISION_MODEL,
+  AI_VISION_TIMEOUT_MS,
   EMPTY_USAGE,
   ENV_API_KEY,
   currentAiKey,
@@ -43,11 +44,20 @@ import {
 
 /* ============================================================ 常量口径 */
 
-test('超时与上传副本的数值不能漂（两条链路各有一处依赖它）', () => {
+test('超时与上传副本的数值不能漂（每条链路各有一处依赖它）', () => {
   // 与 stock.ts 的 REQUEST_TIMEOUT_MS 取同一个数：都是「用户正等着的一次联网」
   assert.equal(AI_TIMEOUT_MS, 12_000);
+
+  /*
+   * 识图单独放宽到 60 秒。弱网实测（6.75 KB/s）下，光把 1024px 的副本传上去就要几十秒，
+   * 掐在 30 秒只会逼用户重试，而重试会撞上「同一时刻只允许一条请求」的限流。
+   */
+  assert.equal(AI_VISION_TIMEOUT_MS, 60_000);
+  assert.ok(AI_VISION_TIMEOUT_MS > AI_TIMEOUT_MS, '识图必须比纯文本宽 —— 它要多传一张图');
+
   assert.equal(AI_UPLOAD_MAX_EDGE, 1024);
-  assert.equal(AI_UPLOAD_QUALITY, 0.8);
+  // 0.8 → 0.7 同样是照弱网体积调的，见 config.ts 的注释；改它要连着看上传耗时
+  assert.equal(AI_UPLOAD_QUALITY, 0.7);
   assert.ok(AI_UPLOAD_QUALITY > 0 && AI_UPLOAD_QUALITY <= 1);
 });
 

@@ -47,12 +47,25 @@ interface ChatResponse {
 }
 
 /**
+ * 撞上 429 之后等多久再试一次。
+ *
+ * ★ 客户端 abort **不等于服务端停工**：上一次被超时掐掉的那条请求，
+ *   服务端通常还在算，仍占着那唯一一个并发位。等两秒再试，
+ *   比直接弹错让用户手动重来强得多 —— 后者只会让用户重试得更快、撞得更狠。
+ */
+const RETRY_AFTER_429_MS = 2_000;
+
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
  * 发一次 chat/completions。
  *
  * 识图与问答共用它：差别只在 `content` 是字符串还是一段带 image_url 的数组，
  * 而 OpenAI 兼容格式把这两件事统一在同一个字段里。
+ *
+ * `attempt` 仅供 429 的一次自动重试用，调用方不要传。
  */
-async function chat(model: string, messages: ChatMessage[]): Promise<string> {
+async function chat(model: string, messages: ChatMessage[], attempt = 0): Promise<string> {
   const key = currentAiKey();
   if (!key) throw new AiError('还没配置 API Key', 'no-key');
 
@@ -100,6 +113,10 @@ async function chat(model: string, messages: ChatMessage[]): Promise<string> {
   }
   if (res.status === 429) {
     /* 免费模型是「同一时刻只允许一条请求」，等一会儿就恢复，不是额度用完了 */
+    if (attempt === 0) {
+      await delay(RETRY_AFTER_429_MS);
+      return chat(model, messages, 1);
+    }
     throw new AiError('免费模型同一时刻只允许一条请求，稍等十几秒再试', 'api');
   }
   if (!res.ok) {

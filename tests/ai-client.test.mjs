@@ -93,13 +93,44 @@ test('识图的超时比文本宽：12 秒不掐，满 30 秒才掐', async () =
 
 /* ==================== 2. 状态码分类 ==================== */
 
-test('429 说清是「免费模型一次只让发一条」，而不只是含糊的「太频繁」', async () => {
-  stubFetch(respondWith(429));
-  await assert.rejects(askText('s', 'u'), (err) => {
+test('429 重试一次后仍失败，文案说清是「免费模型一次只让发一条」', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  let calls = 0;
+  stubFetch(async () => {
+    calls += 1;
+    return new Response('{"error":{"message":"rate limited"}}', { status: 429 });
+  });
+
+  const pending = askText('s', 'u');
+  const rejected = assert.rejects(pending, (err) => {
     assert.equal(err.kind, 'api');
     assert.match(err.message, /一条请求/);
     return true;
   });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  mock.timers.tick(2_000);
+  await rejected;
+
+  assert.equal(calls, 2, '持续限流时只重试一次 —— 多试只会把队列压得更长');
+});
+
+test('★ 429 只是「上一条还没释放」时，自动重试一次就成功', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  let calls = 0;
+  stubFetch(async () => {
+    calls += 1;
+    return calls === 1
+      ? new Response('{"error":{"message":"rate limited"}}', { status: 429 })
+      : Response.json({ choices: [{ message: { content: '看清楚了' } }] });
+  });
+
+  const pending = askText('s', 'u');
+  await new Promise((resolve) => setImmediate(resolve));
+  mock.timers.tick(2_000);
+
+  assert.equal(await pending, '看清楚了', '用户不该看到这个错误 —— 等两秒就好了');
+  assert.equal(calls, 2);
 });
 
 test('401 / 403 指向 Key 本身', async () => {

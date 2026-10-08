@@ -38,7 +38,7 @@ import { createItem } from '@/lib/db/items';
 import { listCabinetViews, lastUsedLocationId } from '@/lib/db/locations';
 import { addPhoto, promotePhoto } from '@/lib/db/photos';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
-import { captureWithCamera, ingestMany, pickFromLibrary } from '@/lib/photos/pipeline';
+import { captureWithCamera, ingestMany, photoUri, pickFromLibrary } from '@/lib/photos/pipeline';
 import { useAi } from '@/lib/store/ai';
 import { useAppState } from '@/lib/store/app-state';
 import { useEntitlement } from '@/lib/store/entitlement';
@@ -80,6 +80,9 @@ export default function ComposeScreen() {
    */
   const recognize = useCallback(
     async (source: AiRecognizeSource): Promise<AiRecognition | AiRecognizeError | null> => {
+      /** 诊断用：这条链路上「图多大、花了多久」是排障时最先要看的两个数 */
+      const t0 = Date.now();
+
       if (!entitled) {
         setGateOpen(true);
         return null;
@@ -111,7 +114,24 @@ export default function ComposeScreen() {
 
       // 3) 压缩副本 → 问模型。失败也把照片交回去（见 AiRecognition.notice 的注释）
       try {
-        const base64 = await toUploadBase64(src.uri, src.width, src.height);
+        /*
+         * ★ 上传源用**刚落盘的压缩图**，不是原图。
+         * 相机原图动辄 4000×3000，直接拿它缩到 1024 要先把整张原图解码一遍 ——
+         * 低端机上就是好几秒，而这一步越慢越容易顶到超时；超时被 abort 之后重试，
+         * 又会撞上「同时刻只允许一条请求」的限流。落盘图已经缩到 1600，从它再缩更快。
+         */
+        const base64 = await toUploadBase64(photoUri(photo.filePath), photo.width, photo.height);
+
+        /*
+         * 留一行诊断。release 包里 console.warn 不会被剥掉，真机上
+         * `adb logcat | grep gewu` 就能看到这整条链路的关键数字 ——
+         * 「图有没有真的压下去」「时间花在哪一步」都在这行里。
+         * 识物失败时看不到别的线索，这一行是唯一的抓手。
+         */
+        console.warn(
+          `[gewu] 识物 ${source} 原图 ${src.width}×${src.height} → 上传 ${Math.round(base64.length / 1024)}KB，压缩用了 ${Date.now() - t0}ms`,
+        );
+
         const raw = await askVision(buildVisionPrompt(categoryNames), base64);
         record('vision');
 

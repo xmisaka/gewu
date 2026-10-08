@@ -278,6 +278,17 @@ export async function captureWithCamera(): Promise<{ sources: SourceImage[]; den
 
 /* ------------------------------------------------------------ 清理 */
 
+/**
+ * 相对路径 → 沙盒里的绝对 uri。
+ *
+ * 识物上传要用它：**拿刚落盘的压缩图当上传源，而不是原图**。
+ * 相机原图动辄 4000×3000，从它缩到 1024 得先把整张原图解码一遍 —— 低端机上就是好几秒，
+ * 而这一步越慢越容易顶到超时。落盘图已经缩到 1600，从它再缩又快又够清晰。
+ */
+export function photoUri(relativePath: string): string {
+  return new File(Paths.document, relativePath).uri;
+}
+
 /** 删除一组相对路径对应的文件。忽略不存在的文件与单点失败。 */
 export function deleteFiles(relativePaths: string[]): void {
   for (const rel of relativePaths) {
