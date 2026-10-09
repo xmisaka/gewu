@@ -26,6 +26,7 @@ import { CategoryPickerModal } from '@/components/domain/CategoryPickerModal';
 import { CoverPickerModal } from '@/components/domain/CoverPickerModal';
 import { DatePickerModal } from '@/components/domain/DatePickerModal';
 import { LocationPickerModal } from '@/components/domain/LocationPickerModal';
+import { TagPickerSheet } from '@/components/domain/TagPickerSheet';
 import { Button } from '@/components/ui/controls';
 import { PlainTag } from '@/components/ui/feedback';
 import { Card, Divider, Gutter, SectionCard } from '@/components/ui/layout';
@@ -35,11 +36,16 @@ import type { ExtractedFields, ExtractedKey } from '@/lib/ai/extract';
 import { LOW_CONFIDENCE_HINT } from '@/lib/ai/extract';
 import { addMonths, formatDateCN, today } from '@/lib/date';
 import type { CategoryWithCount } from '@/lib/db/categories';
+import { findItemsByName, type NameMatch } from '@/lib/db/items';
 import { formatMoney, parseMoneyInput } from '@/lib/format';
+import { useAsyncData } from '@/lib/hooks/use-async-data';
+import { useDebouncedSearch } from '@/lib/hooks/use-debounced-search';
+import { useTagLibrary } from '@/lib/hooks/use-tag-library';
 import { normalizeQuantity } from '@/lib/stock';
 import { deleteFiles, ingestMany, pickFromLibrary, type IngestedPhoto } from '@/lib/photos/pipeline';
 import { clearStockCache, downloadToCache, type CoverCandidate } from '@/lib/photos/stock';
 import { defaultExpireMonths, EXPIRY_PRESETS, guessCategory, UNCATEGORIZED } from '@/lib/suggest';
+import { applyTagTransform, joinTagsText, removeTag, splitTagsText, type TagTransform } from '@/lib/tags';
 import type { CabinetView, Item, ItemDraft, ItemView, Photo } from '@/lib/types';
 
 import { PhotoThumb } from './media';
@@ -330,6 +336,7 @@ export function ItemForm({
   /** 找封面选中的那张图（photos 相对路径），提交时会被提到最前当封面 */
   const [coverPath, setCoverPath] = useState<string | null>(null);
   const [locationOpen, setLocationOpen] = useState(false);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [dateTarget, setDateTarget] = useState<'purchase' | 'expire' | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   /** 识物来源选择弹层 */
@@ -377,6 +384,28 @@ export function ItemForm({
     setDraft((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  /* ---------------------------------------------------------- 同名检出 */
+
+  /**
+   * 录入时若库里已有同名物品，给一句提示。
+   *
+   * ★ **只是提示，不阻断**。同名不等于重复 —— 「Type-C 数据线 1 米」买第二根是常事，
+   *   弹窗逼迫用户改个名（「Type-C 数据线 1 米 2」）反而把数据搞脏。
+   *   这里只把事实摆出来，让用户自己决定。
+   * ★ 走防抖再查库：逐字打「Type-C 数据线」会触发十来次全表扫描。
+   * ★ 编辑模式要排掉自己，否则改个标点就会提示「你自己和你自己重名」。
+   */
+  const debouncedName = useDebouncedSearch(draft.name);
+  const nameMatchesState = useAsyncData(
+    () =>
+      debouncedName.trim()
+        ? findItemsByName(debouncedName, initialItem?.id)
+        : Promise.resolve([] as NameMatch[]),
+    [debouncedName, initialItem?.id],
+    [] as NameMatch[],
+  );
+  const nameMatches = nameMatchesState.data;
+
   /* ---------------------------------------------------------- AI 识物 */
 
   /**
@@ -393,6 +422,40 @@ export function ItemForm({
       return next;
     });
   }, []);
+
+  /* ---------------------------------------------------------- 标签 */
+
+  /**
+   * 标签候选：从库里**算出来**的（见 lib/tags.ts），没有标签表。
+   * 挂在表单里而不是由页面传进来 —— 录入页、编辑页、语音页三处都用同一个 ItemForm，
+   * 每处各传一次必然是有一处忘了传（而忘了传只是「候选是空的」，不报错）。
+   */
+  const tagLibrary = useTagLibrary();
+
+  /** 已选标签由 `tagsText` 派生，它仍是**唯一真源** —— 语音 prefill 与 AI 摘标都挂在它上面 */
+  const selectedTags = useMemo(() => splitTagsText(draft.tagsText), [draft.tagsText]);
+
+  const setTags = useCallback(
+    (next: string[]) => {
+      set('tagsText', joinTagsText(next));
+      clearAi('tags');
+    },
+    [clearAi, set],
+  );
+
+  /**
+   * 改名 / 合并 / 删除：先落库（跨全部物品），再把**本地这一份**过一次同一个变换。
+   *
+   * ★ 两边必须调同一个 `applyTagTransform`：只改库不改表单，用户接着点保存，
+   *   旧标签会被原样写回去 —— 看起来像「刚才那次改名自己撤销了」。
+   */
+  const manageTag = useCallback(
+    async (transform: TagTransform) => {
+      await tagLibrary.manage(transform);
+      setTags(applyTagTransform(selectedTags, transform));
+    },
+    [selectedTags, setTags, tagLibrary],
+  );
 
   /**
    * 把识别结果并进表单。
@@ -816,6 +879,17 @@ export function ItemForm({
                 />
               </FieldRow>
 
+              {/* 同名提示：只把事实摆出来，不禁用保存 —— 见 nameMatches 的注释 */}
+              {nameMatches.length > 0 ? (
+                <View style={styles.dupHint}>
+                  <Ionicons name="copy-outline" size={13} color={Palette.amber} />
+                  <Label tone="amber" style={styles.dupHintText} numberOfLines={2}>
+                    库里已有 {nameMatches.length} 件同名{describeMatchPlace(nameMatches[0])}
+                    ，确认不是同一件？
+                  </Label>
+                </View>
+              ) : null}
+
               {suggestion ? (
                 <Pressable
                   onPress={() => {
@@ -976,17 +1050,41 @@ export function ItemForm({
                 />
               </FieldRow>
               <FieldRow label="标签" ai={aiFields.has('tags')}>
-                <TextInput
-                  value={draft.tagsText}
-                  onChangeText={(t) => {
-                    set('tagsText', t);
-                    clearAi('tags');
-                  }}
-                  placeholder="用顿号分隔，如：办公、备用"
-                  placeholderTextColor={Palette.ink4}
-                  style={styles.input}
-                  allowFontScaling={false}
-                />
+                {/* 已选标签摊成胶囊：一眼看见「这条记录带了哪些标签」，
+                    摘除就在胶囊上，不必回到输入框里去数顿号。
+                    tagsText 仍是唯一真源 —— 这里只是它的一个视图 */}
+                <View style={styles.tagField}>
+                  {selectedTags.length > 0 ? (
+                    <View style={styles.tagWrap}>
+                      {selectedTags.map((t) => (
+                        <Pressable
+                          key={t}
+                          accessibilityRole="button"
+                          accessibilityLabel={`移除标签 ${t}`}
+                          hitSlop={4}
+                          onPress={() => setTags(removeTag(selectedTags, t))}
+                          style={styles.tagChip}>
+                          <Label style={styles.tagChipText}>{t}</Label>
+                          <Ionicons name="close" size={11} color={Palette.ink3} />
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="选择标签"
+                    onPress={() => setTagPickerOpen(true)}
+                    style={({ pressed }) => [
+                      styles.tagTrigger,
+                      selectedTags.length === 0 && styles.tagTriggerEmpty,
+                      pressed && styles.tagTriggerPressed,
+                    ]}>
+                    <Ionicons name="pricetag-outline" size={13} color={Palette.ink4} />
+                    <Label tone="ink4" style={styles.tagTriggerText}>
+                      {selectedTags.length > 0 ? '添加标签' : '从已有标签中选，或新建'}
+                    </Label>
+                  </Pressable>
+                </View>
               </FieldRow>
               <FieldRow label="备注" ai={aiFields.has('note')}>
                 <TextInput
@@ -1095,6 +1193,15 @@ export function ItemForm({
         categoryName={categories.find((c) => c.id === draft.categoryId)?.name ?? null}
         onClose={() => setCoverOpen(false)}
         onConfirm={useCoverPhoto}
+      />
+
+      <TagPickerSheet
+        visible={tagPickerOpen}
+        tags={tagLibrary.tags}
+        selected={selectedTags}
+        onChange={setTags}
+        onManage={manageTag}
+        onClose={() => setTagPickerOpen(false)}
       />
 
       <RecognizeSourceSheet
@@ -1238,6 +1345,21 @@ function daysSince(date: string): number {
   return Math.max(1, Math.round((Date.now() - d.getTime()) / 86_400_000));
 }
 
+/**
+ * 同名提示里的「最近一件在哪」。
+ *
+ * 只补这一小句，不做跳转 —— 点一下就跳走会把用户正在填的表单丢掉，
+ * 而这条提示的价值只是「提醒你想一想」，不是「带你去那件东西」。
+ */
+function describeMatchPlace(match: NameMatch | undefined): string {
+  if (!match) return '';
+  const place =
+    match.cabinetName && match.locationName
+      ? `${match.cabinetName} · ${match.locationName}`
+      : (match.locationName ?? match.cabinetName);
+  return place ? `（最近一件在${place}）` : '';
+}
+
 const useStyles = makeStyles((Palette) => ({
   flex: { flex: 1 },
   scroll: { paddingBottom: Space.xxxl * 2 },
@@ -1297,6 +1419,37 @@ const useStyles = makeStyles((Palette) => ({
     gap: Space.xs,
   },
   fieldAi: { alignSelf: 'center', flexShrink: 0 },
+  /* 标签：纵排的「胶囊 + 触发条」。不能沿用 fieldContent 的横排 ——
+     多标签换行时才不会把行高撑成一条 */
+  tagField: { flex: 1, alignItems: 'flex-end', gap: Space.xs },
+  tagWrap: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: Space.xs },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: Space.sm,
+    paddingVertical: 3,
+    borderRadius: Radius.chip,
+    backgroundColor: Palette.inset,
+    overflow: 'hidden',
+  },
+  tagChipText: { fontSize: 12, color: Palette.ink2 },
+  tagTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.xs,
+    paddingVertical: 3,
+    paddingHorizontal: Space.sm,
+    borderRadius: Radius.input,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Palette.line,
+    borderStyle: 'dashed',
+  },
+  /* 还没选任何标签时不要边框：一个空心的虚线框容易被当成「坏了」，
+     这里它只是一行提示文字 */
+  tagTriggerEmpty: { borderColor: 'transparent', paddingHorizontal: 0 },
+  tagTriggerPressed: { opacity: 0.7 },
+  tagTriggerText: { fontSize: 12.5 },
   input: {
     flex: 1,
     width: '100%',
@@ -1329,6 +1482,17 @@ const useStyles = makeStyles((Palette) => ({
     paddingVertical: Space.sm,
     paddingBottom: Space.md,
   },
+  /* 同名提示：一行小字 + 图标，紧贴在名称行下面。
+     用 amber（提醒）而不是 clay（错误）—— 它说的是「想想看」，不是「你错了」，
+     所以绝不用红色、也绝不禁用保存按钮 */
+  dupHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Space.xs,
+    paddingTop: Space.xs,
+    paddingBottom: Space.sm,
+  },
+  dupHintText: { flex: 1, lineHeight: 17 },
   /* 识物的结果与失败提示。带底色的条，而不是一行浅色小字 ——
      它紧跟在照片条下面，浅色小字会被当成装饰直接略过 */
   recognizeNotice: {

@@ -7,7 +7,7 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { GUTTER, Palette, Radius, Shadow, Space } from '@/constants/theme';
 import type { CabinetView } from '@/lib/types';
@@ -16,6 +16,42 @@ import { makeStyles } from '@/lib/theme';
 
 /** 占用示意最多显示几格，超出以 +N 表示 */
 const MAX_DOTS = 12;
+
+/**
+ * 格位占用方块条。
+ *
+ * ★ **柜子卡片与统计页共用这一个组件**，不各写一份 —— 同一件事在两个页面必须长一样。
+ *   「占用率」这个指标一旦在两处用了不同的画法（方块 vs 进度条），用户会以为是两回事。
+ */
+export function SlotDots({
+  slots,
+  max = MAX_DOTS,
+  style,
+}: {
+  slots: { slot: { id: string }; itemCount: number }[];
+  max?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const styles = useStyles();
+  const dots = slots.slice(0, max);
+  const overflow = slots.length - dots.length;
+
+  return (
+    <View style={[styles.dotWrap, style]}>
+      {dots.map((s) => (
+        <View
+          key={s.slot.id}
+          style={[styles.dot, s.itemCount > 0 ? styles.dotFilled : styles.dotEmpty]}
+        />
+      ))}
+      {overflow > 0 ? (
+        <Label tone="ink3" style={styles.overflow}>
+          +{overflow}
+        </Label>
+      ) : null}
+    </View>
+  );
+}
 
 export function CabinetGrid({
   cabinets,
@@ -39,8 +75,6 @@ export function CabinetGrid({
 
 function CabinetCard({ cabinet, onPress }: { cabinet: CabinetView; onPress: () => void }) {
   const styles = useStyles();
-  const dots = cabinet.slots.slice(0, MAX_DOTS);
-  const overflow = cabinet.slots.length - dots.length;
 
   return (
     <View style={styles.cell}>
@@ -59,19 +93,7 @@ function CabinetCard({ cabinet, onPress }: { cabinet: CabinetView; onPress: () =
             还没有格位
           </Meta>
         ) : (
-          <View style={styles.dotWrap}>
-            {dots.map((s) => (
-              <View
-                key={s.slot.id}
-                style={[styles.dot, s.itemCount > 0 ? styles.dotFilled : styles.dotEmpty]}
-              />
-            ))}
-            {overflow > 0 ? (
-              <Label tone="ink3" style={styles.overflow}>
-                +{overflow}
-              </Label>
-            ) : null}
-          </View>
+          <SlotDots slots={cabinet.slots} style={styles.dotWrapCard} />
         )}
 
         <View style={styles.cardFoot}>
@@ -120,7 +142,9 @@ const useStyles = makeStyles((Palette) => ({
   pressed: { opacity: 0.8 },
   cardTitle: { fontSize: 16, marginBottom: Space.sm },
   emptyHint: { marginBottom: Space.md, minHeight: 22 },
-  dotWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginBottom: Space.md, minHeight: 22 },
+  dotWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center' },
+  /* 卡片里给它留出下边距与最小高度，保证「还没有格位」与「有格位」两种卡片等高 */
+  dotWrapCard: { marginBottom: Space.md, minHeight: 22 },
   dot: { width: 7, height: 22, borderRadius: 2 },
   dotFilled: { backgroundColor: Palette.brand },
   dotEmpty: { backgroundColor: Palette.line },

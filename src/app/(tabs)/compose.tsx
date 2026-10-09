@@ -199,19 +199,26 @@ export default function ComposeScreen() {
 
            ★ 2026-10-09：语音改为支持者功能，两处入口都要挡。
              挡在**入口**而不是只藏在页面里 —— 免费档点一下看到的是
-             「这是什么、免费档少了什么」，而不是跳进去再被拦一道。 */
+             「这是什么、免费档少了什么」，而不是跳进去再被拦一道。
+
+           ★ 2026-10-09 补：AI 总开关关着时这一格**不渲染**（两道门，先总开关后档位）。
+             语音虽然走系统识别、零联网零 Key，但它与识物、问一问同属
+             「智能录入」，一档解锁、一个总闸。关掉开关却还留着麦克风，
+             等于设置页那句「关掉开关等于这条链路不存在」是句空话。 */
         right={
-          <IconButton
-            icon="mic-outline"
-            accessibilityLabel="语音录入"
-            onPress={() => {
-              if (!entitled) {
-                setGateOpen(true);
-                return;
-              }
-              router.push('/voice');
-            }}
-          />
+          aiEnabled ? (
+            <IconButton
+              icon="mic-outline"
+              accessibilityLabel="语音录入"
+              onPress={() => {
+                if (!entitled) {
+                  setGateOpen(true);
+                  return;
+                }
+                router.push('/voice');
+              }}
+            />
+          ) : undefined
         }
       />
 
@@ -229,8 +236,10 @@ export default function ComposeScreen() {
           submitting={submitting}
           /* 当前这家看不了图（比如 DeepSeek 的纯文本模型）时不传这个回调 ——
              `ItemForm` 没有它就不渲染识物入口。留一个点了必然报错的按钮，
-             比没有这个按钮更糟：用户会以为是自己哪里配错了。 */
-          onAiRecognize={canRecognize ? recognize : undefined}
+             比没有这个按钮更糟：用户会以为是自己哪里配错了。
+             ★ 总开关关着时同样不传：那不是一个「配错了待修」的状态，
+               而是用户已经明确关掉的链路，入口不该还在。 */
+          onAiRecognize={aiEnabled && canRecognize ? recognize : undefined}
         />
       )}
 

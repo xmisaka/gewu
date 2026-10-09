@@ -42,7 +42,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { TextInput, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -54,11 +54,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AiOffNotice } from '@/components/domain/AiOffNotice';
 import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { ItemForm, type FormPayload, type ItemSeed } from '@/components/domain/ItemForm';
 import { Button, IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, ScreenScroll } from '@/components/ui/layout';
-import { Body, Label, Meta, Title } from '@/components/ui/typography';
+import { Body, Meta, Title } from '@/components/ui/typography';
 import { GUTTER, Palette, Space, Type } from '@/constants/theme';
 import { ASR_AVAILABLE, asrMessage, listenOnce } from '@/lib/ai/asr';
 import { askText, describeAiError } from '@/lib/ai/client';
@@ -91,7 +92,7 @@ export default function VoiceScreen() {
   const insets = useSafeAreaInsets();
 
   const { entitled } = useEntitlement();
-  const { active: aiActive, record } = useAi();
+  const { active: aiActive, enabled: aiEnabled, record } = useAi();
 
   const [phase, setPhase] = useState<Phase>('idle');
   /** 可编辑的转写文字。★ 它是这一页的主输入 —— 改完按「重新识别」重跑 */
@@ -272,32 +273,41 @@ export default function VoiceScreen() {
     [saving, bump, router],
   );
 
-  /* 未激活：整页只留一句解释与一个出口（与 AI 助手设置页同一口径，不做成
+  /* 守卫两道，顺序是刻意的：**先档位、后总开关**。
+     免费档看到的是「去买」，已付费但关掉 AI 的人看到的是「去打开」——
+     两句话指向的按钮完全不同；反过来说，对一个既没付费又关了开关的人，
+     该先告诉他付费这件事，否则他会以为打开开关就能用。
+
+     未激活：整页只留一句解释与一个出口（与 AI 助手设置页同一口径，不做成
      「能看不能按」—— 灰按钮看起来像坏了，而用户需要的是知道怎么解锁）。
      两处入口已经挡过一次，这里是**深链兜底** —— 少了它，
      `gewu://voice` 这类直接跳转就是一道暗门。 */
   if (!entitled) {
     return (
-      <Screen>
-        <View style={styles.topBar}>
-          <IconButton icon="chevron-back" accessibilityLabel="返回" onPress={() => router.back()} />
-        </View>
-        <PageHeader title="语音录入" subtitle="语音录入属于支持者功能" />
-        <Gutter>
-          <Card>
-            <Body tone="ink2" style={styles.lockedText}>
-              语音录入需要支持者档。免费档的录入、到期、库存、照片与备份全部照旧，一个不少。
-            </Body>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push('/supporter')}
-              style={styles.lockedBtn}>
-              <Label color={Palette.brand}>去激活 / 了解支持者档</Label>
-            </Pressable>
-          </Card>
-        </Gutter>
-        <SupporterGateSheet visible feature="ai" onClose={() => router.back()} />
-      </Screen>
+      <AiOffNotice
+        title="语音录入"
+        body="语音录入需要支持者档。免费档的录入、到期、库存、照片与备份全部照旧，一个不少。"
+        actionLabel="去激活 / 了解支持者档"
+        onAction={() => router.push('/supporter')}
+        onBack={() => router.back()}
+        footer={<SupporterGateSheet visible feature="ai" onClose={() => router.back()} />}
+      />
+    );
+  }
+
+  /* 总开关关着：麦克风入口已经整族收起来了，能走到这里只有深链一条路。
+     ★ 这一条与「没填 Key」不是一回事：没填 Key 时语音照常能用（走本地规则解析），
+       只是少了模型补字段那一步；总开关关掉才是「用户说不要」。
+       两个状态分开写，是因为用户要做的动作不同 —— 一个是去填 Key，一个是去开开关。 */
+  if (!aiEnabled) {
+    return (
+      <AiOffNotice
+        title="语音录入"
+        body="AI 助手的总开关现在是关着的，语音录入也跟着一起收起来了。到「我的 → AI 助手」把总开关打开就能用 —— 语音走手机自带的识别对话框，不消耗模型调用，也不需要填 API Key。"
+        actionLabel="去打开总开关"
+        onAction={() => router.push('/ai')}
+        onBack={() => router.back()}
+      />
     );
   }
 
@@ -541,8 +551,6 @@ const useStyles = makeStyles((Palette) => ({
   aiNote: { marginTop: Space.sm, lineHeight: 19 },
   preparing: { marginTop: Space.md, padding: Space.md },
 
-  /* 未激活时的锁定态。与 ai.tsx 同一套写法，不另立样式 */
-  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Space.xs, paddingTop: Space.xs },
-  lockedText: { lineHeight: 21 },
-  lockedBtn: { marginTop: Space.md },
+  /* 两个守卫页面（未激活 / 总开关关着）都交给 `AiOffNotice`，
+     这里不再留锁定态的样式 —— 同一套排版分散在两个文件里，迟早会改歪一处 */
 }));

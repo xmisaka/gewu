@@ -11,6 +11,7 @@ import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
 
 import { PhotoStage, PhotoThumb } from '@/components/domain/media';
+import { PhotoViewer } from '@/components/domain/PhotoViewer';
 import { Button, FormRow, IconButton } from '@/components/ui/controls';
 import { Loading, PlainTag, StatusTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
@@ -18,7 +19,7 @@ import { Body, Display, Label, Meta, Num } from '@/components/ui/typography';
 import { GUTTER, Palette, Space } from '@/constants/theme';
 import { formatDateCN, isJustAcquired } from '@/lib/date';
 import { adjustQuantity, getItemView, setQuantity, softDeleteItem } from '@/lib/db/items';
-import { listPhotos } from '@/lib/db/photos';
+import { listPhotos, promotePhoto } from '@/lib/db/photos';
 import { formatMoney } from '@/lib/format';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { stockLabel, stockStateText } from '@/lib/stock';
@@ -43,6 +44,8 @@ export default function ItemDetailScreen() {
   const router = useRouter();
   const { dataVersion, bump } = useAppState();
   const [activePhoto, setActivePhoto] = useState(0);
+  /** 全屏看图。详情页只有缩略条时读不清型号，全屏是这一页唯一的「看清」出口 */
+  const [viewerOpen, setViewerOpen] = useState(false);
   /** 库存加减正在落库，用于挡住连点 */
   const [stockBusy, setStockBusy] = useState(false);
 
@@ -100,6 +103,22 @@ export default function ItemDetailScreen() {
     }
   }, [item, stockBusy, bump]);
 
+  /**
+   * 设为封面 = 把这张照片提到最前（`promotePhoto` 把它的 sort_order 变成最小值）。
+   *
+   * 列表封面取的是 sort_order 最小的那张，所以「提到最前」和「换封面」是同一件事。
+   * 落库后只 bump 一次，让列表封面自己刷新 —— 不在这里改本地那份 photos，
+   * 那会多出一个「和数据库不一致」的状态。
+   */
+  const setCover = useCallback(
+    async (filePath: string) => {
+      if (!item) return;
+      await promotePhoto(item.id, filePath);
+      bump();
+    },
+    [item, bump],
+  );
+
   if (itemState.loading && !item) {
     return (
       <Screen>
@@ -137,7 +156,14 @@ export default function ItemDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <PhotoStage thumb={current?.thumbPath ?? null} name={item.name} height={230} />
+        {/* 点大图进全屏：盘点、理赔时要看清型号，230px 的大图位读不出来 */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="全屏查看照片"
+          disabled={photos.length === 0}
+          onPress={() => setViewerOpen(true)}>
+          <PhotoStage thumb={current?.thumbPath ?? null} name={item.name} height={230} />
+        </Pressable>
 
         {photos.length > 1 ? (
           <ScrollView
@@ -380,6 +406,16 @@ export default function ItemDetailScreen() {
           />
         </View>
       </ScrollView>
+
+      <PhotoViewer
+        visible={viewerOpen}
+        photos={photos}
+        initialIndex={activePhoto}
+        itemName={item.name}
+        onClose={() => setViewerOpen(false)}
+        onIndexChange={setActivePhoto}
+        onSetCover={setCover}
+      />
     </Screen>
   );
 }

@@ -412,6 +412,9 @@ export default function MineScreen() {
                 valueTone="ink3"
                 onPress={() => router.push('/category')}
               />
+              {/* 统计排在「分类管理」后面、不挂在最前：它是「整理完了想看看」的收尾动作，
+                  不是每天要点的入口。行尾不给计数 —— 那些数字要在页内展开才有意义 */}
+              <SettingRow label="统计洞察" onPress={() => router.push('/stats')} />
               <SettingRow
                 label="封面图源"
                 value={stockKeyStatus()}

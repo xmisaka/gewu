@@ -7,6 +7,7 @@
 
 import { dailyCost, expiryState, holdingDays, today } from '../date';
 import { isStockEnabled, LOW_STOCK_THRESHOLD, nextQuantity, normalizeQuantity, stockState } from '../stock';
+import { aggregateTagCounts, applyTagTransform, normalizeTags, type TagCount, type TagTransform } from '../tags';
 import type { Database } from './index';
 import { getDatabase } from './index';
 import type {
@@ -146,6 +147,11 @@ export interface ListOptions {
   categoryId?: string | null;
   /** 传柜子 ID 时包含其下所有格位 */
   locationId?: string | null;
+  /**
+   * 标签筛选：**含任一所选即命中**（OR，见 tags.ts 的 matchesAnyTag 注释）。
+   * 空数组 = 不筛。
+   */
+  tags?: readonly string[];
   /** 只看逾期与即将到期 */
   onlyExpiring?: boolean;
   /** 排序方式；缺省为「最近变动」，与改版前行为一致 */
@@ -192,6 +198,21 @@ function compareByName(a: ItemView, b: ItemView): number {
   return diff !== 0 ? diff : b.createdAt - a.createdAt;
 }
 
+/**
+ * 把标签编成「在 JSON 数组里整词命中」的 LIKE 模式。两件事必须做对：
+ *
+ *  1. **两侧的 `"` 是整词定界** —— 没有它，「办公」会命中「办公用品」。
+ *     库里存的是 `["办公","备用"]`，两侧带引号就能保证比的是完整一段。
+ *  2. **转义 LIKE 的通配符** —— 标签里出现 `%` 或 `_` 时不转义会变成通配，
+ *     「备_用」会匹配到「备用」。这是**静默**的多匹配，不报错，最难查。
+ *
+ * 归一化已经保证标签里不会有 `"`（见 tags.ts 的 normalizeTag），定界可靠。
+ */
+function tagLikePattern(tag: string): string {
+  const escaped = tag.trim().replace(/[\\%_]/g, (m) => `\\${m}`);
+  return `%"${escaped}"%`;
+}
+
 export async function listItems(options: ListOptions = {}): Promise<ItemView[]> {
   const db = await getDatabase();
   const on = today();
@@ -225,6 +246,12 @@ export async function listItems(options: ListOptions = {}): Promise<ItemView[]> 
     // 柜子粒度：命中柜子自身或其任一格位
     where.push('(i.location_id = ? OR i.location_id IN (SELECT id FROM locations WHERE parent_id = ?))');
     args.push(options.locationId, options.locationId);
+  }
+
+  if (options.tags && options.tags.length > 0) {
+    const parts = options.tags.map(() => "i.tags LIKE ? ESCAPE '\\'");
+    where.push(`(${parts.join(' OR ')})`);
+    for (const t of options.tags) args.push(tagLikePattern(t));
   }
 
   if (options.onlyExpiring) {
@@ -634,6 +661,149 @@ export async function listAllForExport(): Promise<Item[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<ItemRow>(`${SELECT_VIEW} ORDER BY i.created_at ASC`);
   return rows.map(toItem);
+}
+
+/* ------------------------------------------------------------ 标签 */
+
+/**
+ * 库里所有在用的标签，按使用频次降序。
+ *
+ * ★ **只读 tags 一列**，不用 `SELECT *`：这不是洁癖 —— 迁移新增的列排在表末尾，
+ *   老库新库列序不同，`SELECT *` 在两种库上读到的字段位置不一样，是静默的坑。
+ *   这里根本不需要别的列，只取用得上的那一个。
+ *
+ * 只统计**未删除**的物品：回收站里的东西不该出现在候选里，否则用户删掉一件
+ * 带「易碎」标签的物品后，「易碎」还赖在候选列表上不走。
+ */
+export async function listTagCounts(): Promise<TagCount[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<{ tags: string | null }>(
+    `SELECT tags FROM items WHERE deleted_at IS NULL AND tags IS NOT NULL AND tags <> '' AND tags <> '[]'`,
+  );
+  return aggregateTagCounts(rows.map((r) => ({ tags: parseTags(r.tags) })));
+}
+
+/**
+ * 全局改写标签（重命名 / 合并 / 删除），返回被改动的物品件数。
+ *
+ * 两条口径写在这里，都不显然：
+ *
+ * 1. **连回收站一起改**。只改未删除的话，回收站里那件东西的旧标签还留着，
+ *    哪天恢复了，「办公用品」又冒出来 —— 用户以为自己删干净了。
+ * 2. **不动 `updated_at`**。全局改名不是「这件东西被编辑过」，而列表默认按
+ *    「最近变动」排 —— 顺手更新一下时间戳，几百件物品会集体跳到最前面，
+ *    用户会以为 App 自己把列表重排了（而且不报错，只是看着莫名其妙）。
+ *
+ * 与 `adjustQuantity` 处理数量时的取舍一致：**改元数据不动 updated_at**。
+ */
+export async function rewriteTags(transform: TagTransform): Promise<number> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<{ id: string; tags: string | null }>(
+    'SELECT id, tags FROM items',
+  );
+
+  const updates: { id: string; tags: string[] }[] = [];
+  for (const row of rows) {
+    const before = parseTags(row.tags);
+    const after = applyTagTransform(before, transform);
+    // 逐项比：长度相同也可能有换名
+    const changed = after.length !== before.length || after.some((t, i) => t !== before[i]);
+    if (changed) updates.push({ id: row.id, tags: after });
+  }
+  if (updates.length === 0) return 0;
+
+  await db.withTransactionAsync(async () => {
+    for (const u of updates) {
+      await db.runAsync('UPDATE items SET tags = ? WHERE id = ?', JSON.stringify(u.tags), u.id);
+    }
+  });
+  return updates.length;
+}
+
+/**
+ * 批量给若干物品**加上**标签（并集，不动它们原有的标签）。
+ *
+ * ★ 与 `rewriteTags` 的差别要分清，两者对 `updated_at` 的处理是**故意相反**的：
+ *   · `rewriteTags` 是「改元数据」（全局改名/删除）—— 那几件东西用户根本没碰过，
+ *     动时间戳会让几百件物品集体跳到「最近变动」最前，所以**不动**。
+ *   · 这里是用户**选中若干件之后的一次编辑动作**，与「批量补分类」同类 ——
+ *     那几件东西确实是被动过了，所以**要**动 updated_at（与 assignCategory 一致）。
+ *
+ * 先读后写、包在一个事务里：并集必须基于每条物品**当前**的标签算，
+ * 不能拿一个批次的快照去覆盖（那样会把同一批里另一件刚加上的标签抹掉）。
+ */
+export async function addTagsToItems(itemIds: string[], tags: readonly string[]): Promise<void> {
+  const add = normalizeTags(tags);
+  if (itemIds.length === 0 || add.length === 0) return;
+
+  const db = await getDatabase();
+  const placeholders = itemIds.map(() => '?').join(',');
+  const rows = await db.getAllAsync<{ id: string; tags: string | null }>(
+    `SELECT id, tags FROM items WHERE id IN (${placeholders})`,
+    ...itemIds,
+  );
+  if (rows.length === 0) return;
+
+  const now = Date.now();
+  await db.withTransactionAsync(async () => {
+    for (const row of rows) {
+      const merged = normalizeTags([...parseTags(row.tags), ...add]);
+      await db.runAsync(
+        'UPDATE items SET tags = ?, updated_at = ? WHERE id = ?',
+        JSON.stringify(merged),
+        now,
+        row.id,
+      );
+    }
+  });
+}
+
+/* ------------------------------------------------------------ 同名检出 */
+
+export interface NameMatch {
+  id: string;
+  name: string;
+  locationName: string | null;
+  cabinetName: string | null;
+}
+
+/**
+ * 录入时的「同名检出」。
+ *
+ * 判据：`TRIM(name)` 相等 + `COLLATE NOCASE`（与分类查重同一套；NOCASE 只折叠
+ * ASCII，中文不受影响 —— 但「USB」和「usb」这类才是真会撞的）。
+ *
+ * ★ **不折叠内部空白**：SQL 里做不到，「Type-C 数据线」与「Type-C  数据线」仍算不同名 ——
+ *   宁可漏报也不能误报。误报会让用户以为库里真有两件，去翻半天找不到。
+ * ★ 只查在库的：回收站里那件用户已经删了，再提示「已存在同名」只是噪音。
+ */
+export async function findItemsByName(name: string, excludeId?: string): Promise<NameMatch[]> {
+  const trimmed = name.trim();
+  if (!trimmed) return [];
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<{
+    id: string;
+    name: string;
+    location_name: string | null;
+    cabinet_name: string | null;
+  }>(
+    `SELECT i.id, i.name, l.name AS location_name, pl.name AS cabinet_name
+     FROM items i
+     LEFT JOIN locations l  ON l.id = i.location_id
+     LEFT JOIN locations pl ON pl.id = l.parent_id
+     WHERE i.deleted_at IS NULL
+       AND TRIM(i.name) = TRIM(?) COLLATE NOCASE
+       AND i.id <> ?
+     ORDER BY i.updated_at DESC`,
+    trimmed,
+    excludeId ?? '',
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    locationName: r.location_name,
+    cabinetName: r.cabinet_name,
+  }));
 }
 
 /** 导入用：按 UUID 判断是否已存在 */

@@ -13,6 +13,12 @@
  *   没配 Key    → 照样回答，用本机检索那句事实（文案会提示配 Key 后更自然）
  *   模型超时    → 静默退回本机事实，不弹任何错误
  *   库里是空的  → 说「先记几件东西再来问」，并给一个去录入的出口
+ *
+ * ── 两道守卫（都把页面整个换掉，不是把按钮灰掉）──────────────────
+ *   未激活支持者档 / AI 总开关关着 → 走 `AiOffNotice`。
+ *   入口（01 屏的星标）已经挡过一次，这里是**深链兜底**：
+ *   少了它，`gewu://ask` 就是一道暗门。总开关关着与没填 Key 是两回事，
+ *   别混成一个判断 —— 前者是「用户不要」，后者是「还没配好」。
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +27,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AiOffNotice } from '@/components/domain/AiOffNotice';
+import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
@@ -33,6 +41,7 @@ import { listItems } from '@/lib/db/items';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { useAi } from '@/lib/store/ai';
 import { useAppState } from '@/lib/store/app-state';
+import { useEntitlement } from '@/lib/store/entitlement';
 import { makeStyles } from '@/lib/theme';
 
 export default function AskScreen() {
@@ -40,7 +49,8 @@ export default function AskScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { dataVersion } = useAppState();
-  const { active, record } = useAi();
+  const { entitled } = useEntitlement();
+  const { active, enabled: aiEnabled, record } = useAi();
 
   const itemsState = useAsyncData(() => listItems({ sort: 'recent' }), [dataVersion], []);
   const snapshot = useMemo<AiItemSnapshot[]>(() => itemsState.data.map(toSnapshot), [itemsState.data]);
@@ -116,6 +126,41 @@ export default function AskScreen() {
    *   `aiWorking` 也就变成 false，答案照常显示出来。
    */
   const aiWorking = busy && active && lead == null;
+
+  /* 守卫两道，顺序是刻意的：**先档位、后总开关**（与 voice.tsx 同一套）。
+     免费档看到「去买」，已付费但关掉 AI 的人看到「去打开」—— 两句话指向的按钮不同。
+
+     ★ 2026-10-09 补：此前这一页**只有入口挡、页面裸奔**。
+       结果是 `gewu://ask` 一次深链就能拿全套模型问答（配了自己的 Key 就完全绕过付费）。
+       语音那一版定下的口径是「入口挡完页面还要再挡一次」，这一页当时漏了，
+       这次连同总开关一起补上 —— 两页现在共用同一个 `AiOffNotice`。 */
+  if (!entitled) {
+    return (
+      <AiOffNotice
+        title="问一问"
+        body="问一问与识物入库、语音录入同属支持者档。免费档的录入、到期、库存、照片与备份全部照旧，一个不少。"
+        actionLabel="去激活 / 了解支持者档"
+        onAction={() => router.push('/supporter')}
+        onBack={() => router.back()}
+        footer={<SupporterGateSheet visible feature="ai" onClose={() => router.back()} />}
+      />
+    );
+  }
+
+  /* 总开关关着：星标入口已经收起来了，能走到这里只有深链一条路。
+     ★ 与「没填 Key」要分开：没填 Key 时这一页照常回答（退回本机检索那句事实，
+       文案会提示配 Key 后更自然），那是「还没配好」；总开关关掉才是「用户说不要」。 */
+  if (!aiEnabled) {
+    return (
+      <AiOffNotice
+        title="问一问"
+        body="AI 助手的总开关现在是关着的，问一问也跟着一起收起来了。想用的话到「我的 → AI 助手」把总开关打开；本机检索那条路一直都在，开关打开后即使不填 Key，它也会照常按你库里的记录回答。"
+        actionLabel="去打开总开关"
+        onAction={() => router.push('/ai')}
+        onBack={() => router.back()}
+      />
+    );
+  }
 
   return (
     <Screen>

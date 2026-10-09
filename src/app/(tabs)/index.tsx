@@ -30,6 +30,7 @@ import { CategoryPickerModal } from '@/components/domain/CategoryPickerModal';
 import { ItemRow } from '@/components/domain/ItemRow';
 import { LocationPickerModal } from '@/components/domain/LocationPickerModal';
 import { StockSheet, type StockSheetTarget } from '@/components/domain/StockSheet';
+import { TagPickerSheet } from '@/components/domain/TagPickerSheet';
 import {
   SortPickerModal,
   isItemSort,
@@ -45,6 +46,7 @@ import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { listCategories } from '@/lib/db/categories';
 import {
   DEFAULT_ITEM_SORT,
+  addTagsToItems,
   adjustQuantity,
   assignCategory,
   assignLocation,
@@ -58,9 +60,12 @@ import { PREF_ITEM_SORT, readPref, writePref } from '@/lib/db/prefs';
 import { formatMoneyCompact } from '@/lib/format';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { useDebouncedSearch } from '@/lib/hooks/use-debounced-search';
+import { useTagLibrary } from '@/lib/hooks/use-tag-library';
 import { filterCabinets } from '@/lib/search';
 import { nextQuantity, stockLabel } from '@/lib/stock';
+import { applyTagTransform, removeTag, type TagTransform } from '@/lib/tags';
 import { useAppState } from '@/lib/store/app-state';
+import { useAi } from '@/lib/store/ai';
 import { useEntitlement } from '@/lib/store/entitlement';
 import type { ItemSort, ItemView } from '@/lib/types';
 import { makeStyles } from '@/lib/theme';
@@ -72,6 +77,10 @@ export default function ItemsScreen() {
   const router = useRouter();
   const { stats, dataVersion, bump } = useAppState();
   const { entitled } = useEntitlement();
+  /* ★ 露不露 AI 这一族的入口看 `enabled`（总开关），不看 `active`（还要有 Key）。
+     开关关着＝用户明确说「我不要」→ 麦克风与星标整族收起来；
+     开关开着但没 Key ＝ 还没配好 → 入口留着，点下去给引导。详见 store/ai.tsx */
+  const { enabled: aiEnabled } = useAi();
 
   /* 统计、图例、分类筛选、排序这一整段，是列表的「头部」而不是页面的固定区。
      做法是把它们交给 FlatList 的 ListHeaderComponent —— 滚下去时随原生滚动一起离开
@@ -86,6 +95,17 @@ export default function ItemsScreen() {
   const [mode, setMode] = useState<ViewMode>('list');
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  /**
+   * 标签筛选：**含任一所选即命中**（OR）。
+   *
+   * ★ 空数组 = 不筛，不是「全都不选 = 空结果」—— 这两种语义很容易写反，
+   *   而写反的症状是「一进页面啥都没有」，看起来像数据丢了。
+   */
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  /** 批量加标签：选择器里勾的那些，点「加到 N 件」才落库 */
+  const [batchTagOpen, setBatchTagOpen] = useState(false);
+  const [batchTags, setBatchTags] = useState<string[]>([]);
   const [sort, setSort] = useState<ItemSort>(DEFAULT_ITEM_SORT);
   const [sortOpen, setSortOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -115,14 +135,19 @@ export default function ItemsScreen() {
   const [gateOpen, setGateOpen] = useState(false);
 
   /**
-   * 搜索框右侧那两格，两个都要门控。
+   * 搜索框右侧那两格（麦克风 / 星标）。**两道门，顺序不能反**：
+   *   ① 总开关关着 → 两格**根本不渲染**（见下方 SearchField 的 right）。
+   *      「关掉开关等于这条链路不存在」是设置页对用户的承诺，
+   *      关掉之后界面上还留着图标，这句承诺就是假的。
+   *   ② 开关开着但没激活支持者档 → 渲染，点下去弹门控浮层。
+   *      不做成「灰按钮」也不藏掉：用户需要知道这是什么、少花了哪一档钱。
+   *      免费档的录入、到期、库存、照片与备份不受影响，一个不少。
    *
    * ★ 2026-10-09：语音从「免费」改为支持者功能。原来的理由 ——
    *   「不联网、不要 Key、不申请权限，锁它等于给『记东西』本身加门槛」——
-   *   技术上仍然成立（这条链路确实零成本），改的是产品定位：
-   *   语音与识物、问一问同属「智能录入」，一档解锁。
-   *   要回退只需把 openVoice 的门控去掉，其余不用动。
-   * 问一问依赖库内检索的整理能力（以及可选的模型润色）。
+   *   技术上仍然成立（这条链路确实零成本），改的是**产品定位**：
+   *   语音与识物、问一问同属「智能录入」，一档解锁；因此它们也同属一个总开关，
+   *   被一起收起或一起放出。要回退只需把这里的判据换回单个布尔，其余不用动。
    *
    * 两个都写成字面量路由（而不是一个接 path 参数的通用函数）：
    * 传变量的形式过不了 expo-router 的 typed routes。
@@ -171,19 +196,22 @@ export default function ItemsScreen() {
      筛选条本身已经滚出屏幕了，结果却从中间开始显示，会让人以为「点了没反应」 */
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }, [mode, debouncedQuery, categoryId, sort]);
+  }, [mode, debouncedQuery, categoryId, tagFilter, sort]);
 
   /* 手动排序的箭头只在「看得见整份列表」时才给。
      带着筛选调顺序，被过滤掉的物品会插在中间，用户看着像是点了没反应 */
-  const manualReorder = sort === 'manual' && debouncedQuery.length === 0 && categoryId === null;
+  const manualReorder =
+    sort === 'manual' && debouncedQuery.length === 0 && categoryId === null && tagFilter.length === 0;
 
   const itemsState = useAsyncData(
-    () => listItems({ query: debouncedQuery, categoryId, sort }),
-    [debouncedQuery, categoryId, sort, dataVersion],
+    () => listItems({ query: debouncedQuery, categoryId, tags: tagFilter, sort }),
+    [debouncedQuery, categoryId, tagFilter, sort, dataVersion],
     [] as ItemView[],
   );
   const categoryState = useAsyncData(() => listCategories(), [dataVersion], []);
   const cabinetState = useAsyncData(() => listCabinetViews(), [dataVersion], []);
+  /* 候选跟着物品一起刷新：新录入一件带新标签的物品后，筛选器里要能立刻选到它 */
+  const tagLibrary = useTagLibrary([dataVersion]);
 
   const cabinets = useMemo(
     () => filterCabinets(cabinetState.data, locationQuery),
@@ -211,7 +239,7 @@ export default function ItemsScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
-      listItems({ query: debouncedQuery, categoryId, sort }).catch(() => undefined),
+      listItems({ query: debouncedQuery, categoryId, tags: tagFilter, sort }).catch(() => undefined),
       listCategories().catch(() => undefined),
       listCabinetViews().catch(() => undefined),
     ]);
@@ -220,7 +248,22 @@ export default function ItemsScreen() {
     cabinetState.reload();
     setRefreshing(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, categoryId, sort]);
+  }, [debouncedQuery, categoryId, tagFilter, sort]);
+
+  /**
+   * 选择器里的改名 / 合并 / 删除。
+   *
+   * 库里改完，**当前筛选中**的标签也要过一次同一个变换 —— 否则用户刚把
+   * 「办公」并进「办公用品」，筛选条件里却还挂着「办公」，列表立刻变空，
+   * 而且他找不到那个已经不存在的标签去摘掉它（只能整条清除）。
+   */
+  const manageTag = useCallback(
+    async (transform: TagTransform) => {
+      await tagLibrary.manage(transform);
+      setTagFilter((prev) => applyTagTransform(prev, transform));
+    },
+    [tagLibrary],
+  );
 
   const toggleSelect = useCallback((item: ItemView) => {
     setSelected((prev) => {
@@ -247,6 +290,21 @@ export default function ItemsScreen() {
   const applyBulkCategory = async (nextCategoryId: string | null) => {
     await assignCategory([...selected], nextCategoryId);
     setPickerOpen(false);
+    clearSelection();
+    bump();
+  };
+
+  /**
+   * 批量加标签：**并集**，不动这些物品原有的标签。
+   *
+   * 所以入口的动作词是「加」而不是「设置」—— 写成「设置标签」，用户会以为
+   * 原有的标签会被替换掉，那是个不可逆的误会。
+   */
+  const applyBulkTags = async () => {
+    if (selected.size === 0 || batchTags.length === 0) return;
+    await addTagsToItems([...selected], batchTags);
+    setBatchTagOpen(false);
+    setBatchTags([]);
     clearSelection();
     bump();
   };
@@ -430,24 +488,30 @@ export default function ItemsScreen() {
             placeholder={activeCategory ? `在「${activeCategory.name}」中搜索` : undefined}
             /* 右侧两格：麦克风（说一句话录入）与星标（问一问）。
                设计稿 01 屏把它们并排画在这里，而不是挤进底部第五格 ——
-               底部五格是「找东西」的骨架，AI 是辅助，不该占黄金位 */
+               底部五格是「找东西」的骨架，AI 是辅助，不该占黄金位。
+               ★ 总开关关着时整块不渲染（而不是渲染成禁用态）：
+                 灰掉的图标会让人以为「坏了 / 要等一会」，用户需要的是
+                 屏幕上根本没有这一族的痕迹。留白由 SearchField 自己吸收，
+                 它只是不渲染 right 而已，输入框宽度不受影响。 */
             right={
-              <View style={styles.searchActions}>
-                <IconButton
-                  icon="mic-outline"
-                  size={18}
-                  tone="ink3"
-                  accessibilityLabel="语音录入"
-                  onPress={openVoice}
-                />
-                <IconButton
-                  icon="sparkles-outline"
-                  size={18}
-                  tone={entitled ? 'brand' : 'ink3'}
-                  accessibilityLabel="问一问"
-                  onPress={openAsk}
-                />
-              </View>
+              aiEnabled ? (
+                <View style={styles.searchActions}>
+                  <IconButton
+                    icon="mic-outline"
+                    size={18}
+                    tone="ink3"
+                    accessibilityLabel="语音录入"
+                    onPress={openVoice}
+                  />
+                  <IconButton
+                    icon="sparkles-outline"
+                    size={18}
+                    tone={entitled ? 'brand' : 'ink3'}
+                    accessibilityLabel="问一问"
+                    onPress={openAsk}
+                  />
+                </View>
+              ) : undefined
             }
           />
 
@@ -505,6 +569,52 @@ export default function ItemsScreen() {
                   ))}
                 </ChipRow>
 
+                {/* 标签筛选。库里有标签才出现这一条 —— 一个「标签」入口点开却是空的，
+                    比没有这个入口更让人困惑。 */}
+                {tagLibrary.tags.length > 0 ? (
+                  <View style={styles.tagFilterRow}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        tagFilter.length > 0 ? `标签筛选，已选 ${tagFilter.length} 个` : '按标签筛选'
+                      }
+                      onPress={() => setTagPickerOpen(true)}
+                      hitSlop={6}
+                      style={({ pressed }) => [
+                        styles.tagFilterTrigger,
+                        pressed && styles.sortTriggerPressed,
+                      ]}>
+                      <Ionicons
+                        name="pricetags-outline"
+                        size={13}
+                        color={tagFilter.length > 0 ? Palette.brand : Palette.ink3}
+                      />
+                      <Label tone={tagFilter.length > 0 ? 'brand' : 'ink2'}>
+                        {tagFilter.length > 0 ? `标签 · ${tagFilter.length}` : '标签'}
+                      </Label>
+                      {tagFilter.length === 0 ? (
+                        <Ionicons name="caret-down" size={11} color={Palette.ink3} />
+                      ) : null}
+                    </Pressable>
+
+                    {tagFilter.map((t) => (
+                      <Pressable
+                        key={t}
+                        accessibilityRole="button"
+                        accessibilityLabel={`移除标签筛选 ${t}`}
+                        onPress={() => setTagFilter((prev) => removeTag(prev, t))}
+                        style={styles.tagFilterChip}>
+                        <Label style={styles.tagFilterChipText}>{t}</Label>
+                        <Ionicons name="close" size={11} color={Palette.brand} />
+                      </Pressable>
+                    ))}
+
+                    {/* 多选时把口径写在脸上：不写，用户会按「同时具备」去理解，
+                        而实现是「含任一」—— 两者对不上时他会以为筛选坏了 */}
+                    {tagFilter.length > 1 ? <Meta tone="ink4">含任一</Meta> : null}
+                  </View>
+                ) : null}
+
                 <View style={styles.sortRow}>
                   <Pressable
                     accessibilityRole="button"
@@ -561,7 +671,7 @@ export default function ItemsScreen() {
               <Card style={styles.emptyCard}>
                 {itemsState.loading ? (
                   <Loading />
-                ) : debouncedQuery || categoryId ? (
+                ) : debouncedQuery || categoryId || tagFilter.length > 0 ? (
                   <EmptyState
                     icon="search-outline"
                     title="没有找到"
@@ -570,6 +680,7 @@ export default function ItemsScreen() {
                     onAction={() => {
                       setQuery('');
                       setCategoryId(null);
+                      setTagFilter([]);
                     }}
                   />
                 ) : (
@@ -645,11 +756,21 @@ export default function ItemsScreen() {
         <View style={styles.selectionBar}>
           <Body color={Palette.onAccent}>已选 {selected.size} 件</Body>
           <View style={styles.selectionActions}>
-            <BarAction icon="pricetag-outline" label="补分类" onPress={() => setPickerOpen(true)} />
+            {/* 标签统一用两字：四枚动作 + 「已选 N 件」在 360dp 屏上刚好放得下，
+                多一个字就会把「删除」挤出屏幕（而挤出去是不报错的） */}
+            <BarAction icon="pricetag-outline" label="分类" onPress={() => setPickerOpen(true)} />
             <BarAction
               icon="location-outline"
-              label="改位置"
+              label="位置"
               onPress={() => setLocationPickerOpen(true)}
+            />
+            <BarAction
+              icon="pricetags-outline"
+              label="标签"
+              onPress={() => {
+                setBatchTags([]);
+                setBatchTagOpen(true);
+              }}
             />
             <BarAction icon="trash-outline" label="删除" onPress={confirmBulkDelete} />
           </View>
@@ -680,6 +801,32 @@ export default function ItemsScreen() {
         value={sort}
         onClose={() => setSortOpen(false)}
         onPick={changeSort}
+      />
+
+      <TagPickerSheet
+        visible={tagPickerOpen}
+        tags={tagLibrary.tags}
+        selected={tagFilter}
+        onChange={setTagFilter}
+        onManage={manageTag}
+        onClose={() => setTagPickerOpen(false)}
+        title="按标签筛选"
+        hint="选了多个标签时，只要含其中一个就会被列出来。"
+      />
+
+      {/* 批量加标签：勾完点「加到 N 件」才落库。动作词用「加」——
+          「设置标签」会让人以为原来的标签要被替换掉 */}
+      <TagPickerSheet
+        visible={batchTagOpen}
+        tags={tagLibrary.tags}
+        selected={batchTags}
+        onChange={setBatchTags}
+        onManage={manageTag}
+        onClose={() => setBatchTagOpen(false)}
+        onConfirm={() => void applyBulkTags()}
+        confirmLabel={`加到 ${selected.size} 件`}
+        title="加标签"
+        hint="只会在原有标签上追加，不会覆盖。"
       />
 
       {/* 库存面板挂在页面根上，不挂在 ItemRow 里 —— 行会被虚拟化反复重挂，
@@ -792,6 +939,28 @@ const useStyles = makeStyles((Palette) => ({
   sortTrigger: { flexDirection: 'row', alignItems: 'center', gap: Space.xs },
   sortTriggerPressed: { opacity: 0.6 },
   sortHint: { flexShrink: 1 },
+  /* 标签筛选行：入口 + 已选胶囊。浮在画布上，所以左右留白交给 GUTTER，
+     与上面那排分类 chip 对齐 */
+  tagFilterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: Space.sm,
+    paddingHorizontal: GUTTER,
+    paddingTop: Space.sm,
+  },
+  tagFilterTrigger: { flexDirection: 'row', alignItems: 'center', gap: Space.xs },
+  tagFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: Space.sm,
+    paddingVertical: 3,
+    borderRadius: Radius.chip,
+    backgroundColor: Palette.brandBg,
+    overflow: 'hidden',
+  },
+  tagFilterChipText: { fontSize: 12, color: Palette.brand },
   /* 搜索框内右缘的两格。IconButton 自带 Space.xs 的内边距，两枚之间不再另加 gap，
      否则右边会多出一截空白，看起来像输入框没对齐 */
   searchActions: { flexDirection: 'row', alignItems: 'center', marginRight: -Space.xs },
@@ -812,13 +981,13 @@ const useStyles = makeStyles((Palette) => ({
     backgroundColor: Palette.ink,
   },
   selectionActions: { flexDirection: 'row', alignItems: 'center', gap: Space.xs },
-  /* 批量操作的按钮做成文字工具条而不是实心按钮：三条并排还要放下「已选 N 件」，
+  /* 批量操作的按钮做成文字工具条而不是实心按钮：四枚并排还要放下「已选 N 件」，
      实心按钮一撑就换行；这里只要可点、看得清即可 */
   barAction: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: Space.sm,
+    paddingHorizontal: Space.xs,
     paddingVertical: Space.xs,
   },
   barActionPressed: { opacity: 0.6 },

@@ -500,3 +500,179 @@ test('分类：整表被清空后不会自动补种（否则内置名会被占�
   const id = await categories.createCategory('药品', 24);
   assert.equal((await categories.listCategories()).find((c) => c.id === id).builtin, false);
 });
+
+/* ------------------------------------------------------------ 标签 */
+
+test('标签候选：按频次聚合，回收站里的不算', async () => {
+  await reset();
+  await makeItem('t1', { tags: ['办公', '备用'] });
+  await makeItem('t2', { tags: ['办公'] });
+  await makeItem('t3', { tags: ['办公'], deletedAt: 1_700_000_000_001 });
+
+  const list = await items.listTagCounts();
+  assert.deepEqual(
+    list.map((t) => `${t.tag}:${t.count}`),
+    ['办公:2', '备用:1'],
+    '回收站里的那条不该把「办公」灌到 3',
+  );
+});
+
+test('按标签筛选：整词命中，「办公」不会命中「办公用品」', async () => {
+  await reset();
+  await makeItem('a', { name: 'A', tags: ['办公'] });
+  await makeItem('b', { name: 'B', tags: ['办公用品'] });
+
+  // 库里存的是 ["办公"]，筛选靠两侧引号定界；漏了引号这里会命中两条
+  assert.deepEqual((await items.listItems({ tags: ['办公'] })).map((x) => x.id), ['a']);
+  assert.deepEqual((await items.listItems({ tags: ['办公用品'] })).map((x) => x.id), ['b']);
+});
+
+test('按标签筛选：多个标签是「含任一」（OR），空数组等于不筛', async () => {
+  await reset();
+  await makeItem('a', { tags: ['办公'] });
+  await makeItem('b', { tags: ['备用'] });
+  await makeItem('c', { tags: ['易碎'] });
+
+  assert.deepEqual(
+    (await items.listItems({ tags: ['办公', '备用'] })).map((x) => x.id).sort(),
+    ['a', 'b'],
+    'OR：只含其中一个也要出来',
+  );
+  assert.equal((await items.listItems({ tags: [] })).length, 3, '★ 空数组是「不筛」，不是「全不命中」');
+});
+
+test('按标签筛选：标签里的 _ 和 % 不会被当成 LIKE 通配符', async () => {
+  await reset();
+  await makeItem('a', { tags: ['备_用'] });
+  await makeItem('b', { tags: ['备份用'] });
+  await makeItem('c', { tags: ['折%扣'] });
+  await makeItem('d', { tags: ['折上扣'] });
+
+  // 不转义的话 `%"备_用"%` 会连「备份用」一起捞出来 —— 静默多匹配，最难查
+  assert.deepEqual((await items.listItems({ tags: ['备_用'] })).map((x) => x.id), ['a']);
+  assert.deepEqual((await items.listItems({ tags: ['折%扣'] })).map((x) => x.id), ['c']);
+});
+
+test('标签改名：跨全部物品（含回收站），且不动 updated_at', async () => {
+  await reset();
+  await makeItem('a', { tags: ['办公', '备用'], updatedAt: 111 });
+  await makeItem('b', { tags: ['办公'], updatedAt: 222, deletedAt: 333 });
+  await makeItem('c', { tags: ['易碎'], updatedAt: 444 });
+
+  const changed = await items.rewriteTags({ type: 'rename', from: '办公', to: '办公用品' });
+  assert.equal(changed, 2, '只报真的被改过的件数');
+
+  assert.deepEqual((await items.getRawItem('a')).tags, ['办公用品', '备用']);
+  assert.deepEqual((await items.getRawItem('b')).tags, ['办公用品'], '★ 回收站里的也要改，否则恢复后旧名复活');
+  assert.deepEqual((await items.getRawItem('c')).tags, ['易碎'], '不相关的物品一个字段都不该动');
+
+  // ★ 这条是整块的关键：列表默认按「最近变动」排，改时间戳会让几百件物品集体跳到最前
+  assert.equal((await items.getRawItem('a')).updatedAt, 111, '改名是改元数据，不该动 updated_at');
+  assert.equal((await items.getRawItem('b')).updatedAt, 222);
+});
+
+test('标签合并：改成一个已存在的标签后同一条上自动去重', async () => {
+  await reset();
+  await makeItem('a', { tags: ['办公', '办公用品'] });
+
+  assert.equal(await items.rewriteTags({ type: 'rename', from: '办公', to: '办公用品' }), 1);
+  assert.deepEqual((await items.getRawItem('a')).tags, ['办公用品'], '合完只剩一个，不出现两个同名');
+});
+
+test('标签删除：从所有物品上摘掉，物品本身不动', async () => {
+  await reset();
+  await makeItem('a', { tags: ['办公', '备用'] });
+  await makeItem('b', { tags: ['办公'] });
+
+  assert.equal(await items.rewriteTags({ type: 'delete', tag: '办公' }), 2);
+  assert.deepEqual((await items.getRawItem('a')).tags, ['备用']);
+  assert.deepEqual((await items.getRawItem('b')).tags, []);
+  assert.equal((await items.listItems()).length, 2, '物品本身不该被删');
+});
+
+test('标签改完之后候选立刻反映新状态（没有中间缓存）', async () => {
+  await reset();
+  await makeItem('a', { tags: ['办公'] });
+
+  await items.rewriteTags({ type: 'rename', from: '办公', to: '办公用品' });
+  const list = await items.listTagCounts();
+  assert.deepEqual(list.map((t) => t.tag), ['办公用品'], '旧名不该还在候选里');
+
+  await items.rewriteTags({ type: 'delete', tag: '办公用品' });
+  assert.deepEqual(await items.listTagCounts(), [], '最后一个用它的物品摘掉后，候选里就该消失');
+});
+
+test('批量加标签：并集，不动原有标签，且更新 updated_at', async () => {
+  await reset();
+  await makeItem('a', { tags: ['办公'], updatedAt: 111 });
+  await makeItem('b', { tags: [], updatedAt: 222 });
+  await makeItem('c', { tags: ['易碎'], updatedAt: 333 });
+
+  await items.addTagsToItems(['a', 'b'], ['备用', '办公']);
+
+  assert.deepEqual((await items.getRawItem('a')).tags, ['办公', '备用'], '并集 + 去重，原有标签留在前面');
+  assert.deepEqual((await items.getRawItem('b')).tags, ['备用', '办公'], '原本没有标签的按选中顺序追加');
+  assert.deepEqual((await items.getRawItem('c')).tags, ['易碎'], '没选中的一件都不该动');
+  assert.equal((await items.getRawItem('c')).updatedAt, 333, '没选中的时间戳也不该动');
+
+  // 与 rewriteTags 的口径**故意相反**：这是用户对选中项的编辑动作，与批量补分类同类
+  assert.notEqual((await items.getRawItem('a')).updatedAt, 111, '批量加标签要动 updated_at');
+  assert.notEqual((await items.getRawItem('b')).updatedAt, 222);
+});
+
+test('批量加标签：空标签或空选中都是 no-op，不报错', async () => {
+  await reset();
+  await makeItem('a', { tags: ['办公'], updatedAt: 111 });
+
+  await items.addTagsToItems(['a'], []);
+  await items.addTagsToItems([], ['备用']);
+  await items.addTagsToItems(['a'], ['  ', '']);
+
+  assert.deepEqual((await items.getRawItem('a')).tags, ['办公']);
+  assert.equal((await items.getRawItem('a')).updatedAt, 111, 'no-op 不该顺手改时间戳');
+});
+
+/* ------------------------------------------------------------ 同名检出 */
+
+test('同名检出：只认在库的，且能排掉自己', async () => {
+  await reset();
+  await makeItem('a', { name: 'Type-C 数据线 1 米' });
+  await makeItem('b', { name: 'Type-C 数据线 2 米' });
+  await makeItem('c', { name: 'Type-C 数据线 1 米', deletedAt: 1_700_000_000_001 });
+
+  const hits = await items.findItemsByName('Type-C 数据线 1 米');
+  assert.deepEqual(hits.map((h) => h.id), ['a'], '★ 回收站里的不算 —— 用户已经删掉它了，再提示同名只是噪音');
+
+  const excluding = await items.findItemsByName('Type-C 数据线 1 米', 'a');
+  assert.deepEqual(excluding, [], '★ 编辑模式要排掉自己，否则改个标点就提示「你和你自己重名」');
+});
+
+test('同名检出：忽略首尾空白与 ASCII 大小写，但不折叠内部空白', async () => {
+  await reset();
+  await makeItem('a', { name: 'USB 线' });
+  await makeItem('b', { name: ' Type-C ' });
+
+  assert.deepEqual((await items.findItemsByName('usb 线')).map((h) => h.id), ['a'], 'COLLATE NOCASE');
+  assert.deepEqual((await items.findItemsByName('Type-C')).map((h) => h.id), ['b'], '两侧空白不算差异');
+  // 内部空白的差异 SQL 里折叠不了：宁可漏报也不能误报
+  // （误报会让用户以为库里真有两件，翻半天找不到）
+  assert.deepEqual(await items.findItemsByName('Type-C 线'), []);
+});
+
+test('同名检出：空名字直接返回空，不扫全表', async () => {
+  await reset();
+  await makeItem('a', { name: '东西' });
+  assert.deepEqual(await items.findItemsByName(''), []);
+  assert.deepEqual(await items.findItemsByName('   '), []);
+});
+
+test('同名检出：带上所在位置，提示里才说得清「最近一件在哪」', async () => {
+  await reset();
+  const cabinet = await locations.createCabinet('书房柜');
+  const slot = await locations.createSlot(cabinet, '第一格');
+  await makeItem('a', { name: '充电宝', locationId: slot });
+
+  const [hit] = await items.findItemsByName('充电宝');
+  assert.equal(hit.locationName, '第一格');
+  assert.equal(hit.cabinetName, '书房柜', '格位要能带出它的柜子，否则提示里只有「第一格」等于没说');
+});
