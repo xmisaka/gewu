@@ -195,10 +195,11 @@ export default function AiSettingsScreen() {
                 onPress={() => setModelKind('chat')}
                 last
               />
-              {/* 语音单独一行：它跟上面两个不是一回事 —— 不需要 Key、不联网、
-                  也不申请麦克风权限（走系统识别对话框）。写清楚这一点，
-                  用户才不会以为「关掉 AI 就没有语音录入」 */}
-              <Row label="语音" value={ASR_AVAILABLE ? '系统识别 · 免费' : '这台设备用不了'} last />
+              {/* 语音单独一行：它与上面两个不是一回事 —— 不需要 Key、不联网、
+                  也不申请麦克风权限（走系统识别对话框），**不消耗任何调用量**。
+                  ★ 但它与识物、问答同属支持者档，所以这一行的值不写「免费」，
+                    否则「免费」会被读成「免费档也能用」 */}
+              <Row label="语音" value={ASR_AVAILABLE ? '系统识别 · 不耗 Key' : '这台设备用不了'} last />
             </Card>
             <Meta tone="ink4" style={styles.note}>
               点「识图」或「问答」任意一行，就能改模型名 —— 留空即回到预置的默认值。
@@ -206,7 +207,8 @@ export default function AiSettingsScreen() {
               不必等 App 更新。
             </Meta>
             <Meta tone="ink4" style={styles.note}>
-              语音走手机自带的识别对话框，不消耗模型调用，也不需要 API Key。关掉上面的开关不影响它。
+              语音走手机自带的识别对话框，不消耗模型调用，也不需要 API Key；它与上面的总开关无关（关掉不影响）。
+              语音和识物、问答一样，属于支持者档的功能。
             </Meta>
           </Gutter>
         </SectionCard>

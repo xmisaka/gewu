@@ -26,12 +26,23 @@
  *
  * 现在这一页只管**语音独有的那部分**：可编辑的转写文字 → 拿去解析 → 交给表单。
  * 字段怎么排、怎么校验、怎么存，全归 ItemForm —— 以后加字段自动跟上。
+ *
+ * ── 2026-10-09（二）：语音改为支持者功能 ──────────────────────
+ *
+ * 两处入口（录入页右上角、首页搜索框右侧）与这一页**各挡一次**：
+ * 入口挡是为了让免费档点一下就看到「这是什么、少了什么」，
+ * 页面挡是兜住深链 —— 只有入口那一处，`gewu://voice` 就是一道暗门。
+ *
+ * ★ 原先的决策是「语音不门控」，理由是不联网、不要 Key、不申请权限，
+ *   锁它等于给「记东西」本身加门槛。技术上那条理由仍然成立（这条链路
+ *   确实零成本），改的是产品定位：语音与识物、问答同属「智能录入」，一档解锁。
+ *   要回退只需去掉这三个地方的门控，其余不用动。
  */
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -43,11 +54,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { ItemForm, type FormPayload, type ItemSeed } from '@/components/domain/ItemForm';
 import { Button, IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, ScreenScroll } from '@/components/ui/layout';
-import { Body, Meta, Title } from '@/components/ui/typography';
-import { GUTTER, Space, Type } from '@/constants/theme';
+import { Body, Label, Meta, Title } from '@/components/ui/typography';
+import { GUTTER, Palette, Space, Type } from '@/constants/theme';
 import { ASR_AVAILABLE, asrMessage, listenOnce } from '@/lib/ai/asr';
 import { askText, describeAiError } from '@/lib/ai/client';
 import { buildVoicePrompt, parseExtract } from '@/lib/ai/extract';
@@ -259,6 +271,35 @@ export default function VoiceScreen() {
     },
     [saving, bump, router],
   );
+
+  /* 未激活：整页只留一句解释与一个出口（与 AI 助手设置页同一口径，不做成
+     「能看不能按」—— 灰按钮看起来像坏了，而用户需要的是知道怎么解锁）。
+     两处入口已经挡过一次，这里是**深链兜底** —— 少了它，
+     `gewu://voice` 这类直接跳转就是一道暗门。 */
+  if (!entitled) {
+    return (
+      <Screen>
+        <View style={styles.topBar}>
+          <IconButton icon="chevron-back" accessibilityLabel="返回" onPress={() => router.back()} />
+        </View>
+        <PageHeader title="语音录入" subtitle="语音录入属于支持者功能" />
+        <Gutter>
+          <Card>
+            <Body tone="ink2" style={styles.lockedText}>
+              语音录入需要支持者档。免费档的录入、到期、库存、照片与备份全部照旧，一个不少。
+            </Body>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/supporter')}
+              style={styles.lockedBtn}>
+              <Label color={Palette.brand}>去激活 / 了解支持者档</Label>
+            </Pressable>
+          </Card>
+        </Gutter>
+        <SupporterGateSheet visible feature="ai" onClose={() => router.back()} />
+      </Screen>
+    );
+  }
 
   const showResult = phase === 'result';
 
@@ -499,4 +540,9 @@ const useStyles = makeStyles((Palette) => ({
   saidAction: { flex: 1 },
   aiNote: { marginTop: Space.sm, lineHeight: 19 },
   preparing: { marginTop: Space.md, padding: Space.md },
+
+  /* 未激活时的锁定态。与 ai.tsx 同一套写法，不另立样式 */
+  topBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Space.xs, paddingTop: Space.xs },
+  lockedText: { lineHeight: 21 },
+  lockedBtn: { marginTop: Space.md },
 }));

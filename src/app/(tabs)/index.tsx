@@ -111,15 +111,21 @@ export default function ItemsScreen() {
   /** 面板打开时那件物品的原始数量；撤销条回滚的是整段操作，不是最后一次点击 */
   const [stockBase, setStockBase] = useState<number | null>(null);
 
-  /** 免费档点「问一问」时弹的门控浮层（语音不门控，见 openAsk） */
+  /** 免费档点「问一问」或「语音」时弹的门控浮层 */
   const [gateOpen, setGateOpen] = useState(false);
 
   /**
-   * 搜索框右侧那两格。
+   * 搜索框右侧那两格，两个都要门控。
    *
-   * 语音不门控：它走系统识别对话框，不需要 Key、不联网、也不申请权限，
-   * 是纯粹的录入辅助 —— 把它锁进支持者档，等于给「记东西」这件事本身加门槛。
-   * 问一问要门控：它依赖库内检索的整理能力（以及可选的模型润色）。
+   * ★ 2026-10-09：语音从「免费」改为支持者功能。原来的理由 ——
+   *   「不联网、不要 Key、不申请权限，锁它等于给『记东西』本身加门槛」——
+   *   技术上仍然成立（这条链路确实零成本），改的是产品定位：
+   *   语音与识物、问一问同属「智能录入」，一档解锁。
+   *   要回退只需把 openVoice 的门控去掉，其余不用动。
+   * 问一问依赖库内检索的整理能力（以及可选的模型润色）。
+   *
+   * 两个都写成字面量路由（而不是一个接 path 参数的通用函数）：
+   * 传变量的形式过不了 expo-router 的 typed routes。
    */
   const openAsk = useCallback(() => {
     if (!entitled) {
@@ -127,6 +133,14 @@ export default function ItemsScreen() {
       return;
     }
     router.push('/ask');
+  }, [entitled, router]);
+
+  const openVoice = useCallback(() => {
+    if (!entitled) {
+      setGateOpen(true);
+      return;
+    }
+    router.push('/voice');
   }, [entitled, router]);
 
   // 排序方式记在库里，下次进来还是上次那档。读失败就安静地用默认值。
@@ -424,7 +438,7 @@ export default function ItemsScreen() {
                   size={18}
                   tone="ink3"
                   accessibilityLabel="语音录入"
-                  onPress={() => router.push('/voice')}
+                  onPress={openVoice}
                 />
                 <IconButton
                   icon="sparkles-outline"

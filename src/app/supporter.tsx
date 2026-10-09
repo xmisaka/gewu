@@ -91,7 +91,7 @@ export default function SupporterScreen() {
       ) : (
         <PageHeader
           title="支持者状态"
-          subtitle="一个激活码不绑设备、不限台数。换手机把同一串码再粘一次即可，不需要联网登记。"
+          subtitle="不绑设备、不限台数，换手机把同一串码再粘一次即可。仅限本人使用，请勿外传。"
         />
       )}
 
@@ -165,7 +165,10 @@ export default function SupporterScreen() {
                   </Card>
 
                   <Meta tone="ink4" style={styles.afterNote}>
-                    验签在本机完成，不上传任何东西，也不需要联网。支持者皮肤、批量与 AI 入口现在都已解锁。
+                    验签在本机完成，不上传任何东西，也不需要联网。支持者皮肤、批量、AI 与语音入口现在都已解锁。
+                  </Meta>
+                  <Meta color={Palette.clay} style={styles.afterNote}>
+                    这串码只属于你：请勿发到群里、论坛或二手平台。码内嵌有你的订单标识，一旦流出可以追溯到来源。
                   </Meta>
                 </Gutter>
               </SectionCard>
@@ -173,7 +176,7 @@ export default function SupporterScreen() {
               <>
                 <Gutter>
                   <Meta tone="ink4" style={styles.lead}>
-                    {`激活码里有签发日期与一个订单标识，不含姓名、手机号，也不含任何设备或硬件信息。`}
+                    {`激活码里有签发日期与一个订单标识，不含姓名、手机号，也不含任何设备或硬件信息 —— 正因为它带着你的订单标识，请只自己使用，不要外传。`}
                   </Meta>
                 </Gutter>
 
@@ -195,7 +198,7 @@ export default function SupporterScreen() {
                     <Card>
                       <Title style={styles.buyTitle}>支持者档 · ¥28</Title>
                       <Meta tone="ink3" style={styles.buyLine}>
-                        一次买断，含 v2 内全部支持者功能：六套浅色主题、批量操作、AI 功能、新功能优先体验。
+                        一次买断，含 v2 内全部支持者功能：六套浅色主题、批量操作、AI 功能（识物 / 问一问 / 语音录入）、新功能优先体验。
                       </Meta>
                       <Meta tone="ink4" style={styles.buyLine}>
                         免费档不受影响 —— 收纳、到期提醒、库存、照片、备份恢复全部照旧。
@@ -222,7 +225,10 @@ export default function SupporterScreen() {
           <>
             <Gutter>
               <Meta tone="ink4" style={styles.lead}>
-                激活码不绑设备、不限台数。换手机把同一串码再粘一次即可，不需要联网登记。
+                激活码不绑设备、不限台数，换手机把同一串码再粘一次即可，不需要联网登记。
+              </Meta>
+              <Meta color={Palette.clay} style={styles.lead}>
+                但请只自己用：码内嵌有你的订单标识，一旦在公开渠道流传，可以追溯到来源。
               </Meta>
             </Gutter>
 
@@ -275,7 +281,7 @@ export default function SupporterScreen() {
                     <Meta tone="ink3" style={styles.rowKey}>
                       包含
                     </Meta>
-                    <Body style={styles.rowValue}>皮肤 / 批量 / AI / 优先体验</Body>
+                    <Body style={styles.rowValue}>皮肤 / 批量 / AI / 语音 / 优先体验</Body>
                   </View>
                 </Card>
               </Gutter>
@@ -310,6 +316,10 @@ export default function SupporterScreen() {
                 <Meta tone="ink4" style={styles.afterNote}>
                   建议把这串码连同爱发电订单一起存进微信文件传输助手或网盘。格物这边没有服务器，也没有云端账本，
                   手机丢了就只有订单页那一份了。
+                </Meta>
+                <Meta color={Palette.clay} style={styles.afterNote}>
+                  存的时候只发给你自己：请勿发到群里、论坛或二手平台。码内嵌有你的订单标识，外传可追溯到来源；
+                  一经发现滥用，该码会被作废，后续版本与换机都不再支持。
                 </Meta>
               </Gutter>
             </SectionCard>

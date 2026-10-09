@@ -525,7 +525,7 @@ export default function MineScreen() {
 
             <Meta tone="ink4" style={styles.supportNote}>
               {entitled
-                ? '激活码不绑设备、不限台数。换手机把同一串码再粘一次即可，不需要联网。'
+                ? '激活码不绑设备、不限台数，换手机再粘一次即可，不需要联网。仅限本人使用，请勿外传。'
                 : '支持者档一次买断，不影响免费档 —— 收纳、到期、库存、照片、备份恢复全部照旧。'}
             </Meta>
           </Gutter>

@@ -56,7 +56,7 @@ export default function ComposeScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [defaultLocationId, setDefaultLocationId] = useState<string | null>(null);
-  /** 免费档点识物时弹的门控浮层 */
+  /** 免费档点识物或语音时弹的门控浮层 */
   const [gateOpen, setGateOpen] = useState(false);
 
   const { entitled } = useEntitlement();
@@ -195,12 +195,22 @@ export default function ComposeScreen() {
            是设计稿 01 屏的画法）。两处不是重复，分工不同：
            首页那格是「在列表上随手录一句」，不必先走进录入页；
            这一格是「人已经在录入页了，改成说的」——
-           录入页是「记一件东西」这一动作的主场，它上面没有语音入口才奇怪。 */
+           录入页是「记一件东西」这一动作的主场，它上面没有语音入口才奇怪。
+
+           ★ 2026-10-09：语音改为支持者功能，两处入口都要挡。
+             挡在**入口**而不是只藏在页面里 —— 免费档点一下看到的是
+             「这是什么、免费档少了什么」，而不是跳进去再被拦一道。 */
         right={
           <IconButton
             icon="mic-outline"
             accessibilityLabel="语音录入"
-            onPress={() => router.push('/voice')}
+            onPress={() => {
+              if (!entitled) {
+                setGateOpen(true);
+                return;
+              }
+              router.push('/voice');
+            }}
           />
         }
       />

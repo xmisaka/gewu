@@ -196,6 +196,72 @@ test('★ 从这条问法一路走到检索结果：库里真有的东西不能�
   assert.ok(!r.fact.includes('没找到'), `明明库里有，却答没找到：${r.fact}`);
 });
 
+/* ★★ 与上一条同族 —— 词表缺的是「问一个柜子里都有什么」那一族问法。
+   原表只有「放哪 / 在哪 / 哪个柜子」这类找单件东西的说法，于是最常见的清点问法
+   会被判成普通搜索，整句拿去和物品字段做子串匹配：柜子里有 8 件也答「没找到」。 */
+test('★★「X 里有什么」：柜子里有东西就不能答「没找到」', () => {
+  const shelf = [
+    snap({ id: 'x1', name: '遥控器', categoryName: '数码', cabinetName: '客厅电视柜', locationName: null, createdAt: 100 }),
+    snap({ id: 'x2', name: '机顶盒', categoryName: '数码', cabinetName: '客厅电视柜', locationName: null, createdAt: 200 }),
+  ];
+
+  for (const q of [
+    '客厅电视柜里有什么',
+    '客厅电视柜有什么',
+    '客厅电视柜里放了什么',
+    '客厅电视柜里面有什么东西',
+    '客厅电视柜里都有啥',
+  ]) {
+    const r = retrieve(q, shelf, TODAY);
+    assert.equal(r.intent.kind, 'location', `${q} 应判成位置类，实得 ${r.intent.kind}`);
+    assert.deepEqual(ids(r.items), ['x2', 'x1'], q);
+    assert.ok(!r.fact.includes('没找到'), `${q} 柜子里明明有东西，却答：${r.fact}`);
+  }
+});
+
+test('★ 位置名部分对上也要能命中（「电视柜」对「客厅电视柜」）', () => {
+  const shelf = [snap({ id: 'x1', name: '遥控器', cabinetName: '客厅电视柜', locationName: null })];
+  const r = retrieve('电视柜里有什么', shelf, TODAY);
+
+  assert.deepEqual(ids(r.items), ['x1']);
+  assert.ok(!r.fact.includes('没找到'), r.fact);
+});
+
+test('★ 清点问法的尾巴要剥干净，query 不能剩下半句', () => {
+  assert.equal(extractSubject('客厅电视柜里有什么'), '客厅电视柜');
+  assert.equal(extractSubject('电视柜里面有什么东西'), '电视柜');
+  assert.equal(extractSubject('客厅电视柜里放了什么'), '客厅电视柜');
+  assert.equal(extractSubject('书架上都有什么'), '书架上');
+});
+
+test('★「有什么」很泛，但不能把更具体的意图抢过来', () => {
+  // 钉的是判定顺序：补货 ③、吃的 ④、到期 ⑤ 都排在位置 ⑥ 之前
+  assert.equal(classify('有什么该补货了', LIB).kind, 'lowStock');
+  assert.equal(classify('家里还有什么能吃的', LIB).kind, 'expiring');
+  assert.equal(classify('有什么要过期了', LIB).kind, 'expiring');
+  assert.equal(classify('一共有多少件东西', LIB).kind, 'count');
+  assert.equal(classify('有什么最贵', LIB).kind, 'cost');
+});
+
+test('★★ 问的若是库里的位置名，不能因为名字里带分类词就改按分类过滤', () => {
+  // 「厨房吊柜」含「厨房」，而同义词表把「厨房」翻成分类「厨房」——
+  // 一旦按分类过滤，吊柜里的食品与清洁用品全被漏掉，只剩分类恰好叫「厨房」的那几件。
+  const kitchen = [
+    snap({ id: 'k1', name: '挂面', categoryName: '食品', cabinetName: '厨房吊柜', locationName: null }),
+    snap({ id: 'k2', name: '洗洁精', categoryName: '清洁', cabinetName: '厨房吊柜', locationName: null }),
+    snap({ id: 'k3', name: '炒锅', categoryName: '厨房', cabinetName: '灶台下', locationName: null }),
+  ];
+
+  const r = retrieve('厨房吊柜里有什么', kitchen, TODAY);
+  assert.equal(r.intent.kind, 'location');
+  assert.deepEqual(ids(r.items).sort(), ['k1', 'k2'], '吊柜里那两件都要给，含非「厨房」分类的');
+});
+
+test('位置类：分类同义词那条路没被上面那道闸挡掉', () => {
+  const r = retrieve('露营装备放哪了', LIB, TODAY);
+  assert.deepEqual(ids(r.items), ['d']);
+});
+
 test('★ 剥词用纯字符串替换，问题里带正则元字符也不该炸', () => {
   // 这里若改用正则替换，「(」「?」会把模式打断，轻则少剥一个词、重则抛错
   const q = '数据线(1米)在哪？';
