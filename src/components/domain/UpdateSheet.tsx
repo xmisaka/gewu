@@ -3,8 +3,10 @@
  *
  * 三条硬口径，都是「别把非强制更新做成强制更新」的落地：
  *   1. **没有倒计时**。「以后再说」是真正可点的次要按钮，不是一闪而过然后自动开下载的幌子。
- *   2. **下载按钮指向官网下载页**，不是 APK 直链 —— 没有商店在中间兜底时，
- *      让用户先看到更新说明与安装说明，比少一跳更重要。
+ *   2. **下载按钮开 APK 直链**（2026-10-10 改口径）。原定「指向官网下载页」，
+ *      理由是让用户先看到更新说明与安装说明 —— 如今这两样已完整放在弹窗里
+ *      （notes + 覆盖安装提示），官网那一跳只剩成本。APK 与官网同一台服务器，
+ *      直链少一跳；清单缺 url 时退回官网页，弹窗底部另留「从官网下载」备用路径。
  *   3. **明说不会丢数据**。这一步很关键：本地优先 App 的用户看到「新版本」三个字，
  *      第一反应往往是「我的几千件东西还在吗」。所以把这句放在按钮上面，
  *      而不是等用户发消息来问。
@@ -35,10 +37,18 @@ export function UpdateSheet({ visible, manifest, local, onRemindLater, onDownloa
 
   if (!manifest) return null;
 
-  const openSite = () => {
-    void Linking.openURL(DOWNLOAD_URL).catch(() => {
+  /* 直链下载：APK 与官网同一台服务器，浏览器接管下载与安装确认。
+     清单没给 url（老清单 / 备用源兜底）就退回官网下载页 —— 按钮不能点空。 */
+  const openDirect = () => {
+    void Linking.openURL(manifest.url ?? DOWNLOAD_URL).catch(() => {
       // 打不开浏览器（极少数定制系统）不值得弹错误：用户自己会去官网
     });
+    onDownloaded();
+  };
+
+  /* 备用路径：直链 404、或某些浏览器拦截 APK 下载时，还有官网一跳可走 */
+  const openSite = () => {
+    void Linking.openURL(DOWNLOAD_URL).catch(() => {});
     onDownloaded();
   };
 
@@ -71,7 +81,7 @@ export function UpdateSheet({ visible, manifest, local, onRemindLater, onDownloa
           ) : null}
 
           <Meta tone="ink4" style={styles.where}>
-            下载地址：格物官网
+            {manifest.url ? '点击「去下载」直接获取安装包。' : '下载地址：格物官网'}
           </Meta>
           <Meta tone="ink4" style={styles.where}>
             直接覆盖安装即可，数据不会丢 —— 别先卸载。
@@ -85,8 +95,18 @@ export function UpdateSheet({ visible, manifest, local, onRemindLater, onDownloa
               style={styles.action}
               onPress={onRemindLater}
             />
-            <Button label="去下载" block={false} style={styles.action} onPress={openSite} />
+            <Button label="去下载" block={false} style={styles.action} onPress={openDirect} />
           </View>
+
+          {manifest.url ? (
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="从官网下载"
+              onPress={openSite}
+              style={styles.alt}>
+              <Meta tone="ink4">打不开？从官网下载</Meta>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -136,4 +156,8 @@ const useStyles = makeStyles(() => ({
 
   actions: { flexDirection: 'row', gap: Space.sm, marginTop: Space.xl },
   action: { flex: 1 },
+
+  /* 备用路径刻意做成「小字弱化」：它是给直链失效的人准备的，
+     不能在视觉上和主按钮抢注意力 */
+  alt: { alignSelf: 'center', marginTop: Space.md, padding: Space.xs },
 }));

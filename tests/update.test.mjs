@@ -195,6 +195,12 @@ test('★ 发版自检：仓库里的 docs/version.json 必须能被解析出来
   assert.equal(typeof parsed.versionCode, 'number');
   assert.ok(parsed.versionName.length > 0);
   assert.ok(parsed.notes.length > 0, '更新说明为空的话，弹窗就只剩一句版本号');
+  /* url 现在是弹窗主按钮的直接去处（2026-10-10 改口径）：它必须是本站域名下的
+     .apk 直链 —— 写成网页地址，点「去下载」就下载回一个 HTML；写成外站，
+     域名过期/换服务器时无声死链 */
+  assert.ok(parsed.url, '清单缺 url：主按钮会退回官网页，直链口径失效');
+  assert.ok(parsed.url.startsWith(`${SITE_URL}/downloads/`), `url 不在本站 downloads/ 下：${parsed.url}`);
+  assert.ok(parsed.url.endsWith('.apk'), `url 不是 APK 直链：${parsed.url}`);
 });
 
 test('★ 发版自检：版本清单地址形状正确，且主源在官网域名下', () => {
