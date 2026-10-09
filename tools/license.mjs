@@ -38,9 +38,9 @@ const B64URL_RE = /^[A-Za-z0-9_-]+$/;
  * 密钥与台账的落盘位置。默认 ~/.gewu；`GEWU_LICENSE_DIR` 可覆盖 ——
  * 一来测试能在临时目录里跑完整命令行而不碰真实密钥，二来你可以把密钥放到别的盘或同步盘。
  */
-const HOME_DIR = process.env.GEWU_LICENSE_DIR || path.join(os.homedir(), '.gewu');
-const KEY_FILE = path.join(HOME_DIR, 'license_key.json');
-const LEDGER_FILE = path.join(HOME_DIR, 'license_ledger.jsonl');
+export const HOME_DIR = process.env.GEWU_LICENSE_DIR || path.join(os.homedir(), '.gewu');
+export const KEY_FILE = path.join(HOME_DIR, 'license_key.json');
+export const LEDGER_FILE = path.join(HOME_DIR, 'license_ledger.jsonl');
 
 /** 码的形状。`i` 只影响字面的 `GW1-` 前缀；字符类本就覆盖大小写，签名段的大小写不会被折叠。 */
 const CODE_RE = new RegExp(`^${CODE_PREFIX}-([A-Za-z2-7]+)\\.([A-Za-z0-9_-]+)$`, 'i');
@@ -191,16 +191,16 @@ export function makeKeypair() {
 
 /* ==================== 本地文件 ==================== */
 
-function ensureHomeDir() {
+export function ensureHomeDir() {
   fs.mkdirSync(HOME_DIR, { recursive: true, mode: 0o700 });
 }
 
-function readKeyFile() {
+export function readKeyFile() {
   if (!fs.existsSync(KEY_FILE)) return null;
   return JSON.parse(fs.readFileSync(KEY_FILE, 'utf8'));
 }
 
-function readLedger() {
+export function readLedger() {
   if (!fs.existsSync(LEDGER_FILE)) return [];
   return fs
     .readFileSync(LEDGER_FILE, 'utf8')
@@ -233,7 +233,7 @@ export function publicKeyConstantLine(publicKeyB64Url) {
 
 /* ==================== 命令行 ==================== */
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const flags = {};
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
