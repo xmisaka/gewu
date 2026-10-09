@@ -57,8 +57,8 @@ import { makeStyles, useTheme } from '@/lib/theme';
 const APP_VERSION = Constants.expoConfig?.version ?? '—';
 
 /**
- * 色点顺序：四套浅色在前，玄夜压末尾。
- * 玄夜不是「第五个选项」，是系统深色时的接管档 —— 排在末位、不参与点选，
+ * 色点顺序：六套浅色在前，玄夜压末尾。
+ * 玄夜不是「第七个选项」，是系统深色时的接管档 —— 排在末位、不参与点选，
  * 所以只在这里出现，不进选择器的列表。
  */
 const THEME_DOT_ORDER: readonly ThemeKey[] = [...LIGHT_THEME_KEYS, DARK_THEME_KEY];
@@ -459,9 +459,9 @@ export default function MineScreen() {
                 </View>
               </Pressable>
 
-              {/* 五枚色点，当前生效的那枚戴一圈墨色环 —— 环下垫 2px 卡片面，
+              {/* 七枚色点，当前生效的那枚戴一圈墨色环 —— 环下垫 2px 卡片面，
                   与圆点之间留出空隙，深色档下才不会糊成一坨。
-                  免费档下另外三枚降透明度：指示器也要说实话，不能摆出「都可用」的样子 */}
+                  免费档下会员那三枚降透明度：指示器也要说实话，不能摆出「都可用」的样子 */}
               <View style={styles.dots}>
                 {THEME_DOT_ORDER.map((themeKey) => (
                   <View
@@ -484,10 +484,10 @@ export default function MineScreen() {
                 {lightKeyLocked
                   ? `你之前选的「${THEMES[preferredLightKey].name}」属于支持者功能，现在按「素笺」显示。激活之后它会自动回来，不用再选一次。`
                   : systemDark
-                    ? '系统当前是深色模式，四套浅色暂时不生效 —— 界面正用「玄夜」。关掉系统深色就能看到所选配色。'
+                    ? '系统当前是深色模式，六套浅色暂时不生效 —— 界面正用「玄夜」。关掉系统深色就能看到所选配色。'
                     : entitled
-                      ? '五套主题全都解锁了。系统切到深色时，界面会自动换成「玄夜」，不用另外设置。'
-                      : '「素笺」免费；另外三套属于支持者功能。系统切到深色时，界面会自动换成「玄夜」，不用另外设置。'}
+                      ? '六套浅色全都解锁了。系统切到深色时，界面会自动换成「玄夜」，不用另外设置。'
+                      : '「素笺」「靛青」「青瓷」免费；另外三套属于支持者功能。系统切到深色时，界面会自动换成「玄夜」，不用另外设置。'}
               </Body>
             </Card>
           </Gutter>
@@ -679,7 +679,12 @@ const useStyles = makeStyles((Palette) => ({
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 9,
+    /* 七枚点是本页最挤的一行：360dp 屏刚好一行放下（7×29 + 6×7 = 245），
+       320dp 的老机型会差几个像素 —— 所以缩了点径、收窄了间距，
+       并留一个换行兜底。宁可挤成两行，也不能溢出被裁掉。 */
+    gap: 7,
+    rowGap: 7,
+    flexWrap: 'wrap',
     paddingTop: 13,
     paddingBottom: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -688,7 +693,8 @@ const useStyles = makeStyles((Palette) => ({
   /* 环平时透明、选中才染色。透明那一档不能省，否则选中时圆点会被环挤动一下 */
   dotRing: { padding: 2, borderRadius: 999, borderWidth: 1.5, borderColor: 'transparent' },
   dotRingOn: { borderColor: Palette.ink2 },
-  dot: { width: 26, height: 26, borderRadius: 13 },
+  /* 22 而不是 26：六套之后这一行放 7 枚点，26 会在 320dp 屏上溢出 */
+  dot: { width: 22, height: 22, borderRadius: 11 },
   /* 免费档下另外三枚色点降透明度，与选择器里的处理保持一致 */
   dotLocked: { opacity: 0.45 },
   themeTip: { marginTop: Space.md, padding: Space.md },

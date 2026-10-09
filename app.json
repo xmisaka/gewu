@@ -10,7 +10,7 @@
     "backgroundColor": "#FBF9F6",
     "android": {
       "package": "com.gewu.app",
-      "versionCode": 15,
+      "versionCode": 16,
       "adaptiveIcon": {
         "backgroundColor": "#F7F4EF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

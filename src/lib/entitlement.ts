@@ -118,7 +118,7 @@ export const SUPPORTER_FEATURES: Record<
     name: '主题皮肤',
     sheetTitle: '支持者功能',
     sheetBody:
-      '五套主题全部解锁，含后续新增。免费档保留「素笺」一套，日常记录完全够用；系统深色时的「玄夜」照旧，不受影响。',
+      '六套浅色主题全部解锁，含后续新增。免费档保留「素笺」「靛青」「青瓷」三套，日常记录完全够用；系统深色时的「玄夜」照旧，不受影响。',
   },
   batch: {
     name: '批量操作',
@@ -136,11 +136,15 @@ export const SUPPORTER_FEATURES: Record<
 /**
  * 需要支持者档才能选的浅色主题。
  *
- * **素笺永久免费**；玄夜（`xuanye`）不在这张表里，也不在选择器里 ——
+ * **素笺、靛青、青瓷三套免费** —— 免费档有三套可用，是刻意留的余量：
+ * 只给一套的话，界面在「我能不能换个颜色」这件事上完全没有商量余地，
+ * 而换肤本来就不该是付费墙的第一道。
+ *
+ * 玄夜（`xuanye`）不在这张表里，也不在选择器里 ——
  * 它是系统深色时的自动接管，锁住它等于让深色模式用户没有主题可用，
  * 那不是一个「权益」，是坏掉的功能。
  */
-export const SUPPORTER_THEME_KEYS: readonly ThemeKey[] = ['dianqing', 'qingci', 'zhusha'] as const;
+export const SUPPORTER_THEME_KEYS: readonly ThemeKey[] = ['zhusha', 'ouhe', 'yanzhi'] as const;
 
 export function isThemeLocked(key: ThemeKey, entitled: boolean): boolean {
   if (entitled) return false;

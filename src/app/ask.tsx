@@ -101,6 +101,22 @@ export default function AskScreen() {
   /** 模型给的答案确实被用上了（而不是退回本机事实） */
   const polished = lead != null && result != null && lead !== result.fact;
 
+  /**
+   * 模型那一句还在路上。
+   *
+   * ★★ 这一条是照真机反馈加的：「先显示一条简短的答案，然后又显示一条大模型的答案」。
+   *   实际发生的是**同一处文字被换掉** —— 本机那句先顶上，模型回来后被替换，
+   *   而中间没有任何标记。用户读着一句话、它突然变了样，只会觉得「怎么冒出两条」。
+   *
+   *   所以这里刻意**不**在等待期间显示本机那句：宁可让那一格空着说「正在读」，
+   *   也不要先给一个会被推翻的答案。物品卡片照旧立刻出来（那是本机检索的，
+   *   不会变），用户从点下去到看见东西的延迟没有任何增加。
+   *
+   *   而「AI 挂了也有答案」这条不变量没有丢：失败时 `lead` 会被赋成本机那句，
+   *   `aiWorking` 也就变成 false，答案照常显示出来。
+   */
+  const aiWorking = busy && active && lead == null;
+
   return (
     <Screen>
       <View style={styles.topBar}>
@@ -153,9 +169,26 @@ export default function AskScreen() {
             </Gutter>
 
             {result ? (
-              <SectionCard title={busy ? '正在看你的库…' : polished ? '回答' : '来自你的库'}>
+              <SectionCard
+                title={
+                  aiWorking
+                    ? '正在整理…'
+                    : busy
+                      ? '正在看你的库…'
+                      : polished
+                        ? '回答'
+                        : '来自你的库'
+                }>
                 <Gutter>
-                  {answer ? (
+                  {/* 答案位只有一个：要么「AI 正在读」，要么最终那句。
+                     见上面 aiWorking 的注释 —— 同一位文字被换掉会读成两条答案 */}
+                  {aiWorking ? (
+                    <Card style={styles.answerCard}>
+                      <Body tone="ink3" style={styles.answerText}>
+                        AI 正在读你的库，把这几条整理成一句话…
+                      </Body>
+                    </Card>
+                  ) : answer ? (
                     <Card style={styles.answerCard}>
                       <Body style={styles.answerText}>{answer}</Body>
                     </Card>

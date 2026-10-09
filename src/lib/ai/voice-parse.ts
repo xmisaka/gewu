@@ -50,6 +50,16 @@ export interface VoiceParseResult {
   expireDate: DateString | null;
   /** 命中的到期原文 */
   expireText: string | null;
+  /** 单价（元）。**只有明确说了价格才填** —— 见 findPrice 里那三条取舍 */
+  price: number | null;
+  /** 命中的价格原文 */
+  priceText: string | null;
+  /** 购买日期。null＝没说，界面按今天处理（那也是录入表单的默认值） */
+  purchaseDate: DateString | null;
+  purchaseText: string | null;
+  /** 库存件数。null＝单件，不启用库存；**只有 ≥2 才填**（见 findQuantity） */
+  quantity: number | null;
+  quantityText: string | null;
 }
 
 const EMPTY: VoiceParseResult = {
@@ -58,6 +68,12 @@ const EMPTY: VoiceParseResult = {
   locationText: null,
   expireDate: null,
   expireText: null,
+  price: null,
+  priceText: null,
+  purchaseDate: null,
+  purchaseText: null,
+  quantity: null,
+  quantityText: null,
 };
 
 export function emptyParseResult(): VoiceParseResult {
@@ -88,7 +104,70 @@ export function cnToNumber(raw: string): number | null {
   m = /^([一二三四五六七八九])十$/.exec(t);
   if (m) return CN_DIGIT[m[1]] * 10;
   if (t.length === 1 && CN_DIGIT[t] != null) return CN_DIGIT[t];
-  return null;
+
+  /*
+   * 带「百 / 千 / 万」的写法。
+   *
+   * ★ 2026-10-09 补：原来只到 99，于是「五千块」这种最常见的报价说法认不出来
+   *   （真机上撞到过）。位置名与日期用的都是小数字，所以扩展它不影响那两处。
+   *
+   * 这里刻意不偷懒成「取第一个数字」：「三千五」是 3500 不是 3005，
+   * 「一千零五」是 1005 不是 1500 —— 口语里这两种省略与补零都非常常见。
+   */
+  if (!/[百千万]/.test(t)) return null;
+  return parseCnBig(t);
+}
+
+/** 「百 / 千 / 万」的中文数字。返回 null 表示这段字符串不是合法的数字写法 */
+function parseCnBig(t: string): number | null {
+  const BIG: Record<string, number> = { 百: 100, 千: 1000, 万: 10000 };
+
+  let total = 0; // 「万」以上已结算的部分
+  let section = 0; // 当前这一节
+  let digit = 0;
+  /** 最近一次用过的单位。「三千五」里的「五」靠它知道自己是 500 而不是 5 */
+  let prevUnit = 0;
+  let seen = false;
+
+  for (const ch of t) {
+    /* ★ 「零」必须在数字分支**之前**判 —— 它同样在 CN_DIGIT 表里（值为 0），
+       先走数字分支就会把它当成一个普通的 0，于是「一千零五」被算成 1500
+       （末位那个「五」按上一级的下一级算成了 500）。 */
+    if (ch === '零' || ch === '〇') {
+      prevUnit = 1;
+      continue;
+    }
+
+    const d = CN_DIGIT[ch];
+    if (d != null) {
+      digit = d;
+      seen = true;
+      continue;
+    }
+
+    const unit = ch === '十' ? 10 : BIG[ch];
+    if (unit == null) return null; // 出现不认识的字符就整体放弃
+
+    // 「十五」的十前面没有数字，按 1 算
+    if (digit === 0 && unit === 10) digit = 1;
+
+    if (unit === 10000) {
+      section = (section + digit) * unit;
+      total += section;
+      section = 0;
+    } else {
+      section += digit * unit;
+    }
+    digit = 0;
+    prevUnit = unit;
+  }
+
+  if (digit !== 0) {
+    // 结尾还挂着一个数字：上一级单位还在，就按它的下一级算（「三千五」）
+    section += prevUnit >= 100 ? digit * (prevUnit / 10) : digit;
+  }
+
+  return seen ? total + section : null;
 }
 
 /** 数值 → 中文写法。只处理 0~99，位置名里的序号不会更大。 */
@@ -417,12 +496,222 @@ function findLocation(text: string, locations: VoiceLocationHint[]): LocationHit
   return null;
 }
 
+/* ------------------------------------------------------------ 价格 */
+
+/**
+ * 价格线索词。看到这些词，后面的数字就确定是钱而不是数量。
+ */
+const PRICE_LEAD = '(?:价格|价钱|售价|单价|花了|花|买了才|一共花了|总共花了)';
+
+/**
+ * 价格片段左侧要一起吃掉的字。
+ * 与 EXPIRY_LEAD 同理：切掉「5000元」而留着「价格」，
+ * 名称就会变成「电脑价格」—— 剥不干净的残余比不剥更难看。
+ */
+/** 购买片段左侧要一起吃掉的字 */
+const PURCHASE_LEAD_WORDS = ['买于', '购入于', '入手于', '购于', '下单', '入手', '的', '，', '。', '、'];
+
+/**
+ * 购买片段**右侧**要一起吃掉的字。
+ *
+ * ★ 时间词在后面：「昨天**买的**」。只切到「昨天」，名称里就会剩一个「的」——
+ *   而「的」不是任何一条 HEAD_PATTERN 能安全剥掉的东西（剥它会伤到真正的名字）。
+ *   所以必须在切片段这一步就连着「买的」一起吃掉。
+ */
+const PURCHASE_TAIL_WORDS = ['买的', '买入的', '购入的', '入手的', '下的单', '的'];
+
+const PRICE_EAT_LEFT = [
+  '价格是', '价格', '价钱是', '价钱', '售价是', '售价', '单价是', '单价',
+  /* 「三包抽纸，一共15块」——「一共」不是价格线索词，但它是价格的定语。
+     不一起吃掉的后果就是名称变成「抽纸 一共」。 */
+  '一共花了', '总共花了', '合计是', '合计', '总共', '一共', '共',
+  '花了', '花', '，', '。', '、',
+];
+
+/**
+ * 从一句话里找价格。
+ *
+ * ★★ 这个函数的核心难点是**别把数量当成钱**。
+ *   「一块牛肉面」里的「一块」、「买了 3 个」里的「3」都不是价格，
+ *   而猜错价格是**静默**的：它会直接写进物品档案，还会参与日均成本，
+ *   用户要过很久才可能发现。所以这里的取舍与全工程一致：
+ *   **宁可少填一个（用户点一下就能补），也不要填错。**
+ *
+ * 由此定下三条：
+ *   ① 有明确线索词（价格/花了…）时，阿拉伯数字与中文数字都收；
+ *   ② 没有线索词时，**只认阿拉伯数字 + 元/块**（「5000元」「5000块」）——
+ *      中文数字加量词几乎总是量词（「一块」「两块」），不能当钱；
+ *   ③ 单独的「¥5000」也认，符号本身就是线索。
+ */
+function findPrice(text: string): { value: number; start: number; end: number; text: string } | null {
+  const amount = '([0-9]+(?:\\.[0-9]{1,2})?|[一二三四五六七八九十百千两]+)';
+
+  const patterns: RegExp[] = [
+    // ① 线索词 + 数字（中文数字也收）：「价格5000元」「花了五千」
+    new RegExp(`${PRICE_LEAD}\\s*(?:是|为|在|：|:)?\\s*${amount}\\s*(?:元|块钱|块|RMB|rmb)?`),
+    // ② 货币符号
+    /[¥￥]\s*([0-9]+(?:\.[0-9]{1,2})?)/,
+    /*
+     * ③ 口语里的「18块5」「18元5」＝ 18.5。
+     *    必须排在下面那条之前，否则先被「18块」吃掉，剩下一个孤零零的「5」留在名称里。
+     */
+    /([0-9]+)\s*(?:块钱|块|元)\s*([0-9])(?![0-9])/,
+    // ④ 无线索词：只认阿拉伯数字 + 元/块 —— 见 ②
+    /([0-9]+(?:\.[0-9]{1,2})?)\s*(?:元|块钱|块)/,
+  ];
+
+  for (const re of patterns) {
+    const m = re.exec(text);
+    if (!m) continue;
+    const raw = m[1];
+    let n = /^[0-9]/.test(raw) ? Number(raw) : cnToNumber(raw);
+    // 「18块5」那条会把「角」放在第二组
+    if (n != null && m[2] != null && /^[0-9]$/.test(m[2])) n += Number(m[2]) / 10;
+    if (n == null || !Number.isFinite(n) || n <= 0) continue;
+    // 上限只是防呆：说成「一千万」多半是识别出错，让它留空比记进去好
+    if (n > 10_000_000) continue;
+    return {
+      value: Math.round(n * 100) / 100,
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+    };
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------ 购买日期 */
+
+/** 购买线索词。看到它们，后面的时间才是「什么时候买的」而不是「什么时候过期」 */
+const PURCHASE_LEAD = '(?:买的|买于|购入于|入手于|下单|购于|入手)';
+
+/**
+ * 找购买日期。
+ *
+ * ★ 为什么必须要求线索词：
+ *   「昨天」「上周」这类词本身分不清是买入还是到期。而**到期日猜错的代价
+ *   远大于购买日**（它会一路走进提醒里），所以宁可让购买日期留空
+ *   （界面默认就是今天，本来就对），也不要把一个含糊的时间硬塞给它。
+ *
+ * 为什么留空等于对：录入表单里购买日期默认就是今天。用户说「昨天买的」
+ * 才需要覆盖 —— 而这正是这里唯一处理的情形。
+ */
+function findPurchaseDate(text: string, today: DateString): ExpiryHit | null {
+  const base = parseDate(today);
+  if (!base) return null;
+  if (!new RegExp(PURCHASE_LEAD).test(text)) return null;
+
+  const y = base.getFullYear();
+  const shift = (days: number) => {
+    const d = new Date(base.getTime());
+    d.setDate(d.getDate() + days);
+    return toDateString(d);
+  };
+
+  /* ★ 「大前天」必须排在「前天」前面 —— 否则「大前天」会被「前天」吃掉，
+     得到一个早了三天的日期，而这种错不会报错。 */
+  const rel: [RegExp, number][] = [
+    [/大前天/, -3],
+    [/前天/, -2],
+    [/昨天|昨日/, -1],
+    [/今天|今日|刚才|刚刚/, 0],
+  ];
+  for (const [re, days] of rel) {
+    const m = re.exec(text);
+    if (m) return { date: shift(days), start: m.index, end: m.index + m[0].length, text: m[0] };
+  }
+
+  // N 天前 / N 天前买的
+  let m = /([0-9一二三四五六七八九十两]{1,3})\s*天前/.exec(text);
+  if (m) {
+    const n = cnToNumber(m[1]);
+    if (n != null && n > 0) {
+      return { date: shift(-n), start: m.index, end: m.index + m[0].length, text: m[0] };
+    }
+  }
+
+  // 上周 / 上个月（粗粒度：取一个确定的代表日，界面上用户能改）
+  m = /上(?:个)?月/.exec(text);
+  if (m) {
+    const d = addMonths(today, -1);
+    return { date: d, start: m.index, end: m.index + m[0].length, text: m[0] };
+  }
+  m = /上个?周|上星期/.exec(text);
+  if (m) {
+    return { date: shift(-7), start: m.index, end: m.index + m[0].length, text: m[0] };
+  }
+
+  // 「X 月 X 日买的」（今年的，晚于今天就顺延到去年 —— 买的日期不可能是将来）
+  m = /(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]/.exec(text);
+  if (m) {
+    let date = makeDate(y, Number(m[1]), Number(m[2]));
+    if (date && date > today) date = makeDate(y - 1, Number(m[1]), Number(m[2]));
+    if (date) return { date, start: m.index, end: m.index + m[0].length, text: m[0] };
+  }
+
+  return null;
+}
+
+/* ------------------------------------------------------------ 库存 */
+
+/**
+ * 找数量。
+ *
+ * ★★ 两条刻意的收窄：
+ *
+ * ① **只有 ≥2 才填**。数据层里 `quantity: null` ＝「单件物品，不启用库存」
+ *   （见 types.ts 的注释），而「一包牛肉面」里的「一包」说出来只是量词，
+ *   不是「我还有几包」。把 1 写进去会给每一条语音记录都挂上「剩 1」的库存胶囊。
+ *
+ * ② **不从「一共 X元」里推数量**，也不做乘除。听到几就是几。
+ *
+ * 另外：数字紧跟在价格片段后面时会被这里重新匹配一次，所以调用方要先切价格、
+ * 再用**切完的文本**来找数量 —— 否则「5000元买了两瓶」里的 5000 有可能被当成数量。
+ */
+function findQuantity(text: string): { value: number; start: number; end: number; text: string } | null {
+  const m = new RegExp(`([0-9]{1,4}|[一二三四五六七八九十百两]{1,4})\\s*(${MEASURE})`).exec(text);
+  if (!m) return null;
+
+  const raw = m[1];
+  const n = /^[0-9]/.test(raw) ? Number(raw) : cnToNumber(raw);
+  // 「两」在 cnToNumber 里就是 2；量词那部分不参与数值
+  if (n == null || !Number.isInteger(n) || n < 2 || n > 9999) return null;
+
+  return { value: n, start: m.index, end: m.index + m[0].length, text: m[0] };
+}
+
 /* ------------------------------------------------------------ 名称残余 */
+
+/**
+ * 量词白名单。
+ *
+ * **绝不用 `.` 偷懒** —— 否则「一次性手套」会被吃掉一个「次」。
+ * 单独提出来是因为现在有两处要用它（前面带数字的、前面带「了」的），
+ * 抄两份迟早会漂。
+ */
+const MEASURE =
+  '个|只|支|枝|张|条|件|台|部|本|瓶|盒|包|袋|箱|罐|桶|块|把|副|双|对|套|顶|辆|架|根|片|枚|颗|粒|卷|束|柄|面|扇|盏|沓|摞|捆';
 
 /** 口头语与连接词，从头剥。**顺序即优先级，长的写前面。** */
 const HEAD_PATTERNS: RegExp[] = [
   /^(?:我把|我买了|我刚买了|我新买了|这是我|这个是|我入手了|我买|我刚|我新买)/,
   /^(?:记录一下|帮我记一下|帮我记|记一下|记录|添加|新增|补充)/,
+  /*
+   * ★ 口语里量词前面常常是「了」而不是数字：「买了个充电宝」「拿了个快递」。
+   *   原来的规则只认「一包」这种「数字 + 量词」，于是「买了个充电宝」会被剥成
+   *   「个充电宝」—— 前面那个「个」就留在名称里了（真机反馈过）。
+   *
+   *   为什么只在这种「动词 + 了 + 量词」的**确定形式**下才放宽：
+   *   若改成「量词可选」，`买面膜` 会被剥成「膜」、`区块链` 会变成「链」——
+   *   量词白名单里有「面」「块」「根」「把」「片」「套」，单看一个汉字分不清
+   *   它是量词还是词的一部分。前面有动词和「了」才没有歧义。
+   *
+   *   这一条必须排在下面那条泛化的动词规则**前面**，否则「买」会先被吃掉、
+   *   剩下「了个充电宝」，而「个」已经没有任何线索能证明它是量词了。
+   */
+  new RegExp(`^(?:买|入|购入|添置|拿|收|领|捡|带|换|搞|弄|寄|发|订|拍)了(?:${MEASURE})`),
+  /* 「花」只剥「花了」两字形式 —— 单剥「花」会把「花生」「花盆」削掉头 */
+  /^花了(?:[一二三四五六七八九十百千万两]+\s*(?:元|块钱|块))?/,
   /^(?:新买的|刚买的|刚入手的|新买|刚买|入手了|入了|购入|买了|买|添置)/,
   /^(?:放在|放进|放到|搁在|搁到|搁进|摆在|摆到|挂在|挂到|收在|收到|收进|存放在|存到|装进|装入)/,
   /^(?:放了|搁了|摆了|挂了|收了|存了|装了)/,
@@ -436,11 +725,8 @@ const HEAD_PATTERNS: RegExp[] = [
    */
   /^有(?=[一二三四五六七八九十两半])/,
   /^(?:有个|有些|有几)/,
-  /*
-   * 数量 + 量词：一包牛肉面 → 牛肉面。
-   * 量词是一张白名单，绝不用 `.` 偷懒 —— 否则「一次性手套」会被吃掉一个「次」。
-   */
-  /^[一二三四五六七八九十两半]\s*(?:个|只|支|枝|张|条|件|台|部|本|瓶|盒|包|袋|箱|罐|桶|块|把|副|双|对|套|顶|辆|架|根|片|枚|颗|粒|卷|束|柄|面|扇|盏|沓|摞|捆)/,
+  /* 数量 + 量词：一包牛肉面 → 牛肉面 */
+  new RegExp(`^[一二三四五六七八九十两半]\\s*(?:${MEASURE})`),
 ];
 
 /** 口头语与方位词，从尾剥 */
@@ -506,6 +792,8 @@ export function parseVoiceInput(raw: string, ctx: VoiceParseContext): VoiceParse
 
   const expiry = findExpiry(text, ctx.today);
   const location = findLocation(text, ctx.locations);
+  const price = findPrice(text);
+  const purchase = findPurchaseDate(text, ctx.today);
 
   const spans: Span[] = [];
   if (location) {
@@ -518,6 +806,18 @@ export function parseVoiceInput(raw: string, ctx: VoiceParseContext): VoiceParse
   if (expiry) {
     // 把紧挨着的「保质期到」一并算进片段，否则它会残留在名称里
     spans.push({ start: eatLeft(text, expiry.start, EXPIRY_LEAD), end: expiry.end });
+  }
+  if (price) {
+    /* 价格那一段要一起切掉，否则「价格5000元」整个会留在名称里 ——
+       这正是真机上撞到的那条：「客厅有一台电脑价格5000元」名称成了
+       「电脑价格5000元」。线索词也一并吃掉，免得剩下一个孤零零的「价格」。 */
+    spans.push({ start: eatLeft(text, price.start, PRICE_EAT_LEFT), end: price.end });
+  }
+  if (purchase) {
+    spans.push({
+      start: eatLeft(text, purchase.start, PURCHASE_LEAD_WORDS),
+      end: eatRight(text, purchase.end, PURCHASE_TAIL_WORDS),
+    });
   }
 
   /*
@@ -532,12 +832,35 @@ export function parseVoiceInput(raw: string, ctx: VoiceParseContext): VoiceParse
   if (!name) name = peel(text);
   if (!name) name = text;
 
+  /*
+   * ★ 数量用**剥完名称之后**的残余去找，而不是原文。
+   *
+   *   理由：名称清理会把「一包」「两个」这类量词吃掉，而找数量要的正是那一小段。
+   *   若在原文上找，「价格5000元」里的 5000 与后面的量词有可能被连起来误判。
+   *   在这里已经切掉了位置/到期/价格三个片段，剩下的数字基本只可能是数量。
+   *
+   *   代价：`一包牛肉面` 那一段在 peeled 里已经没了 → quantity 找不到。
+   *   而那只可能是 1（见 findQuantity 的收窄），本来就不该填。正合适。
+   */
+  const peeled = cutSpans(text, spans);
+  const quantity = findQuantity(peeled);
+  /* 数量那一段从名称里切掉，否则「两瓶酱油」的名称会带上「两瓶」 */
+  if (quantity) {
+    name = peel(cutSpans(peeled, [{ start: quantity.start, end: quantity.end }])) || name;
+  }
+
   return {
     name,
     locationId: location?.id ?? null,
     locationText: location?.text ?? null,
     expireDate: expiry?.date ?? null,
     expireText: expiry?.text ?? null,
+    price: price?.value ?? null,
+    priceText: price?.text ?? null,
+    purchaseDate: purchase?.date ?? null,
+    purchaseText: purchase?.text ?? null,
+    quantity: quantity?.value ?? null,
+    quantityText: quantity?.text ?? null,
   };
 }
 

@@ -191,6 +191,7 @@ test('名称剥空时要有兜底，绝不能返回空串（名称是必填字�
 });
 
 test('空串与纯空白不崩，返回全空', () => {
+  /* ★ 同样是**字段集合的快照**：加字段时它会红，提醒你确认新字段的「空」长什么样。 */
   for (const input of ['', '   ']) {
     const r = parseVoiceInput(input, ctx());
     assert.deepEqual(r, {
@@ -199,6 +200,12 @@ test('空串与纯空白不崩，返回全空', () => {
       locationText: null,
       expireDate: null,
       expireText: null,
+      price: null,
+      priceText: null,
+      purchaseDate: null,
+      purchaseText: null,
+      quantity: null,
+      quantityText: null,
     });
   }
 });
@@ -229,4 +236,115 @@ test('位置表的顺序不能影响结果（先出现的短名不许抢长的�
   const reversed = toLocationHints([SLOT, KITCHEN]);
   const r = parseVoiceInput('厨房橱柜二放了一包牛肉面', { locations: reversed, today: TODAY });
   assert.equal(r.locationId, SLOT.id);
+});
+
+/* ================================================== 价格 / 购买日期 / 库存 */
+
+/*
+ * 这一组是照真机反馈补的：用户说「客厅有一台电脑价格5000元」，
+ * 名称成了整句话 —— 因为这三项在语音链路里**根本不存在**，整段都被当成名称。
+ *
+ * ★★ 而它们的共同风险是**静默出错**：
+ *   价格与数量写错会直接进档案（价格还参与日均成本），
+ *   用户要过很久才可能发现。所以下面每一条「不该认」的用例，
+ *   与「该认」的一样重要。
+ */
+
+test('★ 用户那句原话：名称/位置/价格三样都要对', () => {
+  /* 位置要在表里才认得出 —— 客厅是用户自己建的柜子，这里临时加一个 */
+  const LIVING = { id: 'c-living', name: '客厅', parentId: null };
+  const r = parseVoiceInput('客厅有一台电脑价格5000元', ctx([LIVING, KITCHEN]));
+
+  assert.equal(r.name, '电脑');
+  assert.equal(r.locationId, 'c-living');
+  assert.equal(r.price, 5000);
+});
+
+test('价格：线索词后面接中文数字也认', () => {
+  assert.equal(parseVoiceInput('花了两千买了个电脑', ctx()).price, 2000);
+  assert.equal(parseVoiceInput('花了五千买了个电脑', ctx()).price, 5000);
+  assert.equal(parseVoiceInput('电脑价格三千五', ctx()).price, 3500);
+});
+
+test('价格：无线索词时，阿拉伯数字 + 元/块也认', () => {
+  assert.equal(parseVoiceInput('电脑5000元', ctx()).price, 5000);
+  assert.equal(parseVoiceInput('买了一台电脑，5000块', ctx()).price, 5000);
+  assert.equal(parseVoiceInput('¥1999 耳机', ctx()).price, 1999);
+});
+
+test('价格：「18块5」＝18.5（口语里的角）', () => {
+  assert.equal(parseVoiceInput('洗衣液18块5', ctx()).price, 18.5);
+});
+
+test('★★ 不能把量词当钱 —— 这是这一组里最重要的三条', () => {
+  /* 「一块牛肉面」里的「一块」是量词。一旦被当成 1 元，价格会静默写进档案，
+     而用户完全不会去看那个字段。同样的形状还有「两块巧克力」「三包抽纸」。 */
+  assert.equal(parseVoiceInput('一块牛肉面', ctx()).price, null);
+  assert.equal(parseVoiceInput('买了两块巧克力', ctx()).price, null);
+  assert.equal(parseVoiceInput('三包抽纸', ctx()).price, null);
+
+  /* 而且这些量词要从名称里剥掉（本来就在做，这里一并钉住） */
+  assert.equal(parseVoiceInput('一块牛肉面', ctx()).name, '牛肉面');
+  assert.equal(parseVoiceInput('买了两块巧克力', ctx()).name, '巧克力');
+});
+
+test('库存：≥2 才算「还有几件」', () => {
+  assert.equal(parseVoiceInput('厨房放了两瓶酱油', ctx()).quantity, 2);
+  assert.equal(parseVoiceInput('三包抽纸', ctx()).quantity, 3);
+  assert.equal(parseVoiceInput('买了5个鸡蛋', ctx()).quantity, 5);
+});
+
+test('★ 库存：1 不填 —— 「一包牛肉面」说的是量词，不是「我还有一包」', () => {
+  /* 数据层里 null ＝ 单件物品，不启用库存胶囊。
+     把 1 写进去会让每一条语音记录都挂上「剩 1」。 */
+  assert.equal(parseVoiceInput('厨房放了一包牛肉面', ctx()).quantity, null);
+  assert.equal(parseVoiceInput('买了一台电脑', ctx()).quantity, null);
+});
+
+test('数量与价格互不干扰：「两瓶酱油，一共28块」', () => {
+  const r = parseVoiceInput('厨房放了两瓶酱油，一共28块', ctx());
+  assert.equal(r.quantity, 2, '两瓶是数量');
+  assert.equal(r.price, 28, '28块是价格');
+  assert.equal(r.name, '酱油');
+});
+
+test('★ 购买日期：要有线索词才认（否则「昨天」可能是在说到期）', () => {
+  const bought = parseVoiceInput('昨天买的洗衣液', ctx());
+  assert.equal(bought.purchaseDate, '2026-10-07');
+  assert.equal(bought.name, '洗衣液', '「买的」不能留在名称里');
+
+  /* 没有线索词 → 不填。购买日期留空等于「今天」，本来就是对的；
+     而猜错一个到期日会一路走进提醒里，用户还不一定发现。 */
+  assert.equal(parseVoiceInput('昨天要过期的牛奶', ctx()).purchaseDate, null);
+});
+
+test('购买日期：大前天要排在「前天」前面认', () => {
+  /* 「大前天」含「前天」—— 顺序错了会得到早三天的日期，而且不报错 */
+  assert.equal(parseVoiceInput('大前天买的', ctx()).purchaseDate, '2026-10-05');
+  assert.equal(parseVoiceInput('前天买的', ctx()).purchaseDate, '2026-10-06');
+  assert.equal(parseVoiceInput('五天前买的', ctx()).purchaseDate, '2026-10-03');
+  assert.equal(parseVoiceInput('上个月买的', ctx()).purchaseDate, '2026-09-08');
+});
+
+test('六个属性一起来', () => {
+  const r = parseVoiceInput('昨天买的，厨房放了两瓶酱油，价格28块，保质期到明年三月', ctx());
+  assert.equal(r.name, '酱油');
+  assert.equal(r.locationId, 'c-kitchen');
+  assert.equal(r.purchaseDate, '2026-10-07');
+  assert.equal(r.quantity, 2);
+  assert.equal(r.price, 28);
+  assert.equal(r.expireDate, '2027-03-31');
+});
+
+test('中文数字：带百千万也要算对', () => {
+  /* ★ 「一千零五」= 1005 不是 1500，「三千五」= 3500 不是 3005 ——
+     口语里这两种省略与补零都极常见，而算错了不会报错。 */
+  assert.equal(cnToNumber('一千零五'), 1005);
+  assert.equal(cnToNumber('三千五'), 3500);
+  assert.equal(cnToNumber('一万二'), 12000);
+  assert.equal(cnToNumber('一百二十三'), 123);
+  assert.equal(cnToNumber('三十万'), 300000);
+  /* 原有的小数字不能因为这次扩展而回归 */
+  assert.equal(cnToNumber('十五'), 15);
+  assert.equal(cnToNumber('二十三'), 23);
 });

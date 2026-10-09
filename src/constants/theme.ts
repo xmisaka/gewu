@@ -10,7 +10,7 @@ import { Platform } from 'react-native';
 /* ------------------------------------------------------------------ 色彩 · 主题名录 */
 
 /**
- * 五套主题，沿「纸的温度 × 墨的色相」两条轴设计。
+ * 七套主题，沿「纸的温度 × 墨的色相」两条轴设计：六套浅色 + 一套深色。
  *
  * 四条准入规则（改任何一套前先读）：
  *   1. 语义三色是红线 —— sage / amber / clay 永远锁在绿黄红三系，
@@ -21,9 +21,18 @@ import { Platform } from 'react-native';
  *   4. 深色不是浅色取反 —— 卡片要比背景亮才浮得起来，
  *      分隔线要比背景亮才看得见，语义色要整体提亮。玄夜是按深色逻辑单独配的。
  *
- * 四套浅色由用户任选，玄夜跟随系统深色自动生效，不出现在选择列表里。
+ * ★ 色相盘点（新增主题前先看这张表，别让两套撞在一起）：
+ *      素笺 27° 暖棕 │ 青瓷 172° 青绿 │ 靛青 215° 蓝
+ *      朱砂  5° 正红 │ 藕荷 271° 紫   │ 胭脂 337° 玫红
+ *      玄夜 33° 暖金（深色档）
+ *   绿（90~150）与黄（45~70）**不许做品牌色** —— 那是 sage / amber 的地盘，
+ *   品牌色一旦落进去，用户会分不清「装饰」和「状态提示」。
+ *
+ * 六套浅色里**素笺、靛青、青瓷免费**，朱砂、藕荷、胭脂属支持者档；
+ * 玄夜跟随系统深色自动生效，不出现在选择列表里，也不参与门控
+ * （锁它＝深色用户没有主题可用，那是坏掉的功能，不是权益）。
  */
-export type ThemeKey = 'sujian' | 'dianqing' | 'qingci' | 'zhusha' | 'xuanye';
+export type ThemeKey = 'sujian' | 'dianqing' | 'qingci' | 'zhusha' | 'ouhe' | 'yanzhi' | 'xuanye';
 
 export type TokenName =
   /* 面 */
@@ -71,8 +80,21 @@ export interface ThemeDef {
   tokens: Tokens;
 }
 
-/** 四套浅色，顺序即设置页里的展示顺序 */
-export const LIGHT_THEME_KEYS = ['sujian', 'dianqing', 'qingci', 'zhusha'] as const;
+/**
+ * 六套浅色，**顺序即设置页与选择器里的展示顺序**：免费三套在前、会员三套在后。
+ *
+ * ★ 这个顺序是刻意的，不是随手排的 —— 选择器里免费的三套不带标、会员的三套带
+ *   「支持者」标，于是前三个都没有标、后三个都有，用户一眼能看出分界在哪，
+ *   不必逐个点开去试。
+ */
+export const LIGHT_THEME_KEYS = [
+  'sujian',
+  'dianqing',
+  'qingci',
+  'zhusha',
+  'ouhe',
+  'yanzhi',
+] as const;
 /** 深色档，跟随系统深色自动生效 */
 export const DARK_THEME_KEY: ThemeKey = 'xuanye';
 /** 无偏好时的缺省 */
@@ -240,6 +262,88 @@ export const THEMES: Record<ThemeKey, ThemeDef> = {
       rippleOnAccent: 'rgba(255,255,255,0.22)',
       scrim: 'rgba(46,33,29,0.32)',
       shadow: '#2E211D',
+    },
+  },
+
+  ouhe: {
+    name: '藕荷',
+    note: '淡藕紫配紫毫，像旧信纸上的墨',
+    mode: 'light',
+    tokens: {
+      paper: '#F6F3F7',
+      canvas: '#FAF8FB',
+      surface: '#FFFFFF',
+      surface2: '#FDFBFE',
+      inset: '#EFEAF2',
+
+      ink: '#251F2B',
+      ink2: '#635A6C',
+      ink3: '#918799',
+      ink4: '#C6BFCC',
+
+      line: '#E0D8E4',
+      line2: '#E9E3EC',
+      line3: '#F0EBF2',
+
+      brand: '#6A4C86',
+      brandDeep: '#4A3160',
+      brandBg: '#EDE5F2',
+
+      sage: '#5F7355',
+      sageBg: '#EDF1E9',
+      amber: '#8F651F',
+      amberBg: '#FAF0DC',
+      clay: '#A85242',
+      clayBg: '#F9EAE5',
+
+      pure: '#FFFFFF',
+      onAccent: '#FFFFFF',
+
+      ripple: 'rgba(37,31,43,0.05)',
+      rippleOnAccent: 'rgba(255,255,255,0.22)',
+      scrim: 'rgba(37,31,43,0.32)',
+      shadow: '#251F2B',
+    },
+  },
+
+  yanzhi: {
+    name: '胭脂',
+    note: '冷粉白配玫红，妆台上的一抹',
+    mode: 'light',
+    tokens: {
+      paper: '#F9F2F5',
+      canvas: '#FCF7F9',
+      surface: '#FFFFFF',
+      surface2: '#FEFBFD',
+      inset: '#F4E9EE',
+
+      ink: '#2C2028',
+      ink2: '#6A5763',
+      ink3: '#9C8894',
+      ink4: '#CCBFC6',
+
+      line: '#E8D8E0',
+      line2: '#EFE3E9',
+      line3: '#F4EBEF',
+
+      brand: '#A53A63',
+      brandDeep: '#7C2249',
+      brandBg: '#F7E3EC',
+
+      sage: '#5C7350',
+      sageBg: '#EDF1E9',
+      amber: '#8F651F',
+      amberBg: '#FAF0DC',
+      clay: '#A6503C',
+      clayBg: '#F9E9E4',
+
+      pure: '#FFFFFF',
+      onAccent: '#FFFFFF',
+
+      ripple: 'rgba(44,32,40,0.05)',
+      rippleOnAccent: 'rgba(255,255,255,0.22)',
+      scrim: 'rgba(44,32,40,0.32)',
+      shadow: '#2C2028',
     },
   },
 

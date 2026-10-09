@@ -108,6 +108,34 @@ test('parseExtract：一份完整的回复要落到对字段上', () => {
   assert.equal(r.confidence, 0.9);
 });
 
+test('parseExtract：购买日期与价格也要落上', () => {
+  const r = parseExtract({ name: '电脑', purchaseDate: '2026-10-01', price: 5000 }, ctx);
+  assert.equal(r.fields.purchaseDate, '2026-10-01');
+  assert.equal(r.fields.price, 5000);
+  assert.ok(r.filled.includes('purchaseDate'));
+  assert.ok(r.filled.includes('price'));
+});
+
+test('价格：字符串与带符号都能读出来（让模型只输出数字是一句愿望，不是保证）', () => {
+  assert.equal(parseExtract({ name: 'x', price: '28' }, ctx).fields.price, 28);
+  assert.equal(parseExtract({ name: 'x', price: '¥1,999' }, ctx).fields.price, 1999);
+  assert.equal(parseExtract({ name: 'x', price: '18.5元' }, ctx).fields.price, 18.5);
+});
+
+test('★ 价格：0 与离谱的大数一律当没填 —— 它会进档案、还参与日均成本', () => {
+  /* 静默的成本：填错了用户不会去看那个字段，而日均成本会跟着一起错。
+     宁可留空让他点一下补上。 */
+  assert.equal(parseExtract({ name: 'x', price: 0 }, ctx).fields.price, null);
+  assert.equal(parseExtract({ name: 'x', price: -5 }, ctx).fields.price, null);
+  assert.equal(parseExtract({ name: 'x', price: 99999999 }, ctx).fields.price, null);
+  assert.equal(parseExtract({ name: 'x', price: '不知道' }, ctx).fields.price, null);
+});
+
+test('购买日期：格式不对就当没填（不能把一个半截日期写进库）', () => {
+  assert.equal(parseExtract({ name: 'x', purchaseDate: '昨天' }, ctx).fields.purchaseDate, null);
+  assert.equal(parseExtract({ name: 'x', purchaseDate: '2026-13-45' }, ctx).fields.purchaseDate, null);
+});
+
 test('★ 分类名必须能在库里找到，找不到就当它没填', () => {
   // 放行的话，界面会显示一行「食品」却点不中（库里没有这个分类）
   const r = parseExtract({ name: '牛肉面', category: '生鲜' }, ctx);
@@ -446,13 +474,17 @@ test('★ 库空时那几条建议仍然不该崩，只是照实说「先记几�
 });
 
 test('EMPTY_FIELDS 与 LOW_CONFIDENCE_HINT 是给调用方用的公开出口', () => {
-  // compose.tsx 在「照片落盘了但没读出字段」时要把一个空的 fields 交回去
+  /* compose.tsx 在「照片落盘了但没读出字段」时要把一个空的 fields 交回去。
+     ★ 这一条是**字段集合的快照**：往 ExtractedFields 加字段时它会红，
+     那是故意的 —— 提醒你回来看一眼「新字段在这里该不该是空」。 */
   assert.deepEqual(EMPTY_FIELDS, {
     name: null,
     brand: null,
     model: null,
     categoryName: null,
     quantity: null,
+    purchaseDate: null,
+    price: null,
     expireDate: null,
     shelfLifeMonths: null,
     tags: [],

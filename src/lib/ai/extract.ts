@@ -29,6 +29,10 @@ export interface ExtractedFields {
   /** 模型给的中文分类名，由调用方映射到库里的分类实体 */
   categoryName: string | null;
   quantity: number | null;
+  /** 购买日期。用户说「昨天买的」这类相对说法时才由模型给出 */
+  purchaseDate: DateString | null;
+  /** 单价（元）。**只在明确说了价格时填**，拿不准一律 null */
+  price: number | null;
   /** 包装上直接印着的到期日 */
   expireDate: DateString | null;
   /** 只写了「保质期 6 个月」时，按这个月数从今天推 */
@@ -58,6 +62,8 @@ export const EMPTY_FIELDS: ExtractedFields = {
   model: null,
   categoryName: null,
   quantity: null,
+  purchaseDate: null,
+  price: null,
   expireDate: null,
   shelfLifeMonths: null,
   tags: [],
@@ -77,6 +83,8 @@ const OUTPUT_SCHEMA = `只输出一个 JSON 对象，不要输出任何解释、
   "model": 型号规格（字符串或 null）,
   "category": 从下面这份清单里挑一个最贴近的分类名（挑不出就 null）,
   "quantity": 数量（整数或 null）,
+  "purchaseDate": 购买日期，格式 YYYY-MM-DD（只在明确说了"昨天买的""上个月买的"这类时间时填，否则 null）,
+  "price": 单价（数字或 null）。只在明确说了价格时填；说"一共""总共"且数量大于 1 时填 null —— 那是总价不是单价，不要自己除,
   "expireDate": 到期日，格式 YYYY-MM-DD（只在明确读到日期时填，否则 null）,
   "shelfLifeMonths": 保质期月数（只在明确写了"保质期 N 个月"这类字样时填数字，否则 null）,
   "tags": 字符串数组（没有就给 []）,
@@ -180,6 +188,28 @@ function toText(v: unknown): string | null {
 }
 
 /** 数量：只收正整数字符串或数字；`'6个月'` 这类先取数字部分 */
+/**
+ * 金额。
+ *
+ * 与 `format.ts` 的 `parseMoneyInput` 同口径（元、两位小数），
+ * 但这里面对的是模型返回的 JSON，所以额外容忍字符串形式与「¥28」这类写法 ——
+ * 让模型「只输出数字」是一句愿望，不是保证。
+ *
+ * ★ 上限只是防呆：模型偶尔会把「5000」写成「500000」这种量级的笔误，
+ *   记进档案后会一路影响日均成本。宁可留空让用户补。
+ */
+function toMoney(v: unknown): number | null {
+  let n: number | null = null;
+  if (typeof v === 'number') {
+    n = v;
+  } else if (typeof v === 'string') {
+    const m = /(\d+(?:\.\d+)?)/.exec(v.replace(/[,¥￥\s]/g, ''));
+    if (m) n = Number(m[1]);
+  }
+  if (n == null || !Number.isFinite(n) || n <= 0 || n > 10_000_000) return null;
+  return Math.round(n * 100) / 100;
+}
+
 function toCount(v: unknown): number | null {
   if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? Math.floor(v) : null;
   if (typeof v === 'string') {
@@ -264,6 +294,8 @@ export function parseExtract(raw: unknown, ctx: { today: DateString; categories:
   const rawCategory = toText(src.category);
   const categoryName = rawCategory && ctx.categories.includes(rawCategory) ? rawCategory : null;
   const quantity = toCount(src.quantity);
+  const purchaseDate = toDate(src.purchaseDate);
+  const price = toMoney(src.price);
   const directDate = toDate(src.expireDate);
   const shelfLifeMonths = toMonths(src.shelfLifeMonths);
   const tags = toTags(src.tags);
@@ -281,6 +313,8 @@ export function parseExtract(raw: unknown, ctx: { today: DateString; categories:
     model,
     categoryName,
     quantity,
+    purchaseDate,
+    price,
     expireDate,
     shelfLifeMonths,
     tags,

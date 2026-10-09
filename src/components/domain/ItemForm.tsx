@@ -107,7 +107,27 @@ export interface ItemFormProps {
    * 传什么是调用方的决定（见 item/[id]/duplicate.tsx）：照片与备注由那里裁掉。
    */
   prefill?: ItemSeed | null;
+  /**
+   * 预填的语义。**默认 'duplicate'**，也就是保持原有行为不变。
+   *
+   *   - `'duplicate'` —— 拿它当模板**复制一件新的**。预填值视为用户已定稿：
+   *     分类不被猜词覆盖；购买日期回到今天、过期时间按分类重带
+   *     （照抄原件的日期，持有成本与到期状态双双失真）。
+   *   - `'voice'` —— 预填的是**刚识别出来的初稿**。反过来：分类**可以**被猜词覆盖
+   *     （用户说「客厅有台电脑」通常没提分类，正需要猜），
+   *     **日期一律照用**（「昨天买的」是用户亲口说的，改成今天就是改错了），
+   *     而且识别出来的那几行要挂「AI」标 —— 它们不是用户敲的。
+   *
+   * ★ 两者共用同一个 `prefill` 字段，是因为字段集合完全一致（都是 ItemSeed）；
+   *   差别只在「这些值可不可信」这个语义上，所以用一个开关表达，而不是两套入参。
+   */
+  prefillMode?: 'duplicate' | 'voice';
   initialPhotos?: Photo[];
+  /**
+   * 不显示照片区。
+   * 语音录入不涉及拍照（文字已经有了），留一块用不到的相册只会挤掉字段。
+   */
+  hidePhotos?: boolean;
   categories: CategoryWithCount[];
   cabinets: CabinetView[];
   /**
@@ -122,6 +142,15 @@ export interface ItemFormProps {
   submitting?: boolean;
   /** 顶部标题，录入页用「录入物品」 */
   heading?: string;
+  /**
+   * 滚动区最顶上的一块内容。
+   *
+   * ★ 存在的理由：语音页要在字段上方放「听到的是」那张卡，而它**必须跟字段一起滚**。
+   *   如果在外面再套一个滚动容器，两个垂直 ScrollView 会互相抢手势；
+   *   而语音页只把转写区放在外面、字段放里面，又会让转写卡挤掉字段的高度。
+   *   所以给它一个插槽，把那一块交给表单自己排 —— 全程只有一个滚动容器。
+   */
+  header?: React.ReactNode;
   /**
    * 识物预填。**不传就不显示那个入口** —— 表单本身不知道什么叫「支持者档」、
    * 也不该知道「AI 有没有配好」，那些判断留在调用页面里。
@@ -174,6 +203,29 @@ interface DraftState {
   sortText: string;
 }
 
+/**
+ * 一个预填值里**非空**的字段键，用于给它们挂「AI」标。
+ *
+ * 键名必须与下面各 FieldRow 的 `ai={aiFields.has('…')}` 一致 ——
+ * 这里是字符串字面量，写错了不会报错、只会静默不挂标。
+ * 所以新增一项时要两处一起改（这也是为什么集中在这个函数里，而不是散在 JSX 里拼）。
+ */
+function seedKeysOf(seed: ItemSeed): Set<string> {
+  const keys = new Set<string>();
+  if (seed.name.trim()) keys.add('name');
+  if (seed.categoryId) keys.add('categoryId');
+  if (seed.locationId) keys.add('locationId');
+  if (seed.purchaseDate) keys.add('purchaseDate');
+  if (seed.price != null) keys.add('price');
+  if (seed.expireDate) keys.add('expireDate');
+  if (seed.brand) keys.add('brand');
+  if (seed.model) keys.add('model');
+  if (seed.quantity != null) keys.add('quantity');
+  if (seed.tags.length > 0) keys.add('tags');
+  if (seed.note) keys.add('note');
+  return keys;
+}
+
 function stateFrom(
   item: ItemSeed | null | undefined,
   defaults?: { categoryId?: string | null; locationId?: string | null },
@@ -223,7 +275,10 @@ function parseQuantityValue(raw: string): number | null {
 export function ItemForm({
   initialItem,
   prefill,
+  prefillMode = 'duplicate',
+  hidePhotos = false,
   initialPhotos = [],
+  header,
   categories,
   cabinets,
   defaults,
@@ -237,13 +292,17 @@ export function ItemForm({
   const styles = useStyles();
   const isEdit = !!initialItem;
   const isPrefill = !isEdit && !!prefill;
+  const isVoice = prefillMode === 'voice';
+  /** 预填值是否视为「已定稿」。复制是，语音不是 —— 见 prefillMode 的注释 */
+  const seedFinal = isPrefill && !isVoice;
 
   const [draft, setDraft] = useState<DraftState>(() => {
     const base = stateFrom(initialItem ?? prefill, defaults);
-    if (!isPrefill) return base;
+    if (!seedFinal) return base;
 
     /* 复制出来的是**新**买的一件：购买日期回到今天，
-       过期时间按分类重新带一份（原件的日期属于原件，抄过来就是错的）。 */
+       过期时间按分类重新带一份（原件的日期属于原件，抄过来就是错的）。
+       ★ 语音不走这一支 —— 那里的日期是用户亲口说的。 */
     const start = base.purchaseDate ?? today();
     const cat = categories.find((c) => c.id === base.categoryId);
     const months = cat?.defaultExpireMonths ?? defaultExpireMonths(cat?.name ?? null);
@@ -257,8 +316,9 @@ export function ItemForm({
   /**
    * 用户是否手动改过分类；改过就不再被猜词覆盖。
    * 编辑与复制都算「已定」—— 复制时被猜词改掉分类，等于复制功能白给。
+   * ★ 语音不算：识别出来的稿子里分类常常是空的，正需要猜词去补。
    */
-  const categoryTouched = useRef(isEdit || isPrefill);
+  const categoryTouched = useRef(isEdit || seedFinal);
   const nameRef = useRef<TextInput>(null);
 
   const [removedPhotoIds, setRemovedPhotoIds] = useState<string[]>([]);
@@ -282,7 +342,16 @@ export function ItemForm({
    *   所以用户一旦手动改了某个字段，就必须把它从这里移掉 ——
    *   一个永远挂着的「AI」标，会让这个标记本身失去意义。
    */
-  const [aiFields, setAiFields] = useState<Set<string>>(new Set());
+  /**
+   * 哪些行是「机器填的」，界面上挂一枚「AI」标。
+   *
+   * ★ 语音模式下一进来就要把它们标上：那份初稿是识别 + 模型给的，
+   *   没有一行是用户敲的。不标的话，用户会以为这些值是自己填好的，
+   *   而「我刚才填了什么」与「它替我猜了什么」分不清，正是要摘标机制解决的问题。
+   */
+  const [aiFields, setAiFields] = useState<Set<string>>(() =>
+    isVoice && prefill ? seedKeysOf(prefill) : new Set<string>(),
+  );
 
   /** 提交后标记，避免卸载时把已入库的照片误删 */
   const committed = useRef(false);
@@ -610,6 +679,9 @@ export function ItemForm({
           </View>
         ) : null}
 
+        {header}
+
+        {hidePhotos ? null : (
         <SectionCard title={`照片（${photoCount}）`}>
           <ScrollView
             horizontal
@@ -715,6 +787,7 @@ export function ItemForm({
             </Gutter>
           ) : null}
         </SectionCard>
+        )}
 
         <SectionCard title="必填">
           <Card padded={false} style={styles.cardGutter}>
@@ -770,7 +843,7 @@ export function ItemForm({
                   <Ionicons name="chevron-forward" size={15} color={Palette.ink4} />
                 </Pressable>
               </FieldRow>
-              <FieldRow label="位置" last>
+              <FieldRow label="位置" ai={aiFields.has('locationId')} last>
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => setLocationOpen(true)}
@@ -788,7 +861,7 @@ export function ItemForm({
         <SectionCard title="时间与花费">
           <Card padded={false} style={styles.cardGutter}>
             <Gutter>
-              <FieldRow label="购买日期">
+              <FieldRow label="购买日期" ai={aiFields.has('purchaseDate')}>
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => setDateTarget('purchase')}
@@ -800,14 +873,17 @@ export function ItemForm({
                 </Pressable>
               </FieldRow>
 
-              <FieldRow label="价格">
+              <FieldRow label="价格" ai={aiFields.has('price')}>
                 <View style={styles.priceRow}>
                   <Body tone="ink2" style={styles.currency}>
                     ¥
                   </Body>
                   <TextInput
                     value={draft.priceText}
-                    onChangeText={(t) => set('priceText', t)}
+                    onChangeText={(t) => {
+                      set('priceText', t);
+                      clearAi('price');
+                    }}
                     placeholder="未设置"
                     placeholderTextColor={Palette.ink4}
                     keyboardType="decimal-pad"
@@ -991,7 +1067,10 @@ export function ItemForm({
         cabinets={cabinets}
         selectedId={draft.locationId}
         onClose={() => setLocationOpen(false)}
-        onPick={(id) => set('locationId', id)}
+        onPick={(id) => {
+          set('locationId', id);
+          clearAi('locationId');
+        }}
       />
 
       <DatePickerModal
@@ -1000,8 +1079,13 @@ export function ItemForm({
         title={dateTarget === 'expire' ? '过期时间' : '购买日期'}
         onClose={() => setDateTarget(null)}
         onPick={(date) => {
-          if (dateTarget === 'expire') set('expireDate', date);
-          else set('purchaseDate', date);
+          if (dateTarget === 'expire') {
+            set('expireDate', date);
+            clearAi('expireDate');
+          } else {
+            set('purchaseDate', date);
+            clearAi('purchaseDate');
+          }
         }}
       />
 

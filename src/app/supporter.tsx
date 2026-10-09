@@ -195,7 +195,7 @@ export default function SupporterScreen() {
                     <Card>
                       <Title style={styles.buyTitle}>支持者档 · ¥28</Title>
                       <Meta tone="ink3" style={styles.buyLine}>
-                        一次买断，含 v2 内全部支持者功能：五套主题、批量操作、AI 功能、新功能优先体验。
+                        一次买断，含 v2 内全部支持者功能：六套浅色主题、批量操作、AI 功能、新功能优先体验。
                       </Meta>
                       <Meta tone="ink4" style={styles.buyLine}>
                         免费档不受影响 —— 收纳、到期提醒、库存、照片、备份恢复全部照旧。

@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>格物 · 主题配色（六套浅色 + 玄夜）</title>
+<style>
+:root{
+  --serif:"Songti SC","Noto Serif SC",Georgia,serif;
+  --sans:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --page:#F4F1EC; --card:#FFFFFF; --ink:#2B241F; --ink2:#6B6055; --ink3:#9A8D80; --line:#E3DCD1;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.7}
+.wrap{max-width:1180px;margin:0 auto;padding:44px 24px 72px}
+header h1{font-family:var(--serif);font-size:32px;font-weight:400;letter-spacing:.06em;margin:0 0 6px}
+header p.lede{color:var(--ink2);margin:0 0 14px}
+.meta{display:flex;gap:22px;flex-wrap:wrap;color:var(--ink3);font-size:12.5px;margin-bottom:34px}
+h2{font-family:var(--serif);font-size:19px;font-weight:400;letter-spacing:.05em;margin:44px 0 14px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+h3{font-size:15px;margin:26px 0 10px}
+p{color:var(--ink2)}
+ul{color:var(--ink2);padding-left:20px} li{margin:5px 0}
+code{background:#EDE8E0;padding:1px 5px;border-radius:4px;font-size:12.5px}
+
+.rules{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 24px}
+.rules ol{margin:0;padding-left:22px;color:var(--ink2)}
+.rules li{margin:8px 0}
+.rules b{color:var(--ink)}
+
+table.bands{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+table.bands th,table.bands td{padding:11px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle;font-weight:400}
+table.bands tr:last-child th,table.bands tr:last-child td{border-bottom:0}
+table.bands th{width:200px;font-family:var(--serif);font-size:15px;letter-spacing:.03em}
+table.bands th em{display:block;font-family:var(--sans);font-style:normal;font-size:12px;color:var(--ink3);margin-top:2px}
+.bandcell{display:flex;gap:7px;flex-wrap:wrap}
+.chip{font-size:11px;padding:6px 9px;border-radius:7px;letter-spacing:.02em;border:1px solid rgba(0,0,0,.06)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:22px}
+figure.theme{margin:0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
+figcaption .caprow{display:flex;align-items:center;gap:9px}
+.tname{font-family:var(--serif);font-size:18px;letter-spacing:.06em}
+.badge{font-size:10.5px;padding:2px 8px;border-radius:99px;letter-spacing:.04em}
+.badge.free{background:#EDF1E9;color:#5F7355}
+.badge.lock{background:#F3E9DE;color:#8C5A34}
+.tnote{color:var(--ink3);font-size:12.5px;margin-top:3px}
+
+.screen{background:var(--canvas);border:1px solid var(--line);border-radius:12px;padding:9px 0 12px;overflow:hidden}
+.sbar{display:flex;justify-content:space-between;color:var(--ink3);font-size:10px;padding:0 13px 7px}
+.sicons{width:38px;height:8px;border:1px solid var(--ink4);border-radius:2px}
+.screen .hd{font-family:var(--serif);font-size:17px;letter-spacing:.05em;padding:0 13px 8px;color:var(--ink)}
+.screen .stats{display:flex;gap:8px;padding:0 13px 10px}
+.screen .stat{flex:1;background:var(--surface);border:1px solid var(--line2);border-radius:9px;padding:7px 9px}
+.screen .stat b{display:block;font-family:var(--serif);font-size:15px;color:var(--ink)}
+.screen .stat span{font-size:10.5px;color:var(--ink3)}
+.screen .rows{padding:0 13px}
+.screen .row{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line2);border-radius:10px;padding:8px 10px;margin-bottom:7px}
+.screen .thumb{width:30px;height:30px;border-radius:8px;background:var(--inset);flex:0 0 auto}
+.screen .rb{flex:1;min-width:0}
+.screen .nm{font-size:13px;color:var(--ink);font-weight:500}
+.screen .sm{font-size:10.5px;color:var(--ink3);margin-top:1px}
+.tag{font-size:10.5px;padding:3px 8px;border-radius:99px;white-space:nowrap}
+.tag.sage{background:var(--sage-bg);color:var(--sage)}
+.tag.amber{background:var(--amber-bg);color:var(--amber)}
+.tag.clay{background:var(--clay-bg);color:var(--clay)}
+.screen .btn{margin:9px 13px 0;background:var(--brand);color:var(--on-accent);text-align:center;padding:9px;border-radius:10px;font-size:12.5px}
+.screen .picker{margin:9px 13px 0;background:var(--surface);border:1px solid var(--line2);border-radius:10px;padding:4px 10px}
+.screen .prow{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:11.5px;color:var(--ink)}
+.screen .prow.on{color:var(--brand)}
+.screen .prow i{width:14px;height:14px;border-radius:50%;background:var(--brand);opacity:.55}
+.screen .prow em{margin-left:auto;font-style:normal;color:var(--brand)}
+.screen.dark{border-color:#2C2821}
+
+.swatches{margin-top:2px}
+.swgroup{margin-bottom:7px}
+.swgroup h5{margin:0 0 4px;font-size:10.5px;color:var(--ink3);font-weight:400;letter-spacing:.08em}
+.swrow{display:flex;flex-wrap:wrap;gap:5px}
+.sw{width:60px;font-size:9px;color:var(--ink3);line-height:1.35}
+.sw i{display:block;height:20px;border-radius:5px;border:1px solid rgba(0,0,0,.07);margin-bottom:2px}
+.sw b{display:block;font-weight:400;color:var(--ink2);font-size:9.5px}
+
+.ctable{margin-top:auto}
+.ctable h5{margin:14px 0 6px;font-size:10.5px;color:var(--ink3);font-weight:400;letter-spacing:.08em}
+.ctable table{width:100%;border-collapse:collapse;font-size:10.5px}
+.ctable td{padding:3px 0;color:var(--ink2);border-bottom:1px solid var(--line)}
+.ctable td.v{text-align:right;font-variant-numeric:tabular-nums}
+.ctable td.v.ok{color:#4C7358}
+.ctable td.v.bad{color:#A8372C;font-weight:600}
+footer{margin-top:46px;color:var(--ink3);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>格物 · 主题配色</h1>
+  <p class="lede">六套浅色 + 一套深色，沿「纸的温度 × 墨的色相」两条轴设计。</p>
+  <div class="meta">
+    <span>六套浅色</span>
+    <span>素笺 / 靛青 / 青瓷 免费</span>
+    <span>朱砂 / 藕荷 / 胭脂 支持者</span>
+    <span>玄夜跟随系统深色</span>
+  </div>
+</header>
+
+<h2>四条准入规则</h2>
+<div class="rules">
+  <ol>
+    <li><b>语义三色是红线。</b>sage / amber / clay 永远锁在绿黄红三系，主题只许调明度，不许改色相 —— 用户靠色相分辨状态，品牌色一旦侵占语义区，状态提示就失效了。</li>
+    <li><b>brand 只管「可点」与「需注意」</b>，不承担状态含义。</li>
+    <li><b>对比度是准入条件，不是事后优化。</b>正文 ≥ 10（远超 AAA），小字标签 ≥ 4.5。下面每张表都是当场算的。</li>
+    <li><b>深色不是浅色取反。</b>卡片要比背景亮才浮得起来，分隔线要比背景亮才看得见，语义色要整体提亮。玄夜按深色逻辑单独配。</li>
+  </ol>
+</div>
+
+<h2>色相轴：六套怎么错开</h2>
+<p>左段是「纸」，右段是「墨」—— 纸的冷暖差异要衬在本套的底上才看得出来。</p>
+<table class="bands">
+  <tr><th>主题</th><td class="bandcell" style="color:var(--ink3)">纸（paper / canvas / surface / inset）</td><td class="bandcell" style="color:var(--ink3)">墨（brand / sage / amber / clay）</td></tr>
+  <tr><th>素笺<em>暖米白配赭石棕，稿纸的温度</em></th><td class="bandcell"><span class="chip" style="background:#F7F4EF;color:#2B241F">paper</span><span class="chip" style="background:#FBF9F6;color:#2B241F">canvas</span><span class="chip" style="background:#FFFFFF;color:#2B241F">surface</span><span class="chip" style="background:#F2EDE5;color:#2B241F">inset</span></td><td class="bandcell"><span class="chip" style="background:#8C5A34;color:#fff">brand</span><span class="chip" style="background:#5F7355;color:#fff">sage</span><span class="chip" style="background:#926521;color:#fff">amber</span><span class="chip" style="background:#AA523D;color:#fff">clay</span></td></tr><tr><th>靛青<em>冷灰白配蓝黑，像钢笔墨水</em></th><td class="bandcell"><span class="chip" style="background:#F2F4F8;color:#1C2330">paper</span><span class="chip" style="background:#F7F9FB;color:#1C2330">canvas</span><span class="chip" style="background:#FFFFFF;color:#1C2330">surface</span><span class="chip" style="background:#EAEEF4;color:#1C2330">inset</span></td><td class="bandcell"><span class="chip" style="background:#2C5282;color:#fff">brand</span><span class="chip" style="background:#4C7358;color:#fff">sage</span><span class="chip" style="background:#8B671C;color:#fff">amber</span><span class="chip" style="background:#A64C44;color:#fff">clay</span></td></tr><tr><th>青瓷<em>淡青白配黛青，器物本色</em></th><td class="bandcell"><span class="chip" style="background:#F1F4F2;color:#1F2825">paper</span><span class="chip" style="background:#F6F9F7;color:#1F2825">canvas</span><span class="chip" style="background:#FFFFFF;color:#1F2825">surface</span><span class="chip" style="background:#E8EFEC;color:#1F2825">inset</span></td><td class="bandcell"><span class="chip" style="background:#35605A;color:#fff">brand</span><span class="chip" style="background:#587442;color:#fff">sage</span><span class="chip" style="background:#8A6821;color:#fff">amber</span><span class="chip" style="background:#A8503F;color:#fff">clay</span></td></tr><tr><th>朱砂<em>暖粉白配朱红，像盖了一枚印</em></th><td class="bandcell"><span class="chip" style="background:#F9F3F0;color:#2E211D">paper</span><span class="chip" style="background:#FCF8F6;color:#2E211D">canvas</span><span class="chip" style="background:#FFFFFF;color:#2E211D">surface</span><span class="chip" style="background:#F4EAE4;color:#2E211D">inset</span></td><td class="bandcell"><span class="chip" style="background:#A8372C;color:#fff">brand</span><span class="chip" style="background:#5A7350;color:#fff">sage</span><span class="chip" style="background:#90651D;color:#fff">amber</span><span class="chip" style="background:#A45536;color:#fff">clay</span></td></tr><tr><th>藕荷<em>淡藕紫配紫毫，像旧信纸上的墨</em></th><td class="bandcell"><span class="chip" style="background:#F6F3F7;color:#251F2B">paper</span><span class="chip" style="background:#FAF8FB;color:#251F2B">canvas</span><span class="chip" style="background:#FFFFFF;color:#251F2B">surface</span><span class="chip" style="background:#EFEAF2;color:#251F2B">inset</span></td><td class="bandcell"><span class="chip" style="background:#6A4C86;color:#fff">brand</span><span class="chip" style="background:#5F7355;color:#fff">sage</span><span class="chip" style="background:#8F651F;color:#fff">amber</span><span class="chip" style="background:#A85242;color:#fff">clay</span></td></tr><tr><th>胭脂<em>冷粉白配玫红，妆台上的一抹</em></th><td class="bandcell"><span class="chip" style="background:#F9F2F5;color:#2C2028">paper</span><span class="chip" style="background:#FCF7F9;color:#2C2028">canvas</span><span class="chip" style="background:#FFFFFF;color:#2C2028">surface</span><span class="chip" style="background:#F4E9EE;color:#2C2028">inset</span></td><td class="bandcell"><span class="chip" style="background:#A53A63;color:#fff">brand</span><span class="chip" style="background:#5C7350;color:#fff">sage</span><span class="chip" style="background:#8F651F;color:#fff">amber</span><span class="chip" style="background:#A6503C;color:#fff">clay</span></td></tr><tr><th>玄夜<em>墨底配暖金，系统深色时自动启用</em></th><td class="bandcell"><span class="chip" style="background:#16140F;color:#F2EBDF">paper</span><span class="chip" style="background:#1C1A15;color:#F2EBDF">canvas</span><span class="chip" style="background:#242118;color:#F2EBDF">surface</span><span class="chip" style="background:#302C23;color:#F2EBDF">inset</span></td><td class="bandcell"><span class="chip" style="background:#C9985C;color:#fff">brand</span><span class="chip" style="background:#8FA87C;color:#fff">sage</span><span class="chip" style="background:#D9A94E;color:#fff">amber</span><span class="chip" style="background:#D57C61;color:#fff">clay</span></td></tr>
+</table>
+<p style="margin-top:12px">色相读数：素笺 27° 暖棕 · 青瓷 172° 青绿 · 靛青 215° 蓝 · 朱砂 5° 正红 · 藕荷 271° 紫 · 胭脂 337° 玫红 · 玄夜 33° 暖金（深色档）。<b>绿（90~150）与黄（45~70）不许做品牌色</b> —— 那是 sage 与 amber 的地盘。</p>
+
+<h2>逐套详览</h2>
+<p>每张卡片里是一段真实界面：统计卡 + 三种状态标签同时出现 + 主按钮 + 主题选择器。<br>
+底下的色板是该套的<b>全部</b>令牌，表格是<b>当场算出来</b>的对比度。</p>
+<div class="grid">
+<figure class="theme" style="--paper:#F7F4EF;--canvas:#FBF9F6;--surface:#FFFFFF;--surface2:#FDFCFA;--inset:#F2EDE5;--ink:#2B241F;--ink2:#6B6055;--ink3:#9A8D80;--ink4:#C9BEB0;--line:#E3DCD1;--line2:#EBE5DB;--line3:#F1ECE4;--brand:#8C5A34;--brand-deep:#6B4224;--brand-bg:#F3E9DE;--sage:#5F7355;--sage-bg:#EDF1E9;--amber:#926521;--amber-bg:#FBF1DF;--clay:#AA523D;--clay-bg:#F9EAE5;--pure:#FFFFFF;--on-accent:#FFFFFF;--ripple:rgba(43,36,31,0.05);--ripple-on-accent:rgba(255,255,255,0.22);--scrim:rgba(43,36,31,0.32);--shadow:#2B241F">
+  <figcaption>
+    <div class="caprow"><span class="tname">素笺</span><span class="badge free">免费</span></div>
+    <div class="tnote">暖米白配赭石棕，稿纸的温度</div>
+  </figcaption>
+
+  <div class="screen">
+    <div class="sbar"><span>9:41</span><span class="sicons"></span></div>
+    <div class="hd">全部物品</div>
+    <div class="stats">
+      <div class="stat"><b>42</b><span>在库</span></div>
+      <div class="stat"><b>3</b><span>快到期</span></div>
+      <div class="stat"><b>¥1,280</b><span>总价</span></div>
+    </div>
+    <div class="rows">
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛肉面</div><div class="sm">厨房 · 橱柜2 · 剩 2</div></div>
+        <span class="tag sage">30 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">洗衣液</div><div class="sm">阳台 · 该补货了</div></div>
+        <span class="tag amber">7 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛奶</div><div class="sm">冰箱 · 冷藏层</div></div>
+        <span class="tag clay">已过期</span>
+      </div>
+    </div>
+    <div class="btn">＋ 录入物品</div>
+    <div class="picker">
+      <div class="prow on"><i></i><span>素笺</span><em>✓</em></div>
+      <div class="prow"><i></i><span>靛青</span></div>
+    </div>
+  </div>
+
+  <div class="swatches"><div class="swgroup"><h5>面</h5><div class="swrow"><div class="sw"><i style="background:#F7F4EF"></i><b>paper</b><span>F7F4EF</span></div><div class="sw"><i style="background:#FBF9F6"></i><b>canvas</b><span>FBF9F6</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>surface</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FDFCFA"></i><b>surface2</b><span>FDFCFA</span></div><div class="sw"><i style="background:#F2EDE5"></i><b>inset</b><span>F2EDE5</span></div></div></div><div class="swgroup"><h5>字</h5><div class="swrow"><div class="sw"><i style="background:#2B241F"></i><b>ink</b><span>2B241F</span></div><div class="sw"><i style="background:#6B6055"></i><b>ink2</b><span>6B6055</span></div><div class="sw"><i style="background:#9A8D80"></i><b>ink3</b><span>9A8D80</span></div><div class="sw"><i style="background:#C9BEB0"></i><b>ink4</b><span>C9BEB0</span></div></div></div><div class="swgroup"><h5>线</h5><div class="swrow"><div class="sw"><i style="background:#E3DCD1"></i><b>line</b><span>E3DCD1</span></div><div class="sw"><i style="background:#EBE5DB"></i><b>line2</b><span>EBE5DB</span></div><div class="sw"><i style="background:#F1ECE4"></i><b>line3</b><span>F1ECE4</span></div></div></div><div class="swgroup"><h5>品牌</h5><div class="swrow"><div class="sw"><i style="background:#8C5A34"></i><b>brand</b><span>8C5A34</span></div><div class="sw"><i style="background:#6B4224"></i><b>brandDeep</b><span>6B4224</span></div><div class="sw"><i style="background:#F3E9DE"></i><b>brandBg</b><span>F3E9DE</span></div></div></div><div class="swgroup"><h5>语义</h5><div class="swrow"><div class="sw"><i style="background:#5F7355"></i><b>sage</b><span>5F7355</span></div><div class="sw"><i style="background:#EDF1E9"></i><b>sageBg</b><span>EDF1E9</span></div><div class="sw"><i style="background:#926521"></i><b>amber</b><span>926521</span></div><div class="sw"><i style="background:#FBF1DF"></i><b>amberBg</b><span>FBF1DF</span></div><div class="sw"><i style="background:#AA523D"></i><b>clay</b><span>AA523D</span></div><div class="sw"><i style="background:#F9EAE5"></i><b>clayBg</b><span>F9EAE5</span></div></div></div><div class="swgroup"><h5>交互</h5><div class="swrow"><div class="sw"><i style="background:#FFFFFF"></i><b>pure</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>onAccent</b><span>FFFFFF</span></div><div class="sw"><i style="background:rgba(43,36,31,0.05)"></i><b>ripple</b><span>rgba(43,36,31,0.05)</span></div><div class="sw"><i style="background:rgba(255,255,255,0.22)"></i><b>rippleOnAccent</b><span>rgba(255,255,255,0.22)</span></div><div class="sw"><i style="background:rgba(43,36,31,0.32)"></i><b>scrim</b><span>rgba(43,36,31,0.32)</span></div><div class="sw"><i style="background:#2B241F"></i><b>shadow</b><span>2B241F</span></div></div></div></div>
+  <div class="ctable" data-theme="sujian"></div>
+</figure>
+<figure class="theme" style="--paper:#F2F4F8;--canvas:#F7F9FB;--surface:#FFFFFF;--surface2:#FBFCFE;--inset:#EAEEF4;--ink:#1C2330;--ink2:#576073;--ink3:#868FA3;--ink4:#BFC6D4;--line:#DAE0EA;--line2:#E5E9F1;--line3:#EEF1F6;--brand:#2C5282;--brand-deep:#1D3A5F;--brand-bg:#E4EBF5;--sage:#4C7358;--sage-bg:#E9F0EA;--amber:#8B671C;--amber-bg:#F8F0DC;--clay:#A64C44;--clay-bg:#F7E7E4;--pure:#FFFFFF;--on-accent:#FFFFFF;--ripple:rgba(28,35,48,0.05);--ripple-on-accent:rgba(255,255,255,0.22);--scrim:rgba(28,35,48,0.32);--shadow:#1C2330">
+  <figcaption>
+    <div class="caprow"><span class="tname">靛青</span><span class="badge free">免费</span></div>
+    <div class="tnote">冷灰白配蓝黑，像钢笔墨水</div>
+  </figcaption>
+
+  <div class="screen">
+    <div class="sbar"><span>9:41</span><span class="sicons"></span></div>
+    <div class="hd">全部物品</div>
+    <div class="stats">
+      <div class="stat"><b>42</b><span>在库</span></div>
+      <div class="stat"><b>3</b><span>快到期</span></div>
+      <div class="stat"><b>¥1,280</b><span>总价</span></div>
+    </div>
+    <div class="rows">
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛肉面</div><div class="sm">厨房 · 橱柜2 · 剩 2</div></div>
+        <span class="tag sage">30 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">洗衣液</div><div class="sm">阳台 · 该补货了</div></div>
+        <span class="tag amber">7 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛奶</div><div class="sm">冰箱 · 冷藏层</div></div>
+        <span class="tag clay">已过期</span>
+      </div>
+    </div>
+    <div class="btn">＋ 录入物品</div>
+    <div class="picker">
+      <div class="prow on"><i></i><span>素笺</span><em>✓</em></div>
+      <div class="prow"><i></i><span>靛青</span></div>
+    </div>
+  </div>
+
+  <div class="swatches"><div class="swgroup"><h5>面</h5><div class="swrow"><div class="sw"><i style="background:#F2F4F8"></i><b>paper</b><span>F2F4F8</span></div><div class="sw"><i style="background:#F7F9FB"></i><b>canvas</b><span>F7F9FB</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>surface</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FBFCFE"></i><b>surface2</b><span>FBFCFE</span></div><div class="sw"><i style="background:#EAEEF4"></i><b>inset</b><span>EAEEF4</span></div></div></div><div class="swgroup"><h5>字</h5><div class="swrow"><div class="sw"><i style="background:#1C2330"></i><b>ink</b><span>1C2330</span></div><div class="sw"><i style="background:#576073"></i><b>ink2</b><span>576073</span></div><div class="sw"><i style="background:#868FA3"></i><b>ink3</b><span>868FA3</span></div><div class="sw"><i style="background:#BFC6D4"></i><b>ink4</b><span>BFC6D4</span></div></div></div><div class="swgroup"><h5>线</h5><div class="swrow"><div class="sw"><i style="background:#DAE0EA"></i><b>line</b><span>DAE0EA</span></div><div class="sw"><i style="background:#E5E9F1"></i><b>line2</b><span>E5E9F1</span></div><div class="sw"><i style="background:#EEF1F6"></i><b>line3</b><span>EEF1F6</span></div></div></div><div class="swgroup"><h5>品牌</h5><div class="swrow"><div class="sw"><i style="background:#2C5282"></i><b>brand</b><span>2C5282</span></div><div class="sw"><i style="background:#1D3A5F"></i><b>brandDeep</b><span>1D3A5F</span></div><div class="sw"><i style="background:#E4EBF5"></i><b>brandBg</b><span>E4EBF5</span></div></div></div><div class="swgroup"><h5>语义</h5><div class="swrow"><div class="sw"><i style="background:#4C7358"></i><b>sage</b><span>4C7358</span></div><div class="sw"><i style="background:#E9F0EA"></i><b>sageBg</b><span>E9F0EA</span></div><div class="sw"><i style="background:#8B671C"></i><b>amber</b><span>8B671C</span></div><div class="sw"><i style="background:#F8F0DC"></i><b>amberBg</b><span>F8F0DC</span></div><div class="sw"><i style="background:#A64C44"></i><b>clay</b><span>A64C44</span></div><div class="sw"><i style="background:#F7E7E4"></i><b>clayBg</b><span>F7E7E4</span></div></div></div><div class="swgroup"><h5>交互</h5><div class="swrow"><div class="sw"><i style="background:#FFFFFF"></i><b>pure</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>onAccent</b><span>FFFFFF</span></div><div class="sw"><i style="background:rgba(28,35,48,0.05)"></i><b>ripple</b><span>rgba(28,35,48,0.05)</span></div><div class="sw"><i style="background:rgba(255,255,255,0.22)"></i><b>rippleOnAccent</b><span>rgba(255,255,255,0.22)</span></div><div class="sw"><i style="background:rgba(28,35,48,0.32)"></i><b>scrim</b><span>rgba(28,35,48,0.32)</span></div><div class="sw"><i style="background:#1C2330"></i><b>shadow</b><span>1C2330</span></div></div></div></div>
+  <div class="ctable" data-theme="dianqing"></div>
+</figure>
+<figure class="theme" style="--paper:#F1F4F2;--canvas:#F6F9F7;--surface:#FFFFFF;--surface2:#FBFDFC;--inset:#E8EFEC;--ink:#1F2825;--ink2:#58635E;--ink3:#87928C;--ink4:#C1C9C5;--line:#D9E2DE;--line2:#E4EBE8;--line3:#EDF2EF;--brand:#35605A;--brand-deep:#22423E;--brand-bg:#E2EDEA;--sage:#587442;--sage-bg:#EBF0E2;--amber:#8A6821;--amber-bg:#F8F0DC;--clay:#A8503F;--clay-bg:#F8E8E3;--pure:#FFFFFF;--on-accent:#FFFFFF;--ripple:rgba(31,40,37,0.05);--ripple-on-accent:rgba(255,255,255,0.22);--scrim:rgba(31,40,37,0.32);--shadow:#1F2825">
+  <figcaption>
+    <div class="caprow"><span class="tname">青瓷</span><span class="badge free">免费</span></div>
+    <div class="tnote">淡青白配黛青，器物本色</div>
+  </figcaption>
+
+  <div class="screen">
+    <div class="sbar"><span>9:41</span><span class="sicons"></span></div>
+    <div class="hd">全部物品</div>
+    <div class="stats">
+      <div class="stat"><b>42</b><span>在库</span></div>
+      <div class="stat"><b>3</b><span>快到期</span></div>
+      <div class="stat"><b>¥1,280</b><span>总价</span></div>
+    </div>
+    <div class="rows">
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛肉面</div><div class="sm">厨房 · 橱柜2 · 剩 2</div></div>
+        <span class="tag sage">30 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">洗衣液</div><div class="sm">阳台 · 该补货了</div></div>
+        <span class="tag amber">7 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛奶</div><div class="sm">冰箱 · 冷藏层</div></div>
+        <span class="tag clay">已过期</span>
+      </div>
+    </div>
+    <div class="btn">＋ 录入物品</div>
+    <div class="picker">
+      <div class="prow on"><i></i><span>素笺</span><em>✓</em></div>
+      <div class="prow"><i></i><span>靛青</span></div>
+    </div>
+  </div>
+
+  <div class="swatches"><div class="swgroup"><h5>面</h5><div class="swrow"><div class="sw"><i style="background:#F1F4F2"></i><b>paper</b><span>F1F4F2</span></div><div class="sw"><i style="background:#F6F9F7"></i><b>canvas</b><span>F6F9F7</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>surface</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FBFDFC"></i><b>surface2</b><span>FBFDFC</span></div><div class="sw"><i style="background:#E8EFEC"></i><b>inset</b><span>E8EFEC</span></div></div></div><div class="swgroup"><h5>字</h5><div class="swrow"><div class="sw"><i style="background:#1F2825"></i><b>ink</b><span>1F2825</span></div><div class="sw"><i style="background:#58635E"></i><b>ink2</b><span>58635E</span></div><div class="sw"><i style="background:#87928C"></i><b>ink3</b><span>87928C</span></div><div class="sw"><i style="background:#C1C9C5"></i><b>ink4</b><span>C1C9C5</span></div></div></div><div class="swgroup"><h5>线</h5><div class="swrow"><div class="sw"><i style="background:#D9E2DE"></i><b>line</b><span>D9E2DE</span></div><div class="sw"><i style="background:#E4EBE8"></i><b>line2</b><span>E4EBE8</span></div><div class="sw"><i style="background:#EDF2EF"></i><b>line3</b><span>EDF2EF</span></div></div></div><div class="swgroup"><h5>品牌</h5><div class="swrow"><div class="sw"><i style="background:#35605A"></i><b>brand</b><span>35605A</span></div><div class="sw"><i style="background:#22423E"></i><b>brandDeep</b><span>22423E</span></div><div class="sw"><i style="background:#E2EDEA"></i><b>brandBg</b><span>E2EDEA</span></div></div></div><div class="swgroup"><h5>语义</h5><div class="swrow"><div class="sw"><i style="background:#587442"></i><b>sage</b><span>587442</span></div><div class="sw"><i style="background:#EBF0E2"></i><b>sageBg</b><span>EBF0E2</span></div><div class="sw"><i style="background:#8A6821"></i><b>amber</b><span>8A6821</span></div><div class="sw"><i style="background:#F8F0DC"></i><b>amberBg</b><span>F8F0DC</span></div><div class="sw"><i style="background:#A8503F"></i><b>clay</b><span>A8503F</span></div><div class="sw"><i style="background:#F8E8E3"></i><b>clayBg</b><span>F8E8E3</span></div></div></div><div class="swgroup"><h5>交互</h5><div class="swrow"><div class="sw"><i style="background:#FFFFFF"></i><b>pure</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>onAccent</b><span>FFFFFF</span></div><div class="sw"><i style="background:rgba(31,40,37,0.05)"></i><b>ripple</b><span>rgba(31,40,37,0.05)</span></div><div class="sw"><i style="background:rgba(255,255,255,0.22)"></i><b>rippleOnAccent</b><span>rgba(255,255,255,0.22)</span></div><div class="sw"><i style="background:rgba(31,40,37,0.32)"></i><b>scrim</b><span>rgba(31,40,37,0.32)</span></div><div class="sw"><i style="background:#1F2825"></i><b>shadow</b><span>1F2825</span></div></div></div></div>
+  <div class="ctable" data-theme="qingci"></div>
+</figure>
+<figure class="theme" style="--paper:#F9F3F0;--canvas:#FCF8F6;--surface:#FFFFFF;--surface2:#FEFCFB;--inset:#F4EAE4;--ink:#2E211D;--ink2:#6B5A53;--ink3:#9C8A82;--ink4:#CBC0B9;--line:#E7DAD3;--line2:#EFE4DE;--line3:#F4ECE8;--brand:#A8372C;--brand-deep:#7E251C;--brand-bg:#F7E5E0;--sage:#5A7350;--sage-bg:#EDF1E9;--amber:#90651D;--amber-bg:#FBF0DC;--clay:#A45536;--clay-bg:#F9E9E1;--pure:#FFFFFF;--on-accent:#FFFFFF;--ripple:rgba(46,33,29,0.05);--ripple-on-accent:rgba(255,255,255,0.22);--scrim:rgba(46,33,29,0.32);--shadow:#2E211D">
+  <figcaption>
+    <div class="caprow"><span class="tname">朱砂</span><span class="badge lock">支持者</span></div>
+    <div class="tnote">暖粉白配朱红，像盖了一枚印</div>
+  </figcaption>
+
+  <div class="screen">
+    <div class="sbar"><span>9:41</span><span class="sicons"></span></div>
+    <div class="hd">全部物品</div>
+    <div class="stats">
+      <div class="stat"><b>42</b><span>在库</span></div>
+      <div class="stat"><b>3</b><span>快到期</span></div>
+      <div class="stat"><b>¥1,280</b><span>总价</span></div>
+    </div>
+    <div class="rows">
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛肉面</div><div class="sm">厨房 · 橱柜2 · 剩 2</div></div>
+        <span class="tag sage">30 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">洗衣液</div><div class="sm">阳台 · 该补货了</div></div>
+        <span class="tag amber">7 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛奶</div><div class="sm">冰箱 · 冷藏层</div></div>
+        <span class="tag clay">已过期</span>
+      </div>
+    </div>
+    <div class="btn">＋ 录入物品</div>
+    <div class="picker">
+      <div class="prow on"><i></i><span>素笺</span><em>✓</em></div>
+      <div class="prow"><i></i><span>靛青</span></div>
+    </div>
+  </div>
+
+  <div class="swatches"><div class="swgroup"><h5>面</h5><div class="swrow"><div class="sw"><i style="background:#F9F3F0"></i><b>paper</b><span>F9F3F0</span></div><div class="sw"><i style="background:#FCF8F6"></i><b>canvas</b><span>FCF8F6</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>surface</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FEFCFB"></i><b>surface2</b><span>FEFCFB</span></div><div class="sw"><i style="background:#F4EAE4"></i><b>inset</b><span>F4EAE4</span></div></div></div><div class="swgroup"><h5>字</h5><div class="swrow"><div class="sw"><i style="background:#2E211D"></i><b>ink</b><span>2E211D</span></div><div class="sw"><i style="background:#6B5A53"></i><b>ink2</b><span>6B5A53</span></div><div class="sw"><i style="background:#9C8A82"></i><b>ink3</b><span>9C8A82</span></div><div class="sw"><i style="background:#CBC0B9"></i><b>ink4</b><span>CBC0B9</span></div></div></div><div class="swgroup"><h5>线</h5><div class="swrow"><div class="sw"><i style="background:#E7DAD3"></i><b>line</b><span>E7DAD3</span></div><div class="sw"><i style="background:#EFE4DE"></i><b>line2</b><span>EFE4DE</span></div><div class="sw"><i style="background:#F4ECE8"></i><b>line3</b><span>F4ECE8</span></div></div></div><div class="swgroup"><h5>品牌</h5><div class="swrow"><div class="sw"><i style="background:#A8372C"></i><b>brand</b><span>A8372C</span></div><div class="sw"><i style="background:#7E251C"></i><b>brandDeep</b><span>7E251C</span></div><div class="sw"><i style="background:#F7E5E0"></i><b>brandBg</b><span>F7E5E0</span></div></div></div><div class="swgroup"><h5>语义</h5><div class="swrow"><div class="sw"><i style="background:#5A7350"></i><b>sage</b><span>5A7350</span></div><div class="sw"><i style="background:#EDF1E9"></i><b>sageBg</b><span>EDF1E9</span></div><div class="sw"><i style="background:#90651D"></i><b>amber</b><span>90651D</span></div><div class="sw"><i style="background:#FBF0DC"></i><b>amberBg</b><span>FBF0DC</span></div><div class="sw"><i style="background:#A45536"></i><b>clay</b><span>A45536</span></div><div class="sw"><i style="background:#F9E9E1"></i><b>clayBg</b><span>F9E9E1</span></div></div></div><div class="swgroup"><h5>交互</h5><div class="swrow"><div class="sw"><i style="background:#FFFFFF"></i><b>pure</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>onAccent</b><span>FFFFFF</span></div><div class="sw"><i style="background:rgba(46,33,29,0.05)"></i><b>ripple</b><span>rgba(46,33,29,0.05)</span></div><div class="sw"><i style="background:rgba(255,255,255,0.22)"></i><b>rippleOnAccent</b><span>rgba(255,255,255,0.22)</span></div><div class="sw"><i style="background:rgba(46,33,29,0.32)"></i><b>scrim</b><span>rgba(46,33,29,0.32)</span></div><div class="sw"><i style="background:#2E211D"></i><b>shadow</b><span>2E211D</span></div></div></div></div>
+  <div class="ctable" data-theme="zhusha"></div>
+</figure>
+<figure class="theme" style="--paper:#F6F3F7;--canvas:#FAF8FB;--surface:#FFFFFF;--surface2:#FDFBFE;--inset:#EFEAF2;--ink:#251F2B;--ink2:#635A6C;--ink3:#918799;--ink4:#C6BFCC;--line:#E0D8E4;--line2:#E9E3EC;--line3:#F0EBF2;--brand:#6A4C86;--brand-deep:#4A3160;--brand-bg:#EDE5F2;--sage:#5F7355;--sage-bg:#EDF1E9;--amber:#8F651F;--amber-bg:#FAF0DC;--clay:#A85242;--clay-bg:#F9EAE5;--pure:#FFFFFF;--on-accent:#FFFFFF;--ripple:rgba(37,31,43,0.05);--ripple-on-accent:rgba(255,255,255,0.22);--scrim:rgba(37,31,43,0.32);--shadow:#251F2B">
+  <figcaption>
+    <div class="caprow"><span class="tname">藕荷</span><span class="badge lock">支持者</span></div>
+    <div class="tnote">淡藕紫配紫毫，像旧信纸上的墨</div>
+  </figcaption>
+
+  <div class="screen">
+    <div class="sbar"><span>9:41</span><span class="sicons"></span></div>
+    <div class="hd">全部物品</div>
+    <div class="stats">
+      <div class="stat"><b>42</b><span>在库</span></div>
+      <div class="stat"><b>3</b><span>快到期</span></div>
+      <div class="stat"><b>¥1,280</b><span>总价</span></div>
+    </div>
+    <div class="rows">
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛肉面</div><div class="sm">厨房 · 橱柜2 · 剩 2</div></div>
+        <span class="tag sage">30 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">洗衣液</div><div class="sm">阳台 · 该补货了</div></div>
+        <span class="tag amber">7 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛奶</div><div class="sm">冰箱 · 冷藏层</div></div>
+        <span class="tag clay">已过期</span>
+      </div>
+    </div>
+    <div class="btn">＋ 录入物品</div>
+    <div class="picker">
+      <div class="prow on"><i></i><span>素笺</span><em>✓</em></div>
+      <div class="prow"><i></i><span>靛青</span></div>
+    </div>
+  </div>
+
+  <div class="swatches"><div class="swgroup"><h5>面</h5><div class="swrow"><div class="sw"><i style="background:#F6F3F7"></i><b>paper</b><span>F6F3F7</span></div><div class="sw"><i style="background:#FAF8FB"></i><b>canvas</b><span>FAF8FB</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>surface</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FDFBFE"></i><b>surface2</b><span>FDFBFE</span></div><div class="sw"><i style="background:#EFEAF2"></i><b>inset</b><span>EFEAF2</span></div></div></div><div class="swgroup"><h5>字</h5><div class="swrow"><div class="sw"><i style="background:#251F2B"></i><b>ink</b><span>251F2B</span></div><div class="sw"><i style="background:#635A6C"></i><b>ink2</b><span>635A6C</span></div><div class="sw"><i style="background:#918799"></i><b>ink3</b><span>918799</span></div><div class="sw"><i style="background:#C6BFCC"></i><b>ink4</b><span>C6BFCC</span></div></div></div><div class="swgroup"><h5>线</h5><div class="swrow"><div class="sw"><i style="background:#E0D8E4"></i><b>line</b><span>E0D8E4</span></div><div class="sw"><i style="background:#E9E3EC"></i><b>line2</b><span>E9E3EC</span></div><div class="sw"><i style="background:#F0EBF2"></i><b>line3</b><span>F0EBF2</span></div></div></div><div class="swgroup"><h5>品牌</h5><div class="swrow"><div class="sw"><i style="background:#6A4C86"></i><b>brand</b><span>6A4C86</span></div><div class="sw"><i style="background:#4A3160"></i><b>brandDeep</b><span>4A3160</span></div><div class="sw"><i style="background:#EDE5F2"></i><b>brandBg</b><span>EDE5F2</span></div></div></div><div class="swgroup"><h5>语义</h5><div class="swrow"><div class="sw"><i style="background:#5F7355"></i><b>sage</b><span>5F7355</span></div><div class="sw"><i style="background:#EDF1E9"></i><b>sageBg</b><span>EDF1E9</span></div><div class="sw"><i style="background:#8F651F"></i><b>amber</b><span>8F651F</span></div><div class="sw"><i style="background:#FAF0DC"></i><b>amberBg</b><span>FAF0DC</span></div><div class="sw"><i style="background:#A85242"></i><b>clay</b><span>A85242</span></div><div class="sw"><i style="background:#F9EAE5"></i><b>clayBg</b><span>F9EAE5</span></div></div></div><div class="swgroup"><h5>交互</h5><div class="swrow"><div class="sw"><i style="background:#FFFFFF"></i><b>pure</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>onAccent</b><span>FFFFFF</span></div><div class="sw"><i style="background:rgba(37,31,43,0.05)"></i><b>ripple</b><span>rgba(37,31,43,0.05)</span></div><div class="sw"><i style="background:rgba(255,255,255,0.22)"></i><b>rippleOnAccent</b><span>rgba(255,255,255,0.22)</span></div><div class="sw"><i style="background:rgba(37,31,43,0.32)"></i><b>scrim</b><span>rgba(37,31,43,0.32)</span></div><div class="sw"><i style="background:#251F2B"></i><b>shadow</b><span>251F2B</span></div></div></div></div>
+  <div class="ctable" data-theme="ouhe"></div>
+</figure>
+<figure class="theme" style="--paper:#F9F2F5;--canvas:#FCF7F9;--surface:#FFFFFF;--surface2:#FEFBFD;--inset:#F4E9EE;--ink:#2C2028;--ink2:#6A5763;--ink3:#9C8894;--ink4:#CCBFC6;--line:#E8D8E0;--line2:#EFE3E9;--line3:#F4EBEF;--brand:#A53A63;--brand-deep:#7C2249;--brand-bg:#F7E3EC;--sage:#5C7350;--sage-bg:#EDF1E9;--amber:#8F651F;--amber-bg:#FAF0DC;--clay:#A6503C;--clay-bg:#F9E9E4;--pure:#FFFFFF;--on-accent:#FFFFFF;--ripple:rgba(44,32,40,0.05);--ripple-on-accent:rgba(255,255,255,0.22);--scrim:rgba(44,32,40,0.32);--shadow:#2C2028">
+  <figcaption>
+    <div class="caprow"><span class="tname">胭脂</span><span class="badge lock">支持者</span></div>
+    <div class="tnote">冷粉白配玫红，妆台上的一抹</div>
+  </figcaption>
+
+  <div class="screen">
+    <div class="sbar"><span>9:41</span><span class="sicons"></span></div>
+    <div class="hd">全部物品</div>
+    <div class="stats">
+      <div class="stat"><b>42</b><span>在库</span></div>
+      <div class="stat"><b>3</b><span>快到期</span></div>
+      <div class="stat"><b>¥1,280</b><span>总价</span></div>
+    </div>
+    <div class="rows">
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛肉面</div><div class="sm">厨房 · 橱柜2 · 剩 2</div></div>
+        <span class="tag sage">30 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">洗衣液</div><div class="sm">阳台 · 该补货了</div></div>
+        <span class="tag amber">7 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛奶</div><div class="sm">冰箱 · 冷藏层</div></div>
+        <span class="tag clay">已过期</span>
+      </div>
+    </div>
+    <div class="btn">＋ 录入物品</div>
+    <div class="picker">
+      <div class="prow on"><i></i><span>素笺</span><em>✓</em></div>
+      <div class="prow"><i></i><span>靛青</span></div>
+    </div>
+  </div>
+
+  <div class="swatches"><div class="swgroup"><h5>面</h5><div class="swrow"><div class="sw"><i style="background:#F9F2F5"></i><b>paper</b><span>F9F2F5</span></div><div class="sw"><i style="background:#FCF7F9"></i><b>canvas</b><span>FCF7F9</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>surface</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FEFBFD"></i><b>surface2</b><span>FEFBFD</span></div><div class="sw"><i style="background:#F4E9EE"></i><b>inset</b><span>F4E9EE</span></div></div></div><div class="swgroup"><h5>字</h5><div class="swrow"><div class="sw"><i style="background:#2C2028"></i><b>ink</b><span>2C2028</span></div><div class="sw"><i style="background:#6A5763"></i><b>ink2</b><span>6A5763</span></div><div class="sw"><i style="background:#9C8894"></i><b>ink3</b><span>9C8894</span></div><div class="sw"><i style="background:#CCBFC6"></i><b>ink4</b><span>CCBFC6</span></div></div></div><div class="swgroup"><h5>线</h5><div class="swrow"><div class="sw"><i style="background:#E8D8E0"></i><b>line</b><span>E8D8E0</span></div><div class="sw"><i style="background:#EFE3E9"></i><b>line2</b><span>EFE3E9</span></div><div class="sw"><i style="background:#F4EBEF"></i><b>line3</b><span>F4EBEF</span></div></div></div><div class="swgroup"><h5>品牌</h5><div class="swrow"><div class="sw"><i style="background:#A53A63"></i><b>brand</b><span>A53A63</span></div><div class="sw"><i style="background:#7C2249"></i><b>brandDeep</b><span>7C2249</span></div><div class="sw"><i style="background:#F7E3EC"></i><b>brandBg</b><span>F7E3EC</span></div></div></div><div class="swgroup"><h5>语义</h5><div class="swrow"><div class="sw"><i style="background:#5C7350"></i><b>sage</b><span>5C7350</span></div><div class="sw"><i style="background:#EDF1E9"></i><b>sageBg</b><span>EDF1E9</span></div><div class="sw"><i style="background:#8F651F"></i><b>amber</b><span>8F651F</span></div><div class="sw"><i style="background:#FAF0DC"></i><b>amberBg</b><span>FAF0DC</span></div><div class="sw"><i style="background:#A6503C"></i><b>clay</b><span>A6503C</span></div><div class="sw"><i style="background:#F9E9E4"></i><b>clayBg</b><span>F9E9E4</span></div></div></div><div class="swgroup"><h5>交互</h5><div class="swrow"><div class="sw"><i style="background:#FFFFFF"></i><b>pure</b><span>FFFFFF</span></div><div class="sw"><i style="background:#FFFFFF"></i><b>onAccent</b><span>FFFFFF</span></div><div class="sw"><i style="background:rgba(44,32,40,0.05)"></i><b>ripple</b><span>rgba(44,32,40,0.05)</span></div><div class="sw"><i style="background:rgba(255,255,255,0.22)"></i><b>rippleOnAccent</b><span>rgba(255,255,255,0.22)</span></div><div class="sw"><i style="background:rgba(44,32,40,0.32)"></i><b>scrim</b><span>rgba(44,32,40,0.32)</span></div><div class="sw"><i style="background:#2C2028"></i><b>shadow</b><span>2C2028</span></div></div></div></div>
+  <div class="ctable" data-theme="yanzhi"></div>
+</figure>
+<figure class="theme" style="--paper:#16140F;--canvas:#1C1A15;--surface:#242118;--surface2:#2A2620;--inset:#302C23;--ink:#F2EBDF;--ink2:#B5AA99;--ink3:#8A7F6E;--ink4:#5E5648;--line:#3A352B;--line2:#332F26;--line3:#2C2821;--brand:#C9985C;--brand-deep:#E0B47C;--brand-bg:#3A2F20;--sage:#8FA87C;--sage-bg:#2A3326;--amber:#D9A94E;--amber-bg:#3A3020;--clay:#D57C61;--clay-bg:#3B2822;--pure:#FFFFFF;--on-accent:#1C1A15;--ripple:rgba(242,235,223,0.07);--ripple-on-accent:rgba(28,26,21,0.16);--scrim:rgba(0,0,0,0.60);--shadow:#000000">
+  <figcaption>
+    <div class="caprow"><span class="tname">玄夜</span><span class="badge free">免费</span></div>
+    <div class="tnote">墨底配暖金，系统深色时自动启用</div>
+  </figcaption>
+
+  <div class="screen dark">
+    <div class="sbar"><span>9:41</span><span class="sicons"></span></div>
+    <div class="hd">全部物品</div>
+    <div class="stats">
+      <div class="stat"><b>42</b><span>在库</span></div>
+      <div class="stat"><b>3</b><span>快到期</span></div>
+      <div class="stat"><b>¥1,280</b><span>总价</span></div>
+    </div>
+    <div class="rows">
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛肉面</div><div class="sm">厨房 · 橱柜2 · 剩 2</div></div>
+        <span class="tag sage">30 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">洗衣液</div><div class="sm">阳台 · 该补货了</div></div>
+        <span class="tag amber">7 天</span>
+      </div>
+      <div class="row">
+        <div class="thumb"></div>
+        <div class="rb"><div class="nm">牛奶</div><div class="sm">冰箱 · 冷藏层</div></div>
+        <span class="tag clay">已过期</span>
+      </div>
+    </div>
+    <div class="btn">＋ 录入物品</div>
+    <div class="picker">
+      <div class="prow on"><i></i><span>素笺</span><em>✓</em></div>
+      <div class="prow"><i></i><span>靛青</span></div>
+    </div>
+  </div>
+
+  <div class="swatches"><div class="swgroup"><h5>面</h5><div class="swrow"><div class="sw"><i style="background:#16140F"></i><b>paper</b><span>16140F</span></div><div class="sw"><i style="background:#1C1A15"></i><b>canvas</b><span>1C1A15</span></div><div class="sw"><i style="background:#242118"></i><b>surface</b><span>242118</span></div><div class="sw"><i style="background:#2A2620"></i><b>surface2</b><span>2A2620</span></div><div class="sw"><i style="background:#302C23"></i><b>inset</b><span>302C23</span></div></div></div><div class="swgroup"><h5>字</h5><div class="swrow"><div class="sw"><i style="background:#F2EBDF"></i><b>ink</b><span>F2EBDF</span></div><div class="sw"><i style="background:#B5AA99"></i><b>ink2</b><span>B5AA99</span></div><div class="sw"><i style="background:#8A7F6E"></i><b>ink3</b><span>8A7F6E</span></div><div class="sw"><i style="background:#5E5648"></i><b>ink4</b><span>5E5648</span></div></div></div><div class="swgroup"><h5>线</h5><div class="swrow"><div class="sw"><i style="background:#3A352B"></i><b>line</b><span>3A352B</span></div><div class="sw"><i style="background:#332F26"></i><b>line2</b><span>332F26</span></div><div class="sw"><i style="background:#2C2821"></i><b>line3</b><span>2C2821</span></div></div></div><div class="swgroup"><h5>品牌</h5><div class="swrow"><div class="sw"><i style="background:#C9985C"></i><b>brand</b><span>C9985C</span></div><div class="sw"><i style="background:#E0B47C"></i><b>brandDeep</b><span>E0B47C</span></div><div class="sw"><i style="background:#3A2F20"></i><b>brandBg</b><span>3A2F20</span></div></div></div><div class="swgroup"><h5>语义</h5><div class="swrow"><div class="sw"><i style="background:#8FA87C"></i><b>sage</b><span>8FA87C</span></div><div class="sw"><i style="background:#2A3326"></i><b>sageBg</b><span>2A3326</span></div><div class="sw"><i style="background:#D9A94E"></i><b>amber</b><span>D9A94E</span></div><div class="sw"><i style="background:#3A3020"></i><b>amberBg</b><span>3A3020</span></div><div class="sw"><i style="background:#D57C61"></i><b>clay</b><span>D57C61</span></div><div class="sw"><i style="background:#3B2822"></i><b>clayBg</b><span>3B2822</span></div></div></div><div class="swgroup"><h5>交互</h5><div class="swrow"><div class="sw"><i style="background:#FFFFFF"></i><b>pure</b><span>FFFFFF</span></div><div class="sw"><i style="background:#1C1A15"></i><b>onAccent</b><span>1C1A15</span></div><div class="sw"><i style="background:rgba(242,235,223,0.07)"></i><b>ripple</b><span>rgba(242,235,223,0.07)</span></div><div class="sw"><i style="background:rgba(28,26,21,0.16)"></i><b>rippleOnAccent</b><span>rgba(28,26,21,0.16)</span></div><div class="sw"><i style="background:rgba(0,0,0,0.60)"></i><b>scrim</b><span>rgba(0,0,0,0.60)</span></div><div class="sw"><i style="background:#000000"></i><b>shadow</b><span>000000</span></div></div></div></div>
+  <div class="ctable" data-theme="xuanye"></div>
+</figure></div>
+
+<footer>
+  色值直接读自 <code>src/constants/theme.ts</code>；对比度按 WCAG 2.1 相对亮度计算。<br>
+  阈值与技能 <code>theme-palette-audit/scripts/contrast.py</code> 一致，也与 <code>tests/theme.test.mjs</code> 相同 —— 三处同源。
+</footer>
+</div>
+
+<script>
+const CHECKS = [
+  ['正文 / 底色', 'ink', 'canvas', 10],
+  ['正文 / 卡片面', 'ink', 'surface', 10],
+  ['次级文字 / 底色', 'ink2', 'canvas', 5],
+  ['三级文字 / 底色', 'ink3', 'canvas', 3],
+  ['四级文字 / 底色', 'ink4', 'canvas', 1.4],
+  ['品牌色 / 底色', 'brand', 'canvas', 4.5],
+  ['品牌字 / 品牌浅底', 'brand', 'brandBg', 4.5],
+  ['语义·正常 / 浅底', 'sage', 'sageBg', 4.5],
+  ['语义·警告 / 浅底', 'amber', 'amberBg', 4.5],
+  ['语义·危险 / 浅底', 'clay', 'clayBg', 4.5],
+  ['品牌底上的字', 'onAccent', 'brand', 4.5],
+];
+const SURFACES = [
+  ['卡片面 / 画布', 'surface', 'canvas', 1.05],
+  ['内嵌槽位 / 卡片面', 'inset', 'surface', 1.08],
+  ['细分隔线 / 画布', 'line', 'canvas', 1.15],
+  ['画布 / 页面底', 'canvas', 'paper', 1.02],
+];
+const toLin = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+const lum = hex => {
+  const h = hex.replace('#', '');
+  return 0.2126 * toLin(parseInt(h.slice(0, 2), 16))
+       + 0.7152 * toLin(parseInt(h.slice(2, 4), 16))
+       + 0.0722 * toLin(parseInt(h.slice(4, 6), 16));
+};
+const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const getVar = (el, name) => getComputedStyle(el).getPropertyValue('--' + name.replace(/[A-Z]/g, m => '-' + m.toLowerCase())).trim();
+
+document.querySelectorAll('.ctable').forEach(box => {
+  const rows = [...CHECKS.map(c => [...c, true]), ...SURFACES.map(c => [...c, false])];
+  let html = '<h5>对比度实测（硬指标）</h5><table>';
+  rows.forEach(([label, fg, bg, min, hard], i) => {
+    if (!hard && i && rows[i - 1][4]) html += '</table><h5>面层级</h5><table>';
+    const v = ratio(getVar(box, fg), getVar(box, bg));
+    html += `<tr><td>${label}</td><td class="v ${v >= min ? 'ok' : 'bad'}">${v.toFixed(2)} / ${min}</td></tr>`;
+  });
+  box.innerHTML = html + '</table>';
+});
+</script>
+</body>
+</html>

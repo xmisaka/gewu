@@ -200,14 +200,36 @@ test('三处功能都有门控文案，且都写明了「免费档没有被拿�
   }
 });
 
-test('★ 锁的恰好是那三套浅色，素笺不在其中', () => {
-  assert.deepEqual([...SUPPORTER_THEME_KEYS], ['dianqing', 'qingci', 'zhusha']);
-  assert.equal(isThemeLocked('sujian', false), false, '素笺必须永久免费');
+test('★ 锁的恰好是那三套会员色，免费三套都不在其中', () => {
+  assert.deepEqual([...SUPPORTER_THEME_KEYS], ['zhusha', 'ouhe', 'yanzhi']);
+
+  /* 免费档必须有**三套**浅色可用，这不是随手定的数字：
+     只给一套时，用户在「我到底能不能换个颜色」这件事上完全没有商量余地，
+     而换肤不该是付费墙的第一道。这条断言就是防止以后有人又把它收窄回去
+     （那也正是这一版在修的问题 —— 从「只有素笺免费」改回来）。 */
+  const freeKeys = LIGHT_THEME_KEYS.filter((key) => !SUPPORTER_THEME_KEYS.includes(key));
+  assert.deepEqual(freeKeys, ['sujian', 'dianqing', 'qingci'], '免费档应恰好是这三套');
 
   for (const key of SUPPORTER_THEME_KEYS) {
     assert.equal(isThemeLocked(key, false), true, `${key} 在免费档应被挡住`);
     assert.equal(isThemeLocked(key, true), false, `${key} 在支持者档应放行`);
   }
+  for (const key of freeKeys) {
+    assert.equal(isThemeLocked(key, false), false, `${key} 是免费的，不该被挡`);
+    assert.equal(isThemeLocked(key, true), false, `${key} 在支持者档当然也放行`);
+  }
+});
+
+test('★ 免费三套排在展示顺序的最前面 —— 选择器的分组靠它', () => {
+  /* 选择器里免费的不带标、会员的带「支持者」标。顺序一旦交叉，
+     界面就变成「隔一个锁一个」，用户得逐个去点数才知道哪些能用。
+     这条把「分界必须是一刀切开」钉住，不然改列表顺序时没人会想到这一层。 */
+  const lockedIndexes = SUPPORTER_THEME_KEYS.map((key) => LIGHT_THEME_KEYS.indexOf(key));
+  const lastFree = LIGHT_THEME_KEYS.findLastIndex((key) => !SUPPORTER_THEME_KEYS.includes(key));
+  assert.ok(
+    lastFree < Math.min(...lockedIndexes),
+    '免费套必须在会员套之前 —— 否则界面上会「隔一个锁一个」',
+  );
 });
 
 test('★★ 玄夜永远不被锁：它不是权益，是系统深色时的接管档', () => {
@@ -221,7 +243,11 @@ test('★★ 玄夜永远不被锁：它不是权益，是系统深色时的接�
 });
 
 test('门控表覆盖的键都在真实主题列表里（防手滑写错一个不存在的主题名）', () => {
-  assert.deepEqual(LIGHT_THEME_KEYS, ['sujian', 'dianqing', 'qingci', 'zhusha'], '浅色主题列表变了');
+  assert.deepEqual(
+    LIGHT_THEME_KEYS,
+    ['sujian', 'dianqing', 'qingci', 'zhusha', 'ouhe', 'yanzhi'],
+    '浅色主题列表变了',
+  );
 
   for (const key of SUPPORTER_THEME_KEYS) {
     assert.ok(

@@ -3,15 +3,17 @@
  *
  * 和排序 / 分类选择器同构：底部弹出的 Modal，不进路由。
  *
- * 只列四套浅色 —— 深色档（玄夜）不进这个列表。它不是「第五个选项」，
- * 而是系统深色时的自动接管，让用户手动选它等于要维护五套可选项。
+ * 只列六套浅色 —— 深色档（玄夜）不进这个列表。它不是「第七个选项」，
+ * 而是系统深色时的自动接管，让用户手动选它等于要多维护一套可选项。
  *
- * 免费档只保留「素笺」：另外三套带「支持者」标，点它不换肤、改为弹门控浮层。
- * 判断走 lib/entitlement 里那张唯一的表，这里不自己写规则。
+ * 免费档可用「素笺」「靛青」「青瓷」三套；朱砂、藕荷、胭脂带「支持者」标，
+ * 点它不换肤、改为弹门控浮层。列表顺序由 LIGHT_THEME_KEYS 决定 ——
+ * 免费三套在前、会员三套在后，于是「前三个没标、后三个有标」，
+ * 分界一眼可见。判断走 lib/entitlement 里那张唯一的表，这里不自己写规则。
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   GUTTER,
@@ -65,7 +67,9 @@ export function ThemePickerModal({
           </Pressable>
         </View>
 
-        <View style={styles.list}>
+        {/* 六套比原来长了一截：小屏或大字体下会顶到屏幕顶，
+            加一个滚动兜底。列表本身不滚动时观感与原来一致 */}
+        <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
           {LIGHT_THEME_KEYS.map((key, index) => (
             <View key={key}>
               {index > 0 ? <Divider /> : null}
@@ -77,7 +81,7 @@ export function ThemePickerModal({
               />
             </View>
           ))}
-        </View>
+        </ScrollView>
 
         <View style={styles.foot}>
           {/* 被挡下的是「用户自己挑过的那一套」时，必须解释一句 ——
@@ -90,7 +94,7 @@ export function ThemePickerModal({
           ) : (
             <Meta tone="ink3">
               {systemDark
-                ? '系统当前是深色模式，界面正用「玄夜」，上面四套暂时看不到效果；关掉系统深色即可。这个选择已经记住了。'
+                ? '系统当前是深色模式，界面正用「玄夜」，上面六套暂时看不到效果；关掉系统深色即可。这个选择已经记住了。'
                 : '深色档跟随系统：系统切到深色时界面自动换成「玄夜」，这里的浅色选择会留着 —— 白天切回来还是这套。'}
             </Meta>
           )}
@@ -166,7 +170,10 @@ const useStyles = makeStyles((Palette) => ({
     paddingTop: Space.lg,
     paddingBottom: Space.md,
   },
-  list: { paddingHorizontal: GUTTER },
+  /* 六套之后列表长了一截：给个上限让它必要时可滚，
+     否则小屏或大字体下会把下面的脚注与关闭按钮顶出屏幕 */
+  list: { paddingHorizontal: GUTTER, maxHeight: '62%' },
+  listContent: { paddingBottom: Space.xs },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
