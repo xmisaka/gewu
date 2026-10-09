@@ -11,11 +11,12 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 
 import { GUTTER, Palette, Radius, Space, Type } from '@/constants/theme';
 import { currentApiKey, hasApiKey, saveApiKey, searchCovers } from '@/lib/photos/stock';
 import { Button } from '../ui/controls';
+import { SheetModal } from '../ui/sheet-modal';
 import { Body, Heading, Label, Meta } from '../ui/typography';
 import { makeStyles } from '@/lib/theme';
 
@@ -84,107 +85,103 @@ export function StockKeyModal({ visible, onClose, onSaved }: StockKeyModalProps)
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
-        <View style={styles.handle} />
-        <View style={styles.head}>
-          <Heading>封面图源</Heading>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="关闭"
-            onPress={onClose}
-            hitSlop={10}>
-            <Ionicons name="close" size={20} color={Palette.ink3} />
-          </Pressable>
-        </View>
-
-        <View style={styles.body}>
-          <Body tone="ink2" style={styles.desc}>
-            自动找封面用的是 Pexels 免费图库，需要一个 API Key。
-            到 pexels.com/api 注册后复制过来即可，免费额度足够自用。
-          </Body>
-
-          <Label tone="ink3" style={styles.fieldLabel}>
-            API Key
-          </Label>
-          <View style={styles.input}>
-            <TextInput
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="粘贴 Pexels 的 API Key"
-              placeholderTextColor={Palette.ink4}
-              style={styles.inputField}
-              autoCapitalize="none"
-              autoCorrect={false}
-              allowFontScaling={false}
-              secureTextEntry={false}
-            />
-            {draft.length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="清空"
-                hitSlop={8}
-                onPress={() => setDraft('')}>
-                <Ionicons name="close-circle" size={16} color={Palette.ink4} />
-              </Pressable>
-            ) : null}
-          </View>
-
-          {draft && draft === currentApiKey() ? (
-            <Meta tone="ink4" style={styles.current}>
-              当前生效：{mask(draft)}
-            </Meta>
-          ) : null}
-
-          {/* 留空 ≠ 关闭功能：清掉这里只会回退到内置的默认 Key。
-              不写清楚的话，用户以为关掉了，实际还在用，是种误导 */}
-          {!draft.trim() ? (
-            <Meta tone="ink4" style={styles.current}>
-              留空会回退到应用内置的默认 Key
-            </Meta>
-          ) : null}
-
-          {message ? (
-            <View style={styles.message}>
-              <Ionicons
-                name={message.tone === 'ok' ? 'checkmark-circle' : 'alert-circle'}
-                size={14}
-                color={message.tone === 'ok' ? Palette.sage : Palette.clay}
-              />
-              <Meta
-                color={message.tone === 'ok' ? Palette.sage : Palette.clay}
-                style={styles.messageText}>
-                {message.text}
-              </Meta>
-            </View>
-          ) : null}
-
-          <Meta tone="ink4" style={styles.warn}>
-            Key 会存在本机数据库里，不会上传到任何地方。只在点「找封面」时联网。
-          </Meta>
-        </View>
-
-        <View style={styles.foot}>
-          <Button
-            label={checking ? '测试中…' : '测试连接'}
-            tone="secondary"
-            block={false}
-            icon="pulse-outline"
-            onPress={() => void test()}
-            disabled={saving || checking || !draft.trim()}
-            loading={checking}
-          />
-          <Button
-            label="保存"
-            block={false}
-            onPress={() => void save()}
-            disabled={checking}
-            loading={saving}
-          />
-        </View>
+    <SheetModal visible={visible} onClose={onClose}>
+      <View style={styles.head}>
+        <Heading>封面图源</Heading>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="关闭"
+          onPress={onClose}
+          hitSlop={10}>
+          <Ionicons name="close" size={20} color={Palette.ink3} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <View style={styles.body}>
+        <Body tone="ink2" style={styles.desc}>
+          自动找封面用的是 Pexels 免费图库，需要一个 API Key。
+          到 pexels.com/api 注册后复制过来即可，免费额度足够自用。
+        </Body>
+
+        <Label tone="ink3" style={styles.fieldLabel}>
+          API Key
+        </Label>
+        <View style={styles.input}>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            placeholder="粘贴 Pexels 的 API Key"
+            placeholderTextColor={Palette.ink4}
+            style={styles.inputField}
+            autoCapitalize="none"
+            autoCorrect={false}
+            allowFontScaling={false}
+            secureTextEntry={false}
+          />
+          {draft.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="清空"
+              hitSlop={8}
+              onPress={() => setDraft('')}>
+              <Ionicons name="close-circle" size={16} color={Palette.ink4} />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {draft && draft === currentApiKey() ? (
+          <Meta tone="ink4" style={styles.current}>
+            当前生效：{mask(draft)}
+          </Meta>
+        ) : null}
+
+        {/* 留空 ≠ 关闭功能：清掉这里只会回退到内置的默认 Key。
+            不写清楚的话，用户以为关掉了，实际还在用，是种误导 */}
+        {!draft.trim() ? (
+          <Meta tone="ink4" style={styles.current}>
+            留空会回退到应用内置的默认 Key
+          </Meta>
+        ) : null}
+
+        {message ? (
+          <View style={styles.message}>
+            <Ionicons
+              name={message.tone === 'ok' ? 'checkmark-circle' : 'alert-circle'}
+              size={14}
+              color={message.tone === 'ok' ? Palette.sage : Palette.clay}
+            />
+            <Meta
+              color={message.tone === 'ok' ? Palette.sage : Palette.clay}
+              style={styles.messageText}>
+              {message.text}
+            </Meta>
+          </View>
+        ) : null}
+
+        <Meta tone="ink4" style={styles.warn}>
+          Key 会存在本机数据库里，不会上传到任何地方。只在点「找封面」时联网。
+        </Meta>
+      </View>
+
+      <View style={styles.foot}>
+        <Button
+          label={checking ? '测试中…' : '测试连接'}
+          tone="secondary"
+          block={false}
+          icon="pulse-outline"
+          onPress={() => void test()}
+          disabled={saving || checking || !draft.trim()}
+          loading={checking}
+        />
+        <Button
+          label="保存"
+          block={false}
+          onPress={() => void save()}
+          disabled={checking}
+          loading={saving}
+        />
+      </View>
+    </SheetModal>
   );
 }
 
@@ -194,22 +191,8 @@ export function stockKeyStatus(): string {
   return `已配置 ${mask(currentApiKey())}`;
 }
 
+/* 弹层的背板 / 圆角 / 把手现在由 SheetModal 统一提供，这里只管内容 */
 const useStyles = makeStyles((Palette) => ({
-  backdrop: { flex: 1, backgroundColor: Palette.scrim },
-  sheet: {
-    backgroundColor: Palette.surface,
-    borderTopLeftRadius: Radius.sheet,
-    borderTopRightRadius: Radius.sheet,
-    paddingBottom: Space.xxl,
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Palette.line,
-    alignSelf: 'center',
-    marginTop: Space.sm,
-  },
   head: {
     flexDirection: 'row',
     alignItems: 'center',

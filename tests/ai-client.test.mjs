@@ -18,7 +18,8 @@ import assert from 'node:assert/strict';
 process.env.EXPO_PUBLIC_ZHIPU_API_KEY = 'test-key';
 
 const { askText, askVision, AiError, describeAiError } = await import('../src/lib/ai/client.ts');
-const { AI_TIMEOUT_MS, AI_VISION_TIMEOUT_MS, AI_ENDPOINT, AI_CHAT_MODEL, AI_VISION_MODEL } =
+const { saveAiKey, saveAiProvider, saveCustomEndpoint } = await import('../src/lib/ai/config.ts');
+const { AI_TIMEOUT_MS, AI_VISION_TIMEOUT_MS, AI_ENDPOINT, AI_CHAT_MODEL, AI_VISION_MODEL, DEFAULT_PROVIDER_KEY } =
   await import('../src/lib/ai/config.ts');
 
 const realFetch = globalThis.fetch;
@@ -148,6 +149,46 @@ test('其它非 2xx 带上状态码，但不泄露服务端原文', async () => 
     assert.doesNotMatch(err.message, /\{"error"/);
     return true;
   });
+});
+
+test('★ 问答模型名为空时，拦在本地，别把请求发出去换个 400 回来', async () => {
+  /* 这是真机上撞到的：自定义端点填了地址与 Key、但还没填模型名，
+     用户按「测试连接」→ 服务端回 400 → 界面显示「异常状态（400）」，
+     完全看不出是自己少填了一步。
+     现在 askText 自己拦住，并给一句能照着做的话。 */
+  const calls = stubFetch(async () => Response.json({ choices: [{ message: { content: 'ok' } }] }));
+
+  await saveAiProvider('custom');
+  try {
+    await saveCustomEndpoint({ endpoint: 'https://example.com/v1/chat/completions', chat: '' });
+    await assert.rejects(askText('s', 'u'), (err) => {
+      assert.equal(err.kind, 'no-key');
+      assert.match(err.message, /模型名/);
+      return true;
+    });
+    assert.equal(calls.length, 0, '不该发出任何请求 —— 这一条断言才是这条用例的重点');
+  } finally {
+    await saveCustomEndpoint({ endpoint: '', vision: '', chat: '' });
+    await saveAiProvider(DEFAULT_PROVIDER_KEY);
+  }
+});
+
+test('补上模型名之后同一个调用就能发出去（拦的是「缺」，不是「自定义」）', async () => {
+  const calls = stubFetch(async () => Response.json({ choices: [{ message: { content: '看清楚了' } }] }));
+
+  await saveAiProvider('custom');
+  try {
+    /* 自定义这家的 Key 是按供应商分槽存的，得先给它填一个，
+       否则会停在「还没配置 API Key」那一关，测不到模型名这条 */
+    await saveAiKey('sk-custom-for-test');
+    await saveCustomEndpoint({ endpoint: 'https://example.com/v1/chat/completions', chat: 'my-model' });
+    assert.equal(await askText('s', 'u'), '看清楚了');
+    assert.equal(calls.length, 1);
+    assert.equal(JSON.parse(calls[0].init.body).model, 'my-model');
+  } finally {
+    await saveCustomEndpoint({ endpoint: '', vision: '', chat: '' });
+    await saveAiProvider(DEFAULT_PROVIDER_KEY);
+  }
 });
 
 test('fetch 直接抛（断网 / DNS 失败）→ network，而不是 timeout', async () => {

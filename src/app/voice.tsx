@@ -15,6 +15,23 @@
  * 3. **解析可以不准，界面必须诚实**。没听懂的行写「未识别」并留出改的入口，
  *    不拿一个猜出来的值冒充听懂了 —— 猜错的东西用户不一定发现，
  *    而「未识别」他一定会看见。
+ *
+ * ── 2026-10-09：把「转写文字」变成第一等公民 ────────────────────
+ *
+ * 原来的流程是**一条道走到黑**：语音 → 本地规则 → 三行，中间那句转写只用来读，
+ * 用户看着「橱柜二」被听成「橱柜二二」也只能重说整句。
+ * 而「重说」代价很高 —— 要重走一遍系统识别框，还不一定比上次准。
+ *
+ * 现在改成：
+ *   语音 → **可编辑的转写** → 本地规则先给初值 → 有 AI 就**自动**再读一遍 →
+ *   三行；改完文字按「重新识别」重跑，不必重录。
+ *
+ * 两处刻意的取舍：
+ *   - **本地规则先跑**，不让模型等在前面。它是纯函数、零延迟、不联网，
+ *     用户从系统识别框回来那一瞬间就该看到东西；模型那一步是「再来一轮更好」。
+ *   - **自动跑模型，但只补空着的行**。用户没点按钮却看到字段自己变了，
+ *     会怀疑「我刚填的怎么没了」—— 已有的值一律不动。
+ *     想按新文字重算，就按「重新识别」：那是用户明确要求的，允许覆盖。
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -38,7 +55,7 @@ import { PlainTag } from '@/components/ui/feedback';
 import { Button, IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, ScreenScroll } from '@/components/ui/layout';
 import { Body, Meta, Title } from '@/components/ui/typography';
-import { GUTTER, Palette, Space } from '@/constants/theme';
+import { GUTTER, Palette, Space, Type } from '@/constants/theme';
 import { ASR_AVAILABLE, asrMessage, listenOnce } from '@/lib/ai/asr';
 import { askText, describeAiError } from '@/lib/ai/client';
 import { buildVoicePrompt, parseExtract } from '@/lib/ai/extract';
@@ -122,6 +139,109 @@ export default function VoiceScreen() {
     return parent ? `${parent.name} · ${loc.name}` : loc.name;
   }, [locationId, locationState.data]);
 
+  /**
+   * 用户手动改过某一行 → 摘掉那一行的「AI」标。
+   * 与录入表单的 clearAi 是同一条理由：一个永远挂着的标会失去意义。
+   */
+  const clearAi = useCallback((key: AiField) => {
+    setAiFilled((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
+  /**
+   * 从一段文字里把三行抽出来。
+   *
+   * 分两步，顺序是刻意的：
+   *   ① **本地规则**（纯函数、零延迟、不联网）—— 立即给出一版结果，
+   *      用户从系统识别框回来就该看到东西，不该对着空白等网络。
+   *   ② **模型**（可选，只在支持者档且开关开着时）—— 只补本地没填上的行。
+   *
+   * `overwrite` 决定第 ① 步要不要覆盖已经显示的值：
+   *   - 自动那一轮传 false —— 用户可能刚手改过，不能被悄悄改回去；
+   *   - 用户按「重新识别」传 true —— 那是他明确要求的重算。
+   */
+  const runParse = useCallback(
+    async (text: string, opts: { overwrite: boolean; announce: boolean }) => {
+      const parsed = parseVoiceInput(text, {
+        locations: toLocationHints(locationState.data),
+        today: today(),
+      });
+
+      /* 本轮本地规则给出的值；下一段要用它判断「哪些还是空的」 */
+      let nextName = parsed.name;
+      let nextExpire = parsed.expireDate;
+      const nextAuto: AutoFilled = {
+        name: parsed.name.length > 0,
+        location: parsed.locationId != null,
+        expire: parsed.expireDate != null,
+      };
+
+      setAuto(nextAuto);
+      // 重新解析等于换了答案，上一轮的「AI」标不能再挂着
+      setAiFilled(new Set());
+
+      if (opts.overwrite) {
+        setName(parsed.name);
+        setLocationId(parsed.locationId);
+        setExpireDate(parsed.expireDate);
+      } else {
+        /* 不覆盖：只在原来空着的位置补上 —— 位置同理 */
+        setName((prev) => (prev.trim() ? prev : parsed.name));
+        setLocationId((prev) => prev ?? parsed.locationId);
+        setExpireDate((prev) => prev ?? parsed.expireDate);
+        nextName = name.trim() || parsed.name;
+        nextExpire = expireDate ?? parsed.expireDate;
+      }
+
+      if (!entitled || !aiActive) return;
+
+      /* ---- 第 ② 步：模型 ---- */
+      setFilling(true);
+      try {
+        const raw = await askText(buildVoicePrompt(categoryState.data.map((c) => c.name)), text);
+        record('chat');
+        const extracted = parseExtract(raw, {
+          today: today(),
+          categories: categoryState.data.map((c) => c.name),
+        });
+
+        const gained: AiField[] = [];
+        if (!nextName.trim() && extracted?.fields.name) {
+          setName(extracted.fields.name);
+          gained.push('name');
+        }
+        if (!nextExpire && extracted?.fields.expireDate) {
+          setExpireDate(extracted.fields.expireDate);
+          gained.push('expire');
+        }
+        if (gained.length > 0) setAiFilled((prev) => new Set([...prev, ...gained]));
+      } catch (err) {
+        /* ★ 两种情形的处理**必须分开**：
+           - 自动那一轮静默：用户没按任何按钮，弹一句「AI 失败了」只会让他
+             以为整个语音录入坏了 —— 而本机规则的结果此刻已经在屏幕上。
+           - 用户手按「重新识别」时要说一声：那是他主动发起的，
+             什么都不发生等于「按了没反应」，与录入页那条教训同源。 */
+        if (opts.announce) setNotice(describeAiError(err));
+      } finally {
+        setFilling(false);
+      }
+    },
+    [
+      locationState.data,
+      categoryState.data,
+      entitled,
+      aiActive,
+      record,
+      name,
+      expireDate,
+      setAuto,
+    ],
+  );
+
   const startListen = useCallback(async () => {
     if (busy.current) return;
     busy.current = true;
@@ -138,83 +258,32 @@ export default function VoiceScreen() {
         return;
       }
 
-      const parsed = parseVoiceInput(outcome.text, {
-        locations: toLocationHints(locationState.data),
-        today: today(),
-      });
-
       setTranscript(outcome.text);
-      setName(parsed.name);
-      setLocationId(parsed.locationId);
-      setExpireDate(parsed.expireDate);
-      setAuto({
-        name: parsed.name.length > 0,
-        location: parsed.locationId != null,
-        expire: parsed.expireDate != null,
-      });
-      // 重说一遍等于换了个答案，上一轮模型补的东西不能再挂着
-      setAiFilled(new Set());
       setPhase('result');
+      /* 这一次是全新的文字，允许覆盖 */
+      await runParse(outcome.text, { overwrite: true, announce: false });
     } finally {
       busy.current = false;
     }
-  }, [locationState.data, transcript]);
-
-  /* ---------------------------------------------------------- AI 补全 */
+  }, [runParse, transcript]);
 
   /**
-   * 用户手动改过某一行 → 摘掉那一行的「AI」标。
-   * 与录入表单的 clearAi 是同一条理由：一个永远挂着的标会失去意义。
-   */
-  const clearAi = useCallback((key: AiField) => {
-    setAiFilled((prev) => {
-      if (!prev.has(key)) return prev;
-      const next = new Set(prev);
-      next.delete(key);
-      return next;
-    });
-  }, []);
-
-  /**
-   * 把录音转写交给模型再读一遍，补上本地规则没听出来的字段。
+   * 用户改完转写文字后按的「重新识别」。
    *
-   * ★ 只补**空着的**行，绝不覆盖已有值：
-   *   规则听得出来的那些已经在界面上了，而另外两个来源都可能出错 ——
-   *   让后来的那个把先前的改写掉，用户会觉得自己看到的东西在随机变。
-   * ★ 位置不参与：模型不知道用户的柜子叫什么，补出来的必然是编的。
-   * ★ 补上的行挂「AI」标而不是「待确认」，两者把握程度不同，必须分得开。
+   * 与自动那一轮的差别只有一处：**允许覆盖**。
+   * 他既然改了文字又点了这个按钮，就是想按新文字重算一遍 ——
+   * 这时候还守着「只补空行」，他会觉得按钮没反应。
    */
-  const aiFill = useCallback(async () => {
-    if (filling) return;
-    setFilling(true);
+  const reparse = useCallback(async () => {
+    if (busy.current || !transcript.trim()) return;
+    busy.current = true;
     setNotice(null);
     try {
-      const raw = await askText(buildVoicePrompt(categoryState.data.map((c) => c.name)), transcript);
-      record('chat');
-      const parsed = parseExtract(raw, { today: today(), categories: categoryState.data.map((c) => c.name) });
-
-      const gained: AiField[] = [];
-      if (!name.trim() && parsed?.fields.name) {
-        setName(parsed.fields.name);
-        gained.push('name');
-      }
-      if (!expireDate && parsed?.fields.expireDate) {
-        setExpireDate(parsed.fields.expireDate);
-        gained.push('expire');
-      }
-
-      if (gained.length === 0) {
-        setNotice('AI 也没能补出新的内容，手动填一下就行');
-        return;
-      }
-      setAiFilled((prev) => new Set([...prev, ...gained]));
-    } catch (err) {
-      // 这里是用户主动点的按钮，失败了要说一声；静默会让人以为按了没反应
-      setNotice(describeAiError(err));
+      await runParse(transcript, { overwrite: true, announce: true });
     } finally {
-      setFilling(false);
+      busy.current = false;
     }
-  }, [filling, transcript, categoryState.data, name, expireDate, record]);
+  }, [runParse, transcript]);
 
   const save = useCallback(async () => {
     const trimmed = name.trim();
@@ -255,11 +324,13 @@ export default function VoiceScreen() {
 
   const showResult = phase === 'result' && transcript.length > 0;
 
-  /* 「让 AI 读一遍」只在两个条件下出现：
-     ① 这一档能用 AI（免费档的语音是完整的，只是没有这一步 —— 不做灰按钮，
-        语音本身不该因为 AI 而被加门槛）；
-     ② 确实还有没听出来的行 —— 三行都填上了就没有可补的，多一个按钮只是噪音。 */
-  const canAiFill = entitled && aiActive && (!name.trim() || !expireDate);
+  /* 这一档能不能让模型参与。免费档的语音是完整的（本机规则照常跑），
+     只是没有「模型再读一遍」这一步 —— 不做灰按钮，语音不该因为 AI 被加门槛。 */
+  const aiOn = entitled && aiActive;
+
+  /* 模型正在读。要显示出来 —— 否则用户看不出「到底走没走大模型」，
+     而这正是上一版被抱怨的地方。 */
+  const aiBusy = aiOn && filling;
 
   return (
     <Screen>
@@ -276,9 +347,29 @@ export default function VoiceScreen() {
               <Card>
                 <View style={styles.saidHead}>
                   <Ionicons name="mic" size={13} color={tokens.ink4} />
-                  <Meta tone="ink4">听到的是</Meta>
+                  <Meta tone="ink4">听到的是（可以直接改）</Meta>
                 </View>
-                <Body style={styles.said}>{transcript}</Body>
+                {/* ★ 转写变成可编辑 —— 听错一个字不必重说整句。
+                    「重说」要重走一遍系统识别框，还不一定比上次准。 */}
+                <TextInput
+                  value={transcript}
+                  onChangeText={setTranscript}
+                  multiline
+                  style={[styles.saidInput, { color: tokens.ink }]}
+                  placeholder="识别到的文字"
+                  placeholderTextColor={tokens.ink4}
+                  selectionColor={tokens.brand}
+                  accessibilityLabel="语音识别到的文字"
+                />
+                <Button
+                  label={aiBusy ? '正在让 AI 读…' : '按这段文字重新识别'}
+                  icon={aiOn ? 'sparkles-outline' : 'refresh-outline'}
+                  tone="secondary"
+                  style={styles.reparse}
+                  onPress={() => void reparse()}
+                  loading={aiBusy}
+                  disabled={saving || !transcript.trim()}
+                />
               </Card>
 
               <Card padded={false} style={styles.fields}>
@@ -311,16 +402,14 @@ export default function VoiceScreen() {
                 </FieldRow>
               </Card>
 
-              {canAiFill ? (
-                <Button
-                  label={filling ? '正在让 AI 读…' : '让 AI 读一遍，补齐没听出来的'}
-                  icon="sparkles-outline"
-                  tone="secondary"
-                  style={styles.aiFill}
-                  onPress={() => void aiFill()}
-                  loading={filling}
-                  disabled={saving}
-                />
+              {/* 模型参与时明说一句 —— 用户抱怨过「好像没走大模型」，
+                  而它其实一直在跑，只是没有任何痕迹 */}
+              {aiOn ? (
+                <Meta tone="ink4" style={styles.aiNote}>
+                  {aiBusy
+                    ? 'AI 正在按这句话补齐没听出来的字段…'
+                    : '已让 AI 读过一遍，它只补空着的行 —— 你填过的不会被改掉。'}
+                </Meta>
               ) : null}
 
               {notice ? (
@@ -548,12 +637,19 @@ const useStyles = makeStyles((Palette) => ({
 
   /* 结果态 */
   saidHead: { flexDirection: 'row', alignItems: 'center', gap: Space.xs, marginBottom: Space.xs },
-  said: { lineHeight: 23 },
+  /* 可编辑的转写。用输入框而不是文本 —— 听错一个字不该逼用户重说整句。
+     padding 归零是为了让它看起来仍像正文，不像一个突兀的表单框。 */
+  saidInput: {
+    padding: 0,
+    lineHeight: 23,
+    ...(Type.body as object),
+    minHeight: 46,
+    textAlignVertical: 'top',
+  },
+  reparse: { marginTop: Space.md },
 
   fields: { marginTop: Space.md },
-  /* AI 补全按钮与三行字段拉开一点：它是「对这份结果再加工一次」，
-     不该看起来像是字段卡的一部分 */
-  aiFill: { marginTop: Space.md },
+  aiNote: { marginTop: Space.sm, lineHeight: 19 },
   resultNotice: { marginTop: Space.sm, lineHeight: 19 },
   row: {
     flexDirection: 'row',

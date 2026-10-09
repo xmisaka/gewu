@@ -150,8 +150,14 @@ async function chat(
   return text;
 }
 
-/** 识图：把一段提示词和一张压缩副本发过去 */
-export function askVision(userPrompt: string, imageBase64: string): Promise<string> {
+/**
+ * 识图：把一段提示词和一张压缩副本发过去。
+ *
+ * ★ 声明成 `async` 而不是「返回 Promise」，是为了让**参数校验失败也走 reject**。
+ *   普通函数里 `throw` 是同步的，调用方写 `askVision(...).catch(...)` 会直接崩，
+ *   而不是进 catch —— 同一个函数里两种失败走两条路径，迟早有人踩。
+ */
+export async function askVision(userPrompt: string, imageBase64: string): Promise<string> {
   const model = visionModelName();
   /*
    * 这家看不了图（比如 DeepSeek 的纯文本模型）。
@@ -176,8 +182,21 @@ export function askVision(userPrompt: string, imageBase64: string): Promise<stri
 }
 
 /** 文本问答 */
-export function askText(system: string, user: string): Promise<string> {
-  return chat(chatModelName(), [
+export async function askText(system: string, user: string): Promise<string> {
+  const model = chatModelName();
+  /*
+   * ★ 模型名为空时**不要**把请求发出去。
+   *
+   * 原来自定义端点没填模型名就会走到这里，body 里的 `model` 是空串，
+   * 服务端回一个 400，界面上显示「模型服务返回了异常状态（400）」——
+   * 用户完全看不出是自己少了哪一步。
+   * 拦在这里，换一句能照着做的话。
+   */
+  if (!model) {
+    throw new AiError('还没填问答模型名，到「我的 → AI 助手 → 模型」填上再试', 'no-key');
+  }
+
+  return chat(model, [
     { role: 'system', content: system },
     { role: 'user', content: user },
   ]);

@@ -245,12 +245,29 @@ test('★ 供应商表的三条不变量：标识唯一、端点合法、模型�
   }
 });
 
-test('★ DeepSeek 必须标成「看不了图」—— 它的 V4 是纯文本模型', () => {
-  /* 这一条是整张表里最容易搞错、后果也最直接的一格：
-     填了模型名，用户一选它，识物就会在点下去的瞬间坏掉，
-     而报的是模型侧的错，完全看不出是「这家本来就不支持」。 */
+test('★ DeepSeek 现在有视觉模型 —— 别再按「它看不了图」写死', () => {
+  /* 这一格的结论变过一次，而且**两次都是靠查官方文档才对的**：
+     2026-08 之前它确实只有纯文本模型；后来官方上了 V4.1-Flash 并给了视觉能力
+     （官方功能表里 Vision 一栏是 ✓），同时 deepseek-v4-pro 仍是 Not supported。
+     这条守的是「别再退回 null」—— 退回去界面会显示「这家看不了图」，
+     而用户没有任何线索能看出那只是配置过期了。 */
   const deepseek = findProvider('deepseek');
-  assert.equal(deepseek.visionModel, null, 'DeepSeek 没有可用的视觉模型，别填名字');
+  assert.ok(deepseek.visionModel, 'DeepSeek 的视觉模型不该是空的');
+  assert.equal(deepseek.visionModel, 'deepseek-flash');
+});
+
+test('★★ 供应商表里不许出现「已下线」的模型名', () => {
+  /* deepseek-chat / deepseek-reasoner 在 2026-07-24 被官方**直接下线**，
+     请求当场失败（不是废弃警告）。把这种名字写进表里，用户一选就报错，
+     而报的是模型侧的错 —— 完全看不出是表里写错了。
+     这条是那次教训的固化。 */
+  const DEAD = ['deepseek-chat', 'deepseek-reasoner'];
+  for (const p of AI_PROVIDERS) {
+    for (const name of [p.visionModel, p.chatModel]) {
+      if (!name) continue;
+      assert.ok(!DEAD.includes(name), `${p.key} 用了已下线的模型名 ${name}`);
+    }
+  }
 });
 
 test('至少有一家支持识图，否则识物功能形同不存在', () => {
@@ -286,9 +303,9 @@ test('切到 DeepSeek：端点跟着换，且识图模型名变成空串', async
   try {
     assert.equal(activeProviderKey(), 'deepseek');
     assert.equal(endpointUrl(), 'https://api.deepseek.com/chat/completions');
-    assert.equal(chatModelName(), 'deepseek-v4-flash');
-    assert.equal(visionModelName(), '', '看不了图时必须给空串，界面靠它决定藏不藏识物入口');
-    assert.equal(providerSupportsVision(), false);
+    assert.equal(chatModelName(), 'deepseek-flash');
+    assert.equal(visionModelName(), 'deepseek-flash', '这家现在有视觉模型了');
+    assert.equal(providerSupportsVision(), true);
   } finally {
     await saveAiProvider(DEFAULT_PROVIDER_KEY);
   }
@@ -344,7 +361,7 @@ test('★ 任何一家都能改模型名 —— 不只「自定义」那家', as
      用户只能干等 App 更新。 */
   await saveAiProvider('deepseek');
   try {
-    assert.equal(chatModelName(), 'deepseek-v4-flash', '没改之前用预置值');
+    assert.equal(chatModelName(), 'deepseek-flash', '没改之前用预置值');
     assert.equal(hasModelOverride('chat'), false);
 
     await saveAiModel('chat', 'deepseek-v5-flash');
@@ -366,23 +383,22 @@ test('清空模型名＝回到这家预置的默认值（不是变成空）', as
   assert.equal(hasModelOverride('chat'), false);
 });
 
-test('★ 给看不了图的那家填上识图模型名，识物能力就该打开', async () => {
-  /* DeepSeek 预置 visionModel = null（纯文本）。用户如果确实拿到了
-     一个能看图的名字，填进来之后 providerSupportsVision 必须跟着变真 ——
-     否则界面会把识物入口一直藏着，而用户以为自己填对了。 */
+test('★ 清空识图模型名＝回到预置值，而不是让识物消失', async () => {
+  /* 反向也要守。用户把输入框清空保存（预置值会填回来），
+     能力不能被误关掉 —— 关了界面就会把识物入口藏起来，
+     而用户以为自己只是「恢复默认」。 */
   await saveAiProvider('deepseek');
   try {
-    assert.equal(providerSupportsVision(), false, '预置是看不了图的');
-    assert.equal(visionModelName(), '');
+    assert.equal(providerSupportsVision(), true, 'DeepSeek 预置就是能识图的');
 
-    await saveAiModel('vision', 'some-vision-model');
-    assert.equal(visionModelName(), 'some-vision-model');
-    assert.equal(providerSupportsVision(), true, '填了名字就该能识物');
+    await saveAiModel('vision', '');
+    assert.equal(modelOverride('deepseek', 'vision'), '', '覆盖槽位该被清掉');
+    assert.equal(visionModelName(), 'deepseek-flash', '清空＝回预置值');
+    assert.equal(providerSupportsVision(), true, '能力不受影响');
   } finally {
     await saveAiModel('vision', '');
     await saveAiProvider(DEFAULT_PROVIDER_KEY);
   }
-  assert.equal(providerSupportsVision(), true, '回到智谱，预置就支持识图');
 });
 
 test('覆盖值是「每家各一份」的，不会互相串', async () => {

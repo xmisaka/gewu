@@ -24,7 +24,6 @@ import {
 } from 'react';
 
 import {
-  activeProvider,
   activeProviderKey,
   bumpUsage,
   chatModelName,

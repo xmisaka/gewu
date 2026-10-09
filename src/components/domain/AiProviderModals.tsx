@@ -20,14 +20,15 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import { GUTTER, Palette, Radius, Space, Type } from '@/constants/theme';
 import { AI_PROVIDERS, type AiProviderDef } from '@/lib/ai/config';
 import { useAi } from '@/lib/store/ai';
 import { makeStyles } from '@/lib/theme';
 import { Button } from '../ui/controls';
-import { Body, Heading, Label, Meta } from '../ui/typography';
+import { SheetModal } from '../ui/sheet-modal';
+import { Heading, Label, Meta } from '../ui/typography';
 
 /* ============================================================ ① 选供应商 */
 
@@ -65,50 +66,46 @@ export function AiProviderModal({ visible, onClose }: AiProviderModalProps) {
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
-        <View style={styles.handle} />
-        <View style={styles.head}>
-          <Heading>选模型供应商</Heading>
-          <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} hitSlop={10}>
-            <Ionicons name="close" size={20} color={Palette.ink3} />
-          </Pressable>
-        </View>
-
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
-          {AI_PROVIDERS.map((p) => {
-            const active = p.key === current.key;
-            const canSee = p.visionModel !== null;
-            return (
-              <Pressable
-                key={p.key}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                disabled={pending}
-                onPress={() => void pick(p)}
-                android_ripple={{ color: Palette.ripple }}
-                style={[styles.option, active && styles.optionActive]}>
-                <View style={styles.optionHead}>
-                  <Label tone={active ? 'brand' : 'ink'}>{p.name}</Label>
-                  {active ? <Ionicons name="checkmark-circle" size={16} color={Palette.brand} /> : null}
-                </View>
-                <Meta tone="ink4" style={styles.optionNote}>
-                  {p.signupNote}
-                </Meta>
-                <Meta tone={canSee ? 'ink4' : 'clay'} style={styles.optionNote}>
-                  {canSee ? '配置后可识图' : '看不了图 · 识物用不了'}
-                </Meta>
-              </Pressable>
-            );
-          })}
-
-          <Meta tone="ink4" style={styles.footNote}>
-            换供应商后要重新填一次它的 API Key —— 各家的 Key 不通用。已经填过的会各自留着，换回来不用再填。
-          </Meta>
-        </ScrollView>
+    <SheetModal visible={visible} onClose={onClose}>
+      <View style={styles.head}>
+        <Heading>选模型供应商</Heading>
+        <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} hitSlop={10}>
+          <Ionicons name="close" size={20} color={Palette.ink3} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
+        {AI_PROVIDERS.map((p) => {
+          const active = p.key === current.key;
+          const canSee = p.visionModel !== null;
+          return (
+            <Pressable
+              key={p.key}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              disabled={pending}
+              onPress={() => void pick(p)}
+              android_ripple={{ color: Palette.ripple }}
+              style={[styles.option, active && styles.optionActive]}>
+              <View style={styles.optionHead}>
+                <Label tone={active ? 'brand' : 'ink'}>{p.name}</Label>
+                {active ? <Ionicons name="checkmark-circle" size={16} color={Palette.brand} /> : null}
+              </View>
+              <Meta tone="ink4" style={styles.optionNote}>
+                {p.signupNote}
+              </Meta>
+              <Meta tone={canSee ? 'ink4' : 'clay'} style={styles.optionNote}>
+                {canSee ? '配置后可识图' : '看不了图 · 识物用不了'}
+              </Meta>
+            </Pressable>
+          );
+        })}
+
+        <Meta tone="ink4" style={styles.footNote}>
+          换供应商后要重新填一次它的 API Key —— 各家的 Key 不通用。已经填过的会各自留着，换回来不用再填。
+        </Meta>
+      </ScrollView>
+    </SheetModal>
   );
 }
 
@@ -147,46 +144,42 @@ export function AiEndpointModal({ visible, onClose }: AiEndpointModalProps) {
   const looksWrong = trimmed.length > 0 && !trimmed.startsWith('https://');
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
-        <View style={styles.handle} />
-        <View style={styles.head}>
-          <Heading>自定义端点</Heading>
-          <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} hitSlop={10}>
-            <Ionicons name="close" size={20} color={Palette.ink3} />
-          </Pressable>
-        </View>
-
-        <View style={styles.body}>
-          <Field
-            label="接口地址"
-            value={draft}
-            onChange={setDraft}
-            placeholder="https://…/v1/chat/completions"
-            hint="要一路填到 /chat/completions —— 各家拼法不同，少填一段会得到一个看不懂的报错。"
-          />
-
-          {looksWrong ? (
-            <View style={styles.warn}>
-              <Ionicons name="alert-circle" size={14} color={Palette.clay} />
-              <Meta color={Palette.clay} style={styles.warnText}>
-                端点是明文 http 或者格式不对。密钥会随请求发出去，建议用 https。
-              </Meta>
-            </View>
-          ) : null}
-
-          <Meta tone="ink4" style={styles.hint}>
-            模型名不在这里填 —— 回到「模型」那一段点「识图」「问答」两行各自填写，
-            各家的默认名已经预置好了。
-          </Meta>
-        </View>
-
-        <View style={styles.foot}>
-          <Button label="保存" onPress={() => void save()} disabled={saving} loading={saving} />
-        </View>
+    <SheetModal visible={visible} onClose={onClose}>
+      <View style={styles.head}>
+        <Heading>自定义端点</Heading>
+        <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} hitSlop={10}>
+          <Ionicons name="close" size={20} color={Palette.ink3} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <View style={styles.body}>
+        <Field
+          label="接口地址"
+          value={draft}
+          onChange={setDraft}
+          placeholder="https://…/v1/chat/completions"
+          hint="要一路填到 /chat/completions —— 各家拼法不同，少填一段会得到一个看不懂的报错。"
+        />
+
+        {looksWrong ? (
+          <View style={styles.warn}>
+            <Ionicons name="alert-circle" size={14} color={Palette.clay} />
+            <Meta color={Palette.clay} style={styles.warnText}>
+              端点是明文 http 或者格式不对。密钥会随请求发出去，建议用 https。
+            </Meta>
+          </View>
+        ) : null}
+
+        <Meta tone="ink4" style={styles.hint}>
+          模型名不在这里填 —— 回到「模型」那一段点「识图」「问答」两行各自填写，
+          各家的默认名已经预置好了。
+        </Meta>
+      </View>
+
+      <View style={styles.foot}>
+        <Button label="保存" onPress={() => void save()} disabled={saving} loading={saving} />
+      </View>
+    </SheetModal>
   );
 }
 
@@ -230,53 +223,49 @@ export function AiModelModal({ kind, onClose }: AiModelModalProps) {
   const cleared = isVision && draft.trim().length === 0;
 
   return (
-    <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
-        <View style={styles.handle} />
-        <View style={styles.head}>
-          <Heading>{isVision ? '识图模型' : '问答模型'}</Heading>
-          <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} hitSlop={10}>
-            <Ionicons name="close" size={20} color={Palette.ink3} />
-          </Pressable>
-        </View>
-
-        <View style={styles.body}>
-          <Meta tone="ink3" style={styles.providerNote}>
-            {`当前供应商：${provider.name}`}
-          </Meta>
-
-          <Field
-            label="模型名（就是请求里 model 字段那个名字）"
-            value={draft}
-            onChange={setDraft}
-            placeholder={fallback || (isVision ? '这家没有默认识图模型，留空即不用识物' : '填写服务商文档里的模型名')}
-            hint={
-              fallback
-                ? `留空即用预置的 ${fallback}。服务商改了名字时，把它文档里的新名字填在这里。`
-                : '这家没有预置值，必须自己填；留空表示不用这个能力。'
-            }
-          />
-
-          {cleared ? (
-            <View style={styles.warn}>
-              <Ionicons name="information-circle" size={14} color={Palette.clay} />
-              <Meta color={Palette.clay} style={styles.warnText}>
-                留空保存后，「识物」入口会从录入页隐藏 —— 没有模型名就等于这家看不了图。
-              </Meta>
-            </View>
-          ) : null}
-
-          <Meta tone="ink4" style={styles.hint}>
-            报「模型不存在 / model not found」时，多半是服务商改了名字：到它的文档里抄一个填进来就行。
-          </Meta>
-        </View>
-
-        <View style={styles.foot}>
-          <Button label="保存" onPress={() => void save()} disabled={saving} loading={saving} />
-        </View>
+    <SheetModal visible={open} onClose={onClose}>
+      <View style={styles.head}>
+        <Heading>{isVision ? '识图模型' : '问答模型'}</Heading>
+        <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} hitSlop={10}>
+          <Ionicons name="close" size={20} color={Palette.ink3} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <View style={styles.body}>
+        <Meta tone="ink3" style={styles.providerNote}>
+          {`当前供应商：${provider.name}`}
+        </Meta>
+
+        <Field
+          label="模型名（就是请求里 model 字段那个名字）"
+          value={draft}
+          onChange={setDraft}
+          placeholder={fallback || (isVision ? '这家没有默认识图模型，留空即不用识物' : '填写服务商文档里的模型名')}
+          hint={
+            fallback
+              ? `留空即用预置的 ${fallback}。服务商改了名字时，把它文档里的新名字填在这里。`
+              : '这家没有预置值，必须自己填；留空表示不用这个能力。'
+          }
+        />
+
+        {cleared ? (
+          <View style={styles.warn}>
+            <Ionicons name="information-circle" size={14} color={Palette.clay} />
+            <Meta color={Palette.clay} style={styles.warnText}>
+              留空保存后，「识物」入口会从录入页隐藏 —— 没有模型名就等于这家看不了图。
+            </Meta>
+          </View>
+        ) : null}
+
+        <Meta tone="ink4" style={styles.hint}>
+          报「模型不存在 / model not found」时，多半是服务商改了名字：到它的文档里抄一个填进来就行。
+        </Meta>
+      </View>
+
+      <View style={styles.foot}>
+        <Button label="保存" onPress={() => void save()} disabled={saving} loading={saving} />
+      </View>
+    </SheetModal>
   );
 }
 
@@ -329,23 +318,8 @@ function Field({
 
 /* ------------------------------------------------------------ 样式 */
 
+/* 弹层的背板 / 圆角 / 把手（以及键盘避让）现在由 SheetModal 统一提供 */
 const useStyles = makeStyles((Palette) => ({
-  backdrop: { flex: 1, backgroundColor: Palette.scrim },
-  sheet: {
-    backgroundColor: Palette.surface,
-    borderTopLeftRadius: Radius.sheet,
-    borderTopRightRadius: Radius.sheet,
-    paddingBottom: Space.xxl,
-    maxHeight: '82%',
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Palette.line,
-    alignSelf: 'center',
-    marginTop: Space.sm,
-  },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -354,7 +328,8 @@ const useStyles = makeStyles((Palette) => ({
     paddingTop: Space.lg,
     paddingBottom: Space.md,
   },
-  scroll: { flexGrow: 0 },
+  /* flexShrink：键盘弹起时 SheetModal 会把高度上限压小，列表要能跟着收 */
+  scroll: { flexGrow: 0, flexShrink: 1 },
   scrollBody: { paddingHorizontal: GUTTER, paddingBottom: Space.md },
 
   option: {

@@ -74,12 +74,25 @@ export const AI_PROVIDERS: readonly AiProviderDef[] = [
     key: 'deepseek',
     name: 'DeepSeek',
     keyUrl: 'https://platform.deepseek.com',
-    signupNote: '要充值才能用。便宜，但**看不了图**，识物用不了',
+    signupNote: '要充值才能用。识图与问答都用 deepseek-flash（V4-Pro 看不了图）',
     endpoint: 'https://api.deepseek.com/chat/completions',
-    /* ★ 纯文本 —— 见上面第 1 条。留 null 而不是填个实验性名字，
-       是因为那个名字随时可能消失，填了就是把「偶尔能用」当成「一直能用」 */
-    visionModel: null,
-    chatModel: 'deepseek-v4-flash',
+    /*
+     * ★★ 这一格纠过两次，值得留着：
+     *
+     * 2026-08 之前 DeepSeek 确实只有纯文本模型，所以这里原本写的是 null。
+     * 后来官方上了 V4.1-Flash 并给了视觉能力（功能表里 Vision 一栏是 ✓），
+     * 而 deepseek-v4-pro 仍然是「Not supported」。
+     *
+     * 同时踩到第二个坑：**模型名本身也会退役**。
+     * `deepseek-v4-flash` 与 `deepseek-v4-flash-vision-exp` 现在都只是
+     * 「仍被接受」的旧名 —— 请求会被路由到 V4.1-Flash 并按 Flash 计价，
+     * 但官方现名是 `deepseek-flash`。写旧名能跑，却是在赌它哪天不再被接受。
+     *
+     * 所以：识图与问答都用 `deepseek-flash` 这一个名字 ——
+     * 官方文档里它是同一个模型，同时具备文本与视觉能力。
+     */
+    visionModel: 'deepseek-flash',
+    chatModel: 'deepseek-flash',
     free: false,
   },
   {
