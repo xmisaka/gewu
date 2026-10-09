@@ -18,6 +18,7 @@ import {
   categoryOf,
   classify,
   expiryWindow,
+  extractCountSubject,
   extractSubject,
   isFood,
   MAX_ANSWER_ITEMS,
@@ -126,8 +127,48 @@ test('成本类排在最前：「日均成本最高」不该被「最贵」之�
 });
 
 test('规模类与补货类', () => {
-  assert.deepEqual(classify('一共多少件东西'), { kind: 'count' });
+  assert.deepEqual(classify('一共多少件东西'), { kind: 'count', subject: null, categoryName: null });
   assert.deepEqual(classify('有什么该买的吗'), { kind: 'lowStock' });
+});
+
+test('★「几件 X」要保住主体：「我有几件衣服」不该被吞成全库总账', () => {
+  // 曾经的缺口：COUNT_CUES 命中「几件」后整个问题被丢弃，
+  // 模型手里只剩「库里共 96 件」的总账 —— 明明有 7 件衣服却答「没搜到」。
+  const intent = classify('我有几件衣服', LIB);
+  assert.equal(intent.kind, 'count');
+  assert.equal(intent.subject, '衣服');
+  assert.equal(intent.categoryName, '服饰');
+});
+
+test('extractCountSubject：把「几件 X」里的 X 完整剥出来', () => {
+  assert.equal(extractCountSubject('我有几件衣服'), '衣服');
+  assert.equal(extractCountSubject('一共有多少件东西'), '');
+  assert.equal(extractCountSubject('衣服有几件'), '衣服');
+  assert.equal(extractCountSubject('家里有多少件露营装备'), '露营装备');
+});
+
+test('★「几件 X」数得出东西时，卡片要给、数字要说全', () => {
+  const closet = [
+    snap({ id: 'w1', name: '摇粒绒外套', categoryName: '服饰', createdAt: 100 }),
+    snap({ id: 'w2', name: '格纹衬衫', categoryName: '服饰', createdAt: 200 }),
+    snap({ id: 'w3', name: '酱油', categoryName: '食品', createdAt: 300 }),
+  ];
+  const r = retrieve('我有几件衣服', closet, TODAY);
+  assert.deepEqual(ids(r.items), ['w2', 'w1'], '卡片只给服饰，酱油不能混进来');
+  assert.equal(r.total, 2);
+  assert.ok(r.fact.includes('服饰共有 2 件'), r.fact);
+});
+
+test('★「几件 X」库里没有时如实报 0，不能拿全库总账充数', () => {
+  const r = retrieve('我有几件衣服', LIB, TODAY);
+  assert.equal(r.total, 0);
+  assert.ok(r.fact.includes('服饰共有 0 件'), r.fact);
+  assert.ok(!r.fact.includes('共 7 件'), `问 A 答 B（报了全库总数）：${r.fact}`);
+
+  /* 同义词表没接住的主体：如实说没找到（AI 开着时还有全量对账兜底） */
+  const r2 = retrieve('我有几件潮牌', LIB, TODAY);
+  assert.equal(r2.total, 0);
+  assert.ok(r2.fact.includes('没找到'), r2.fact);
 });
 
 test('★「能吃」必须排在「到期」之前，且不设天数上限', () => {

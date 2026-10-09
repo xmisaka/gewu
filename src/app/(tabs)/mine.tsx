@@ -21,7 +21,7 @@ import { Loading, MetricStrip, PlainTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { DARK_THEME_KEY, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_URL, SITE_URL } from '@/constants/site';
+import { AFDIAN_URL, SITE_URL, siteUrlWithSkin } from '@/constants/site';
 import { isThemeLocked, type SupporterFeature } from '@/lib/entitlement';
 import { useEntitlement } from '@/lib/store/entitlement';
 import { useUpdate } from '@/lib/store/update';
@@ -565,7 +565,7 @@ export default function MineScreen() {
                 last
                 /* 打不开浏览器（极少数定制系统）不值得弹错误：
                    地址已经写在行尾，用户看得见、也抄得下来 */
-                onPress={() => void Linking.openURL(SITE_URL).catch(() => undefined)}
+                onPress={() => void Linking.openURL(siteUrlWithSkin(activeKey)).catch(() => undefined)}
               />
             </Card>
           </Gutter>

@@ -31,8 +31,18 @@ export const VERSION_FALLBACK_URL = `https://raw.githubusercontent.com/xmisaka/g
  */
 export const VERSION_URLS: readonly string[] = [VERSION_URL, VERSION_FALLBACK_URL];
 
-/** 官网下载页锚点 */
-export const DOWNLOAD_URL = `${SITE_URL}/#download`;
+/**
+ * 官网地址 + 换肤参数：官网的换肤器认 `?skin=<key>`，
+ * key 与 `theme.ts` 的主题键同名（sujian / dianqing / … / xuanye）。
+ * 调用处用 `getActiveThemeKey()` 取**当前生效**的那套传进来 ——
+ * 系统深色时传「xuanye」，官网就会跟着换成深色。
+ *
+ * 这个函数刻意不带 import：本文件被 `tests/update.test.mjs` 直接
+ * import，必须保持零依赖（换肤参数在调用处拼，不在这里读主题）。
+ */
+export function siteUrlWithSkin(skin: string, anchor = ''): string {
+  return `${SITE_URL}/?skin=${encodeURIComponent(skin)}${anchor}`;
+}
 
 /**
  * 爱发电商品页（支持者档 ¥28）。

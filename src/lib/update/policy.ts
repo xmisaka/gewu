@@ -17,7 +17,7 @@ export interface UpdateManifest {
   versionName: string;
   /**
    * 安装包直链（APK，与官网同一台服务器）。弹窗的「去下载」开它，
-   * 缺省时退回官网下载页（`DOWNLOAD_URL`）。
+   * 缺省时退回官网下载页（`siteUrlWithSkin(key, '#download')`）。
    * ★ 2026-10-10 改口径：原定「只作记录、界面跳官网」，理由（先看到更新说明）
    *   已被弹窗自身覆盖；现在它就是主下载路径，必须指向真实存在的文件。
    * ★ 解析层只收 `https://`（见 parseUpdateManifest），http 或花式协议一律丢弃。

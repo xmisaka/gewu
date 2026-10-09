@@ -28,8 +28,13 @@ import {
 import {
   ANSWER_MAX_CHARS,
   buildAnswerPrompt,
+  buildMatchPrompt,
   FOLLOW_UP_QUESTIONS,
+  MATCH_MAX_ITEMS,
+  matchFact,
   parseAnswer,
+  parseMatch,
+  shouldFullMatch,
   SUGGESTED_QUESTIONS,
 } from '../src/lib/ai/answer.ts';
 
@@ -491,4 +496,57 @@ test('EMPTY_FIELDS 与 LOW_CONFIDENCE_HINT 是给调用方用的公开出口', (
     note: null,
   });
   assert.ok(LOW_CONFIDENCE_HINT.length > 0);
+});
+
+/* ============================================================ 全量对账兜底 */
+/* 本地检索零命中时，把全库清单发给模型**挑序号**。模型只做语义匹配，
+   数字、排序、措辞全在本机 —— 所以这里钉的是三件事：
+   提示词只准它输出编号数组 / 编号要经校验 / 什么时候才值得走这条路。 */
+
+const MATCH_LIB = [
+  { id: 'a1', name: '摇粒绒外套', brand: '优衣库', categoryName: '服饰', cabinetName: '卧室衣柜', locationName: '挂衣区', expireDate: null, daysToExpiry: null, quantity: null, tags: [], note: null, dailyCost: null, holdingDays: null, price: 199, createdAt: 100 },
+  { id: 'a2', name: '格纹衬衫', brand: '优衣库', categoryName: '服饰', cabinetName: '卧室衣柜', locationName: '顶层收纳', expireDate: null, daysToExpiry: null, quantity: null, tags: [], note: null, dailyCost: null, holdingDays: null, price: 149, createdAt: 200 },
+  { id: 'a3', name: 'Type-C 数据线', brand: null, categoryName: '数码', cabinetName: '书桌', locationName: '抽屉', expireDate: null, daysToExpiry: null, quantity: null, tags: [], note: null, dailyCost: null, holdingDays: null, price: 39, createdAt: 300 },
+];
+
+test('buildMatchPrompt：全库都进清单、每件带序号，且只准模型输出编号数组', () => {
+  const p = buildMatchPrompt('我有几件衣服', MATCH_LIB);
+  assert.ok(p.user.includes('【物品清单】（共 3 件）'), p.user);
+  assert.ok(p.user.includes('1. 摇粒绒外套｜服饰｜卧室衣柜 · 挂衣区'), p.user);
+  assert.ok(p.system.includes('只准输出一个 JSON 编号数组'), '系统提示词必须把输出形式焊死');
+  assert.ok(p.system.includes('对不上任何条目就输出 []'), '零命中也要有明确出口');
+});
+
+test('parseMatch：正常编号通过，序号转成从 1 起的下标语义', () => {
+  assert.deepEqual(parseMatch('[1,3]', 3), [1, 3]);
+  assert.deepEqual(parseMatch('好的：[2]', 3), [2], '模型夹带的前缀文字要能剥掉');
+});
+
+test('★ parseMatch：越界、重复、编造、非数组一律拦掉', () => {
+  assert.deepEqual(parseMatch('[1, 4]', 3), [1], '越界编号丢弃');
+  assert.deepEqual(parseMatch('[1,1,2]', 3), [1, 2], '重复丢弃');
+  assert.deepEqual(parseMatch('[1, "x", true]', 3), [1], '非编号元素丢弃');
+  assert.deepEqual(parseMatch('我觉得应该是衣服那几件', 3), [], '没给数组就全部丢弃');
+  assert.deepEqual(parseMatch(null, 3), []);
+  assert.deepEqual(parseMatch('[0, -1]', 3), [], '序号从 1 起，0 和负数无效');
+});
+
+test('shouldFullMatch：只兜「找 / 数」类零命中，正当的「没有」不再花钱问模型', () => {
+  assert.equal(shouldFullMatch({ kind: 'search', query: '潮牌' }, 96), true);
+  assert.equal(shouldFullMatch({ kind: 'location', query: '充电线', categoryName: null }, 96), true);
+  assert.equal(shouldFullMatch({ kind: 'count', subject: '潮牌', categoryName: null }, 96), true);
+  assert.equal(shouldFullMatch({ kind: 'count', subject: null, categoryName: null }, 96), false, '全库总账本地答得出');
+  assert.equal(shouldFullMatch({ kind: 'expiring', withinDays: 30, food: false }, 96), false, '「没有到期的」是正当答案');
+  assert.equal(shouldFullMatch({ kind: 'lowStock' }, 96), false);
+  assert.equal(shouldFullMatch({ kind: 'unknown' }, 96), false);
+  assert.equal(shouldFullMatch({ kind: 'search', query: 'x' }, 0), false, '空库没有可对账的');
+  assert.equal(shouldFullMatch({ kind: 'search', query: 'x' }, MATCH_MAX_ITEMS + 1), false, '超大库不做全量，清单太长模型挑漏');
+});
+
+test('matchFact：措辞由本机写，模型一个字的事实都不进答案', () => {
+  const items = [MATCH_LIB[0], MATCH_LIB[1]];
+  const fact = matchFact(items);
+  assert.ok(fact.includes('对出 2 件'), fact);
+  assert.ok(fact.includes('摇粒绒外套'), fact);
+  assert.equal(matchFact([]), '你的库里没有对得上的东西。');
 });

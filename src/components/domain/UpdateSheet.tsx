@@ -14,10 +14,10 @@
 
 import { Linking, Modal, Pressable, View } from 'react-native';
 
-import { DOWNLOAD_URL } from '@/constants/site';
+import { siteUrlWithSkin } from '@/constants/site';
 import { Palette, Radius, Space } from '@/constants/theme';
 import { formatVersionChange, type LocalVersion, type UpdateManifest } from '@/lib/update/policy';
-import { makeStyles } from '@/lib/theme';
+import { makeStyles, useTheme } from '@/lib/theme';
 import { Button } from '../ui/controls';
 import { Body, Heading, Meta } from '../ui/typography';
 
@@ -34,13 +34,16 @@ export interface UpdateSheetProps {
 
 export function UpdateSheet({ visible, manifest, local, onRemindLater, onDownloaded }: UpdateSheetProps) {
   const styles = useStyles();
+  const { key: activeKey } = useTheme();
 
   if (!manifest) return null;
 
   /* 直链下载：APK 与官网同一台服务器，浏览器接管下载与安装确认。
-     清单没给 url（老清单 / 备用源兜底）就退回官网下载页 —— 按钮不能点空。 */
+     清单没给 url（老清单 / 备用源兜底）就退回官网下载页 —— 按钮不能点空。
+     退回官网时带上当前主题（?skin=），官网换肤器会照着换，别让用户从
+     App 里跳过去还看到默认的素笺。 */
   const openDirect = () => {
-    void Linking.openURL(manifest.url ?? DOWNLOAD_URL).catch(() => {
+    void Linking.openURL(manifest.url ?? siteUrlWithSkin(activeKey, '#download')).catch(() => {
       // 打不开浏览器（极少数定制系统）不值得弹错误：用户自己会去官网
     });
     onDownloaded();
@@ -48,7 +51,7 @@ export function UpdateSheet({ visible, manifest, local, onRemindLater, onDownloa
 
   /* 备用路径：直链 404、或某些浏览器拦截 APK 下载时，还有官网一跳可走 */
   const openSite = () => {
-    void Linking.openURL(DOWNLOAD_URL).catch(() => {});
+    void Linking.openURL(siteUrlWithSkin(activeKey, '#download')).catch(() => {});
     onDownloaded();
   };
 

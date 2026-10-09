@@ -28,7 +28,7 @@ import {
   updateStatusText,
 } from '../src/lib/update/policy.ts';
 
-import { DOWNLOAD_URL, SITE_URL, VERSION_URLS } from '../src/constants/site.ts';
+import { SITE_URL, VERSION_URLS, siteUrlWithSkin } from '../src/constants/site.ts';
 
 const LOCAL = { versionName: '1.5.0', versionCode: 10 };
 
@@ -216,5 +216,13 @@ test('★ 发版自检：版本清单地址形状正确，且主源在官网域�
     const host = (u) => new URL(u).host;
     assert.notEqual(host(VERSION_URLS[0]), host(VERSION_URLS[1]), '备用源不该和主源同域名');
   }
-  assert.equal(DOWNLOAD_URL, `${SITE_URL}/#download`);
+});
+
+test('官网换肤地址：?skin= 必须在 #anchor 之前，参数要转义', () => {
+  /* 官网换肤器认 ?skin=<key>（与 theme.ts 主题键同名）。query 写在锚点后面
+     会变成锚点的一部分，浏览器根本不把它当查询参数 —— 那样换肤就静默失效 */
+  assert.equal(siteUrlWithSkin('xuanye'), `${SITE_URL}/?skin=xuanye`);
+  assert.equal(siteUrlWithSkin('xuanye', '#download'), `${SITE_URL}/?skin=xuanye#download`);
+  /* 主题键来自内部常量，但转义兜底要有 —— 传入花值也不能拼出畸形 URL */
+  assert.equal(siteUrlWithSkin('xu&y'), `${SITE_URL}/?skin=xu%26y`);
 });

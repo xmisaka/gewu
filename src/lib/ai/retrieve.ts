@@ -80,8 +80,8 @@ export type AiIntent =
   | { kind: 'cost'; metric: 'daily' | 'price' }
   /** 补货类：启用了库存且余量见底 */
   | { kind: 'lowStock' }
-  /** 规模类：「一共多少件」 */
-  | { kind: 'count' }
+  /** 规模类。`subject` 非空时是「几件 X」的带主体清点，按分类或名字数，不再笼统报总数 */
+  | { kind: 'count'; subject: string | null; categoryName: string | null }
   /** 兜底：当成搜索用 */
   | { kind: 'search'; query: string }
   /** 实在听不懂 */
@@ -97,6 +97,34 @@ const COST_CUES = [
 
 /** 规模类 */
 const COUNT_CUES = ['多少件', '几件', '一共多少', '总共多少', '有多少件', '多少样', '库存总数'];
+
+/**
+ * 规模类问法里要剥掉的词，抽出「数的到底是什么」。
+ *
+ * ★「我有几件衣服」曾经被规模意图整句吞掉：intent 只剩 count、
+ *   「衣服」两个字被丢弃，模型手里只有一条「库里共 96 件」的总账 ——
+ *   它没被允许提衣服，只能答「没搜到」。这张表就是为那个缺口补的。
+ * ★ 顺序即优先级，长的写前面（与 SUBJECT_STOP 同一个道理）。
+ * ★ 刻意**不含**光杆「有」——「有机棉」这类词名里就带着它。
+ */
+const COUNT_STOP = [
+  '一共有多少件', '一共有多少', '一共多少件', '一共多少',
+  '总共多少件', '总共多少',
+  /* ★「我有 / 家里有」必须排在「有几件」之前 ——
+     「我有几件衣服」若先被「有几件」命中，会剥剩一个「我」字挂在物品名前头。 */
+  '我有', '家里有', '库里有',
+  '有多少件', '有多少',
+  '有几件', '有几样', '有几个', '有几',
+  '多少件', '多少样', '多少', '几件', '几样', '几个',
+  '一共', '总共', '库存总数', '库存',
+];
+
+/** 「几件 X」→ X。先剥规模词，再走一遍通用剥词 */
+export function extractCountSubject(question: string): string {
+  let s = question;
+  for (const word of COUNT_STOP) s = s.split(word).join('');
+  return extractSubject(s);
+}
 
 /** 补货类 */
 const LOW_STOCK_CUES = ['该买', '要买', '该补货', '要补货', '快用完', '用完了', '不够用', '见底', '该囤'];
@@ -265,8 +293,11 @@ export function classify(question: string, items: AiItemSnapshot[] = []): AiInte
     return { kind: 'cost', metric };
   }
 
-  // ② 规模
-  if (hit(q, COUNT_CUES)) return { kind: 'count' };
+  // ② 规模。「几件 X」要保住 X ——「我有几件衣服」不该被吞成一句全库总账
+  if (hit(q, COUNT_CUES)) {
+    const subject = extractCountSubject(q);
+    return { kind: 'count', subject: subject || null, categoryName: categoryOf(subject, items) };
+  }
 
   // ③ 补货
   if (hit(q, LOW_STOCK_CUES)) return { kind: 'lowStock' };
@@ -496,14 +527,42 @@ export function retrieve(question: string, items: AiItemSnapshot[], _today: Date
     }
 
     case 'count': {
-      const value = items.reduce((sum, it) => sum + (it.price ?? 0), 0);
-      const expiring = items.filter((it) => it.daysToExpiry != null && it.daysToExpiry <= SOON_THRESHOLD_DAYS).length;
+      /* ★「几件 X」是带主体的清点：按分类（「衣服」→服饰）或名字匹配来数，
+         并把这几件以卡片列出 —— 只报一句全库总账，正是「明明有 7 件衣服
+         却答没搜到」的根源。 */
+      let scoped: AiItemSnapshot[] | null = null;
+      if (intent.categoryName) {
+        scoped = items.filter((it) => it.categoryName === intent.categoryName);
+      } else if (intent.subject) {
+        const subject = intent.subject;
+        const hits = items.filter((it) => textMatch(it, subject));
+        if (hits.length > 0) scoped = hits;
+      }
+
+      /* ★ 有主体却一件都没对上：如实说没找到，**不能拿全库总账充数** ——
+         那是「问 A 答 B」。这里交出的零命中还有一次全量对账兜底的机会（answer.ts）。 */
+      if (intent.subject && scoped === null) {
+        return {
+          question,
+          intent,
+          items: [],
+          total: 0,
+          fact: `没找到和「${intent.subject}」对得上的东西。`,
+        };
+      }
+
+      const matched = scoped ?? items;
+      const value = matched.reduce((sum, it) => sum + (it.price ?? 0), 0);
+      const expiring = matched.filter((it) => it.daysToExpiry != null && it.daysToExpiry <= SOON_THRESHOLD_DAYS).length;
+      const scopeLabel = intent.categoryName ?? intent.subject;
       return {
         question,
         intent,
-        items: [],
-        total: items.length,
-        fact: `库里共 ${items.length} 件，总价值 ${formatMoneyCompact(value)}，其中 ${expiring} 件一个月内到期。`,
+        items: scoped ? top([...scoped].sort(byCreatedDesc)) : [],
+        total: matched.length,
+        fact: scopeLabel
+          ? `${scopeLabel}共有 ${matched.length} 件，总价值 ${formatMoneyCompact(value)}，其中 ${expiring} 件一个月内到期。`
+          : `库里共 ${items.length} 件，总价值 ${formatMoneyCompact(value)}，其中 ${expiring} 件一个月内到期。`,
       };
     }
 

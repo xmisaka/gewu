@@ -33,7 +33,16 @@ import { IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { GUTTER, Palette, Radius, Space } from '@/constants/theme';
-import { buildAnswerPrompt, FOLLOW_UP_QUESTIONS, parseAnswer, SUGGESTED_QUESTIONS } from '@/lib/ai/answer';
+import {
+  buildAnswerPrompt,
+  buildMatchPrompt,
+  FOLLOW_UP_QUESTIONS,
+  matchFact,
+  parseAnswer,
+  parseMatch,
+  shouldFullMatch,
+  SUGGESTED_QUESTIONS,
+} from '@/lib/ai/answer';
 import { AiError, askText, describeAiError } from '@/lib/ai/client';
 import { place, retrieve, toSnapshot, type AiItemSnapshot, type Retrieval } from '@/lib/ai/retrieve';
 import { today } from '@/lib/date';
@@ -90,6 +99,33 @@ export default function AskScreen() {
       }
 
       try {
+        /* ── 全量对账兜底 ──────────────────────────────────────────
+           本地检索零命中且是「找 / 数」类问题时，把全库清单发给模型**挑序号**。
+           编号要经 parseMatch 验证（越界/重复/编造一律丢弃），
+           数字、排序、措辞全部由本机算 —— 模型没有编事实的通道。 */
+        if (shouldFullMatch(r.intent, snapshot.length)) {
+          const mp = buildMatchPrompt(question, snapshot);
+          const raw = await askText(mp.system, mp.user);
+          record('chat');
+          const picked = parseMatch(raw, snapshot.length);
+          if (picked.length > 0) {
+            const matchedItems = picked.map((n) => snapshot[n - 1]);
+            const matched: Retrieval = {
+              question,
+              intent: r.intent,
+              items: matchedItems,
+              total: matchedItems.length,
+              fact: matchFact(matchedItems),
+            };
+            setResult(matched);
+            setLead(matched.fact);
+            return;
+          }
+          /* 模型也没挑出来：保持本机那句「没找到」，不再多花一次调用 */
+          setLead(r.fact);
+          return;
+        }
+
         const prompt = buildAnswerPrompt(question, r, snapshot.length);
         const text = await askText(prompt.system, prompt.user);
         record('chat');
@@ -168,11 +204,17 @@ export default function AskScreen() {
         <IconButton icon="chevron-back" accessibilityLabel="返回" onPress={() => router.back()} />
       </View>
 
-      {/* 这一行不能省：它同时是隐私声明与能力说明 —— 「只依据你的 N 件」把
-          「它不会拿别人的数据回答你」和「它也答不了库外的问题」一次说清 */}
+      {/* 这一行不能省：它同时是隐私声明与能力说明。措辞必须与实际行为一致 ——
+          AI 开着时本地没答上的问题会把全库清单发给模型挑条目，「数据不出手机」就不能照说 */}
       <PageHeader
         title="问一问"
-        subtitle={total > 0 ? `只依据你的 ${total} 件物品回答，数据不出手机` : '库里还没有东西'}
+        subtitle={
+          total > 0
+            ? active
+              ? `只依据你的 ${total} 件物品回答 · 提问时才会把物品清单发给模型`
+              : `只依据你的 ${total} 件物品回答，数据不出手机`
+            : '库里还没有东西'
+        }
       />
 
       <ScrollView
@@ -201,7 +243,7 @@ export default function AskScreen() {
 
             <Meta tone="ink4" style={styles.heroNote}>
               {active
-                ? '回答只由你库里的记录决定。模型负责把话说顺，事实全部来自本机查询。'
+                ? '回答只由你库里的记录决定。模型只负责把话说顺、帮着对对条目，数字和卡片都来自本机。'
                 : '现在用的是本机检索，回答会比较朴实；到「我的 → AI 助手」配一个免费 Key 之后会更自然。'}
             </Meta>
           </Gutter>

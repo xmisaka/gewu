@@ -18,7 +18,7 @@
  * 反幻觉那几条一个字没松，松的只是措辞。
  */
 
-import type { Retrieval } from './retrieve';
+import type { AiIntent, AiItemSnapshot, Retrieval } from './retrieve';
 import { place } from './retrieve';
 
 /** 提示词里最多铺几条候选给模型看 */
@@ -134,3 +134,89 @@ export const FOLLOW_UP_QUESTIONS: readonly string[] = [
   '有什么该补货了',
   '找一下我的充电线',
 ];
+
+/* ------------------------------------------------------------------ 全量对账兜底 */
+
+/**
+ * 全量清单最多列多少件。
+ *
+ * 一件一行约 30~50 字，400 件 ≈ 一万多字 —— 免费档模型吃得住；
+ * 再多就该本地规则先扛住：清单太长，模型开始挑漏、数错，请求也变慢变贵。
+ */
+export const MATCH_MAX_ITEMS = 400;
+
+/**
+ * 什么时候值得做全量对账：本地检索**零命中**、且问题本身是「找 / 数」一类。
+ *
+ * 「接下来没有到期的」「暂时没有该补货的」是正当答案，不该再花钱问模型；
+ * count 只在带主体时兜（「我有几件潮牌」）—— 不带主体的全库总账本地永远答得出。
+ */
+export function shouldFullMatch(intent: AiIntent, librarySize: number): boolean {
+  if (librarySize <= 0 || librarySize > MATCH_MAX_ITEMS) return false;
+  if (intent.kind === 'search' || intent.kind === 'location') return true;
+  if (intent.kind === 'count') return intent.subject != null;
+  return false;
+}
+
+/**
+ * 组装全量对账提示词。模型只准挑序号，一个字的答案都不许写 ——
+ * 数字、排序、措辞全部留在本机。它做的是它擅长的那件事：
+ * 「衣服 ≈ 服饰」「充电线 ≈ Type-C 数据线」这类词表永远追不完的语义匹配。
+ */
+export function buildMatchPrompt(question: string, items: AiItemSnapshot[]): AnswerPrompt {
+  const system = [
+    '你是「格物」这个收纳记录 App 的条目匹配器。用户会问一个关于他自己物品的问题，',
+    '下面给你一份**编号的物品清单**，全部来自用户本机数据库。',
+    '',
+    '你的唯一任务：从清单里挑出与问题对得上的条目。',
+    '',
+    '硬性要求（不能碰）：',
+    '1. 只准输出一个 JSON 编号数组，例如 [3,17,42]，不要输出任何解释、任何文字。',
+    '2. 只能选清单里存在的编号；对不上任何条目就输出 []。',
+    '3. 语义相近就算对上（用户说「衣服」，「服饰」分类的要选；',
+    '   用户说「充电线」，「Type-C 数据线」也要选）。拿不准的宁可不选。',
+  ].join('\n');
+
+  const lines: string[] = [`【用户的问题】\n${question}`, '', `【物品清单】（共 ${items.length} 件）`];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    lines.push(`${i + 1}. ${it.name}｜${it.categoryName ?? '未分类'}｜${place(it)}`);
+  }
+  lines.push('', '请只输出编号数组。');
+  return { system, user: lines.join('\n') };
+}
+
+/**
+ * 清洗模型挑回的编号。序号从 1 起；越界、非整数、重复一律丢弃 ——
+ * 模型返回的东西永远不能直接当真，编造的条目在这里就拦掉了。
+ */
+export function parseMatch(raw: string | null | undefined, total: number): number[] {
+  if (typeof raw !== 'string') return [];
+  const m = raw.match(/\[[\s\S]*?\]/);
+  if (!m) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(m[0]);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const out: number[] = [];
+  for (const v of parsed) {
+    const n =
+      typeof v === 'number'
+        ? v
+        : typeof v === 'string' && /^\d+$/.test(v.trim())
+          ? Number(v.trim())
+          : NaN;
+    if (Number.isInteger(n) && n >= 1 && n <= total && !out.includes(n)) out.push(n);
+  }
+  return out.slice(0, MATCH_MAX_ITEMS);
+}
+
+/** 对账结果的措辞也由本机写 —— 模型只挑了序号，事实没有一个字来自它 */
+export function matchFact(items: AiItemSnapshot[]): string {
+  if (items.length === 0) return '你的库里没有对得上的东西。';
+  const first = items[0];
+  return `从你的库里对出 ${items.length} 件：先从「${first.name}」看，它在${place(first)}。`;
+}
