@@ -30,7 +30,6 @@ import { Gutter, PageHeader, Screen } from '@/components/ui/layout';
 import { Meta } from '@/components/ui/typography';
 import { Space } from '@/constants/theme';
 import { askVision, describeAiError } from '@/lib/ai/client';
-import { providerSupportsVision } from '@/lib/ai/config';
 import { toUploadBase64 } from '@/lib/ai/upload';
 import { buildVisionPrompt, EMPTY_FIELDS, parseExtract } from '@/lib/ai/extract';
 import { today } from '@/lib/date';
@@ -61,11 +60,13 @@ export default function ComposeScreen() {
   const [gateOpen, setGateOpen] = useState(false);
 
   const { entitled } = useEntitlement();
-  const { active: aiActive, enabled: aiEnabled, record } = useAi();
+  const { active: aiActive, enabled: aiEnabled, record, supportsVision } = useAi();
 
   /* 识物要求「这家供应商能看图」。DeepSeek 的纯文本模型看不了 ——
-     选了它却还摆着识物按钮，用户点下去只会拿到一个模型侧的报错 */
-  const canRecognize = providerSupportsVision();
+     选了它却还摆着识物按钮，用户点下去只会拿到一个模型侧的报错。
+     ★ 从 store 读（而不是直接问 config），这样用户在设置页换供应商后
+       回到这一页，入口会自动跟着出现或消失。 */
+  const canRecognize = supportsVision;
 
   const categoryState = useAsyncData(() => listCategories(), [dataVersion], []);
   const cabinetState = useAsyncData(() => listCabinetViews(), [dataVersion], []);

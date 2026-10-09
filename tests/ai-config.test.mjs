@@ -33,9 +33,13 @@ import {
   activeProviderKey,
   chatModelName,
   customEndpointSettings,
+  defaultModelName,
   endpointUrl,
   findProvider,
+  hasModelOverride,
+  modelOverride,
   providerSupportsVision,
+  saveAiModel,
   saveAiProvider,
   saveCustomEndpoint,
   visionModelName,
@@ -326,6 +330,122 @@ test('自定义端点：填了才生效，没填时端点为空串（由 client 
       vision: 'my-vision',
       chat: 'my-model',
     });
+  } finally {
+    await saveCustomEndpoint({ endpoint: '', vision: '', chat: '' });
+    await saveAiProvider(DEFAULT_PROVIDER_KEY);
+  }
+});
+
+/* ============================================================ 模型名覆盖 */
+
+test('★ 任何一家都能改模型名 —— 不只「自定义」那家', async () => {
+  /* 这条钉的是本轮修的那个真问题：原来只有 custom 那家能填模型名，
+     官方下线模型名（DeepSeek 的 chat/reasoner 就是被直接下线的）时，
+     用户只能干等 App 更新。 */
+  await saveAiProvider('deepseek');
+  try {
+    assert.equal(chatModelName(), 'deepseek-v4-flash', '没改之前用预置值');
+    assert.equal(hasModelOverride('chat'), false);
+
+    await saveAiModel('chat', 'deepseek-v5-flash');
+    assert.equal(chatModelName(), 'deepseek-v5-flash', '改完立刻生效');
+    assert.equal(hasModelOverride('chat'), true);
+  } finally {
+    await saveAiModel('chat', '');
+    await saveAiProvider(DEFAULT_PROVIDER_KEY);
+  }
+  assert.equal(hasModelOverride('chat'), false, '清除后回到未覆盖状态');
+});
+
+test('清空模型名＝回到这家预置的默认值（不是变成空）', async () => {
+  await saveAiModel('chat', '临时名字');
+  assert.equal(chatModelName(), '临时名字');
+  await saveAiModel('chat', '   ');
+  assert.equal(chatModelName(), activeProvider().chatModel);
+  assert.equal(chatModelName(), defaultModelName('chat'));
+  assert.equal(hasModelOverride('chat'), false);
+});
+
+test('★ 给看不了图的那家填上识图模型名，识物能力就该打开', async () => {
+  /* DeepSeek 预置 visionModel = null（纯文本）。用户如果确实拿到了
+     一个能看图的名字，填进来之后 providerSupportsVision 必须跟着变真 ——
+     否则界面会把识物入口一直藏着，而用户以为自己填对了。 */
+  await saveAiProvider('deepseek');
+  try {
+    assert.equal(providerSupportsVision(), false, '预置是看不了图的');
+    assert.equal(visionModelName(), '');
+
+    await saveAiModel('vision', 'some-vision-model');
+    assert.equal(visionModelName(), 'some-vision-model');
+    assert.equal(providerSupportsVision(), true, '填了名字就该能识物');
+  } finally {
+    await saveAiModel('vision', '');
+    await saveAiProvider(DEFAULT_PROVIDER_KEY);
+  }
+  assert.equal(providerSupportsVision(), true, '回到智谱，预置就支持识图');
+});
+
+test('覆盖值是「每家各一份」的，不会互相串', async () => {
+  await saveAiModel('chat', 'zhipu-custom-name');
+  await saveAiProvider('moonshot');
+  try {
+    assert.equal(
+      chatModelName(),
+      activeProvider().chatModel,
+      '智谱上改的名字不该跟到 Kimi 这边来',
+    );
+    await saveAiModel('chat', 'kimi-custom-name');
+    assert.equal(chatModelName(), 'kimi-custom-name');
+  } finally {
+    await saveAiModel('chat', '');
+    await saveAiProvider(DEFAULT_PROVIDER_KEY);
+  }
+  assert.equal(chatModelName(), 'zhipu-custom-name', '切回来时智谱自己的覆盖值还在');
+  await saveAiModel('chat', '');
+});
+
+test('defaultModelName 永远给预置值，不受覆盖影响', async () => {
+  /* 界面上「留空即用预置的 X」那句话就靠它 */
+  await saveAiModel('chat', '被改过的名字');
+  try {
+    assert.equal(defaultModelName('chat'), activeProvider().chatModel);
+    assert.notEqual(defaultModelName('chat'), chatModelName());
+  } finally {
+    await saveAiModel('chat', '');
+  }
+});
+
+test('modelOverride：没改过的槽位给空串，不认识的供应商也不崩', () => {
+  assert.equal(modelOverride('zhipu', 'chat'), '');
+  assert.equal(modelOverride('根本没这家', 'vision'), '');
+});
+
+test('改模型名不影响端点（两者是分开的槽位）', async () => {
+  await saveAiProvider('custom');
+  try {
+    await saveCustomEndpoint({ endpoint: 'https://example.com/v1/chat/completions' });
+    await saveAiModel('chat', 'my-model');
+    assert.equal(endpointUrl(), 'https://example.com/v1/chat/completions');
+    assert.equal(chatModelName(), 'my-model');
+  } finally {
+    await saveCustomEndpoint({ endpoint: '', vision: '', chat: '' });
+    await saveAiProvider(DEFAULT_PROVIDER_KEY);
+  }
+});
+
+test('自定义那家的模型名与通用槽位是同一份（老键能迁过来）', async () => {
+  /* 上一版把自定义的两个模型名存在 ai.custom.vision / ai.custom.chat，
+     现在统一走 ai.model.custom.<kind>。
+     这里验的是「读写都落在通用槽位上」—— 迁移本身在 hydrate 里做，
+     没有库时走不到，但至少不能出现两套值各说各话。 */
+  await saveAiProvider('custom');
+  try {
+    await saveCustomEndpoint({ vision: 'v-model', chat: 'c-model' });
+    assert.equal(customEndpointSettings().vision, 'v-model');
+    assert.equal(customEndpointSettings().chat, 'c-model');
+    assert.equal(modelOverride('custom', 'vision'), 'v-model');
+    assert.equal(visionModelName(), 'v-model', '生效值也要是同一份');
+    assert.equal(chatModelName(), 'c-model');
   } finally {
     await saveCustomEndpoint({ endpoint: '', vision: '', chat: '' });
     await saveAiProvider(DEFAULT_PROVIDER_KEY);

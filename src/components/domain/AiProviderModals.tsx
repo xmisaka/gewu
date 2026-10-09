@@ -1,15 +1,16 @@
 /**
- * 格物 · AI 供应商相关的两个弹层
+ * 格物 · AI 设置页的三个弹层
  *
  * ① `AiProviderModal` —— 选供应商
- * ② `AiEndpointModal` —— 自定义端点的三个字段
+ * ② `AiEndpointModal` —— 自定义端点的地址
+ * ③ `AiModelModal`    —— 改模型名（**对所有供应商开放**）
  *
- * ── 为什么把「自定义」当成一等公民 ──────────────────────────────
- * 模型名变得比 App 的版本还快：`deepseek-chat` / `deepseek-reasoner` 用了整整一年，
- * 2026-07-24 被官方直接下线，请求当场失败。把模型名写死在 App 里的做法，
- * 早晚会变成一条「昨天还好好的」的报错。
- * 所以这里给一个能填**任意 OpenAI 兼容端点**的口子：中转站、自建服务、
- * 国外模型、乃至某家明天改名成什么，用户自己能改，不必等我发版。
+ * ── 为什么模型名要人人可改，不只留给「自定义」 ────────────────
+ * 官方下线模型名是常事：`deepseek-chat` / `deepseek-reasoner` 这两个名字
+ * 用了整整一年，2026-07-24 被官方**直接下线**，请求当场失败
+ * （不是废弃警告，是打过去就报错）。把名字写死在 App 里的做法，
+ * 迟早变成一条「昨天还好好的」的报错，而那时未必有人来改。
+ * 所以：**任何一家都能改**，清空即回到预置的默认名。
  *
  * ── 一条硬规则 ────────────────────────────────────────────────
  * 供应商表里 `visionModel === null` 表示**这家看不了图**（DeepSeek 就是）。
@@ -22,13 +23,8 @@ import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import { GUTTER, Palette, Radius, Space, Type } from '@/constants/theme';
-import {
-  AI_PROVIDERS,
-  type AiProviderDef,
-  customEndpointSettings,
-  saveAiProvider,
-  saveCustomEndpoint,
-} from '@/lib/ai/config';
+import { AI_PROVIDERS, type AiProviderDef } from '@/lib/ai/config';
+import { useAi } from '@/lib/store/ai';
 import { makeStyles } from '@/lib/theme';
 import { Button } from '../ui/controls';
 import { Body, Heading, Label, Meta } from '../ui/typography';
@@ -37,12 +33,12 @@ import { Body, Heading, Label, Meta } from '../ui/typography';
 
 export interface AiProviderModalProps {
   visible: boolean;
-  currentKey: string;
   onClose: () => void;
 }
 
-export function AiProviderModal({ visible, currentKey, onClose }: AiProviderModalProps) {
+export function AiProviderModal({ visible, onClose }: AiProviderModalProps) {
   const styles = useStyles();
+  const { provider: current, setProvider } = useAi();
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
@@ -52,13 +48,16 @@ export function AiProviderModal({ visible, currentKey, onClose }: AiProviderModa
   }, [visible]);
 
   const pick = async (p: AiProviderDef) => {
-    if (p.key === currentKey) {
+    if (p.key === current.key) {
       onClose();
       return;
     }
     setPending(true);
     try {
-      await saveAiProvider(p.key);
+      /* ★ 切完不用在这里手动刷新界面 —— `setProvider` 会把新值写进 store 的 React 状态，
+         整页（包括这一行、Key、模型名、隐私说明里那句「当前：X」）一起重渲染。
+         早先用模块级变量 + 手动计数器，就出现过「切过去了名字还是旧的」。 */
+      await setProvider(p.key);
       onClose();
     } finally {
       setPending(false);
@@ -79,7 +78,7 @@ export function AiProviderModal({ visible, currentKey, onClose }: AiProviderModa
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
           {AI_PROVIDERS.map((p) => {
-            const active = p.key === currentKey;
+            const active = p.key === current.key;
             const canSee = p.visionModel !== null;
             return (
               <Pressable
@@ -98,7 +97,7 @@ export function AiProviderModal({ visible, currentKey, onClose }: AiProviderModa
                   {p.signupNote}
                 </Meta>
                 <Meta tone={canSee ? 'ink4' : 'clay'} style={styles.optionNote}>
-                  {canSee ? '支持识图' : '看不了图 · 识物用不了'}
+                  {canSee ? '配置后可识图' : '看不了图 · 识物用不了'}
                 </Meta>
               </Pressable>
             );
@@ -122,38 +121,30 @@ export interface AiEndpointModalProps {
 
 export function AiEndpointModal({ visible, onClose }: AiEndpointModalProps) {
   const styles = useStyles();
-  const [endpoint, setEndpoint] = useState('');
-  const [chat, setChat] = useState('');
-  const [vision, setVision] = useState('');
+  const { endpoint, saveEndpoint } = useAi();
+  const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
 
-  /* 打开时回填已存的值 —— 与 Key 不同，端点与模型名**不是秘密**，
-     回填能让用户改一个字而不是重新敲一遍整条地址 */
+  /* 端点**不是秘密**，回填能让用户改一个字，而不是重新敲整条地址 */
   useEffect(() => {
     if (!visible) return;
-    const s = customEndpointSettings();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 弹层每次打开回填草稿，是本组件刻意的生命周期
-    setEndpoint(s.endpoint);
-    setChat(s.chat);
-    setVision(s.vision);
+    setDraft(endpoint);
     setSaving(false);
-  }, [visible]);
+  }, [visible, endpoint]);
 
   const save = async () => {
     setSaving(true);
     try {
-      await saveCustomEndpoint({
-        endpoint: endpoint.trim(),
-        chat: chat.trim(),
-        vision: vision.trim(),
-      });
+      await saveEndpoint(draft);
       onClose();
     } finally {
       setSaving(false);
     }
   };
 
-  const ready = endpoint.trim().length > 0 && chat.trim().length > 0;
+  const trimmed = draft.trim();
+  const looksWrong = trimmed.length > 0 && !trimmed.startsWith('https://');
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -170,31 +161,119 @@ export function AiEndpointModal({ visible, onClose }: AiEndpointModalProps) {
         <View style={styles.body}>
           <Field
             label="接口地址"
-            value={endpoint}
-            onChange={setEndpoint}
+            value={draft}
+            onChange={setDraft}
             placeholder="https://…/v1/chat/completions"
-          />
-          <Field
-            label="问答模型名"
-            value={chat}
-            onChange={setChat}
-            placeholder="填服务商文档里的 model 名"
-          />
-          <Field
-            label="识图模型名（留空＝不用识物）"
-            value={vision}
-            onChange={setVision}
-            placeholder="没有就留空"
+            hint="要一路填到 /chat/completions —— 各家拼法不同，少填一段会得到一个看不懂的报错。"
           />
 
+          {looksWrong ? (
+            <View style={styles.warn}>
+              <Ionicons name="alert-circle" size={14} color={Palette.clay} />
+              <Meta color={Palette.clay} style={styles.warnText}>
+                端点是明文 http 或者格式不对。密钥会随请求发出去，建议用 https。
+              </Meta>
+            </View>
+          ) : null}
+
           <Meta tone="ink4" style={styles.hint}>
-            只支持 OpenAI 兼容的 /chat/completions 格式 —— 这也是目前绝大多数服务商提供的格式。
-            填好后到上面那行填这一家的 API Key。
+            模型名不在这里填 —— 回到「模型」那一段点「识图」「问答」两行各自填写，
+            各家的默认名已经预置好了。
           </Meta>
         </View>
 
         <View style={styles.foot}>
-          <Button label="保存" onPress={() => void save()} disabled={!ready || saving} loading={saving} />
+          <Button label="保存" onPress={() => void save()} disabled={saving} loading={saving} />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/* ============================================================ ③ 改模型名 */
+
+export interface AiModelModalProps {
+  /** 打开时聚焦哪一项；null＝不打开 */
+  kind: 'vision' | 'chat' | null;
+  onClose: () => void;
+}
+
+export function AiModelModal({ kind, onClose }: AiModelModalProps) {
+  const styles = useStyles();
+  const { provider, visionModel, chatModel, defaultVision, defaultChat, saveModel } = useAi();
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const open = kind !== null;
+
+  /* 每次打开都从「当前生效的名字」开始 —— 它是模型名不是密钥，回填才方便改一个字 */
+  useEffect(() => {
+    if (!kind) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 弹层每次打开回填草稿，是本组件刻意的生命周期
+    setDraft(kind === 'vision' ? visionModel : chatModel);
+    setSaving(false);
+  }, [kind, visionModel, chatModel]);
+
+  const save = async () => {
+    if (!kind) return;
+    setSaving(true);
+    try {
+      await saveModel(kind, draft);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isVision = kind === 'vision';
+  const fallback = isVision ? defaultVision : defaultChat;
+  const cleared = isVision && draft.trim().length === 0;
+
+  return (
+    <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <View style={styles.sheet}>
+        <View style={styles.handle} />
+        <View style={styles.head}>
+          <Heading>{isVision ? '识图模型' : '问答模型'}</Heading>
+          <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} hitSlop={10}>
+            <Ionicons name="close" size={20} color={Palette.ink3} />
+          </Pressable>
+        </View>
+
+        <View style={styles.body}>
+          <Meta tone="ink3" style={styles.providerNote}>
+            {`当前供应商：${provider.name}`}
+          </Meta>
+
+          <Field
+            label="模型名（就是请求里 model 字段那个名字）"
+            value={draft}
+            onChange={setDraft}
+            placeholder={fallback || (isVision ? '这家没有默认识图模型，留空即不用识物' : '填写服务商文档里的模型名')}
+            hint={
+              fallback
+                ? `留空即用预置的 ${fallback}。服务商改了名字时，把它文档里的新名字填在这里。`
+                : '这家没有预置值，必须自己填；留空表示不用这个能力。'
+            }
+          />
+
+          {cleared ? (
+            <View style={styles.warn}>
+              <Ionicons name="information-circle" size={14} color={Palette.clay} />
+              <Meta color={Palette.clay} style={styles.warnText}>
+                留空保存后，「识物」入口会从录入页隐藏 —— 没有模型名就等于这家看不了图。
+              </Meta>
+            </View>
+          ) : null}
+
+          <Meta tone="ink4" style={styles.hint}>
+            报「模型不存在 / model not found」时，多半是服务商改了名字：到它的文档里抄一个填进来就行。
+          </Meta>
+        </View>
+
+        <View style={styles.foot}>
+          <Button label="保存" onPress={() => void save()} disabled={saving} loading={saving} />
         </View>
       </View>
     </Modal>
@@ -208,11 +287,13 @@ function Field({
   value,
   onChange,
   placeholder,
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
+  hint?: string;
 }) {
   const styles = useStyles();
   return (
@@ -237,6 +318,11 @@ function Field({
           </Pressable>
         ) : null}
       </View>
+      {hint ? (
+        <Meta tone="ink4" style={styles.fieldHint}>
+          {hint}
+        </Meta>
+      ) : null}
     </>
   );
 }
@@ -272,7 +358,7 @@ const useStyles = makeStyles((Palette) => ({
   scrollBody: { paddingHorizontal: GUTTER, paddingBottom: Space.md },
 
   option: {
-    borderWidth: StyleSheetHairline,
+    borderWidth: 0.5,
     borderColor: Palette.line2,
     borderRadius: Radius.input,
     paddingHorizontal: Space.md,
@@ -286,6 +372,7 @@ const useStyles = makeStyles((Palette) => ({
   footNote: { marginTop: Space.sm, lineHeight: 19 },
 
   body: { paddingHorizontal: GUTTER },
+  providerNote: { marginBottom: Space.xs },
   fieldLabel: { marginTop: Space.md },
   input: {
     flexDirection: 'row',
@@ -304,9 +391,9 @@ const useStyles = makeStyles((Palette) => ({
     fontSize: 13.5,
     color: Palette.ink,
   },
+  fieldHint: { marginTop: Space.xs, lineHeight: 18 },
+  warn: { flexDirection: 'row', alignItems: 'flex-start', gap: Space.xs, marginTop: Space.md },
+  warnText: { flex: 1, lineHeight: 19 },
   hint: { marginTop: Space.md, lineHeight: 19 },
   foot: { paddingHorizontal: GUTTER, paddingTop: Space.lg },
 }));
-
-/** 与 StyleSheet.hairlineWidth 同值；这里不引 StyleSheet 只是为了少一个 import */
-const StyleSheetHairline = 0.5;

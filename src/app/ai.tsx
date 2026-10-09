@@ -20,21 +20,13 @@ import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { AiKeyModal } from '@/components/domain/AiKeyModal';
-import { AiEndpointModal, AiProviderModal } from '@/components/domain/AiProviderModals';
+import { AiEndpointModal, AiModelModal, AiProviderModal } from '@/components/domain/AiProviderModals';
 import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta } from '@/components/ui/typography';
 import { Palette, Space } from '@/constants/theme';
-import {
-  activeProvider,
-  activeProviderKey,
-  chatModelName,
-  customEndpointSettings,
-  estimateMonthlyCost,
-  providerSupportsVision,
-  visionModelName,
-} from '@/lib/ai/config';
+import { estimateMonthlyCost } from '@/lib/ai/config';
 import { ASR_AVAILABLE } from '@/lib/ai/asr';
 import { useAi } from '@/lib/store/ai';
 import { useEntitlement } from '@/lib/store/entitlement';
@@ -45,17 +37,32 @@ export default function AiSettingsScreen() {
   const styles = useStyles();
   const router = useRouter();
   const { entitled } = useEntitlement();
-  const { enabled, hasKey, keyMask, usage, active, setEnabled, refresh } = useAi();
+  const {
+    enabled,
+    hasKey,
+    keyMask,
+    usage,
+    active,
+    setEnabled,
+    refresh,
+    /* 供应商 / 端点 / 模型名全部来自 store 的 React 状态。
+       ★ 不要改回「config 的模块级变量 + 手动计数器」—— 那条路会漏渲染，
+         症状正是「明明切过去了，这一行还是旧的」，而且不报错。 */
+    provider,
+    endpoint,
+    visionModel,
+    chatModel,
+    supportsVision,
+    visionOverridden,
+    chatOverridden,
+  } = useAi();
   const [keyOpen, setKeyOpen] = useState(false);
   const [providerOpen, setProviderOpen] = useState(false);
   const [endpointOpen, setEndpointOpen] = useState(false);
-  /** 供应商或端点改过之后要重渲染 —— 它们不是 React state，靠这个计数强制刷新 */
-  const [, bumpProvider] = useState(0);
+  /** 正在编辑哪个模型名；null＝不打开 */
+  const [modelKind, setModelKind] = useState<'vision' | 'chat' | null>(null);
 
-  const provider = activeProvider();
   const isCustom = provider.key === 'custom';
-  const canSee = providerSupportsVision();
-  const endpoint = customEndpointSettings().endpoint;
 
   const monthCost = estimateMonthlyCost(usage);
 
@@ -168,26 +175,35 @@ export default function AiSettingsScreen() {
         <SectionCard title="模型">
           <Gutter>
             <Card padded={false}>
-              {/* 这家看不了图时，识图那一行要**明说**，不能只留空 ——
-                  用户会以为「是不是没加载出来」 */}
+              {/* 两行都可点 —— 模型名是「服务商会改、我们不一定会及时跟」的东西，
+                  所以必须让用户自己能填。这家看不了图时识图那行要**明说**，
+                  不能只留空，否则用户会以为「是不是没加载出来」 */}
               <Row
                 label="识图"
-                value={canSee ? visionModelName() : '这家看不了图，识物已隐藏'}
-                valueTone={canSee ? 'ink3' : 'clay'}
+                value={
+                  supportsVision
+                    ? `${visionModel}${visionOverridden ? '（已改）' : ''}`
+                    : '这家看不了图，识物已隐藏'
+                }
+                valueTone={supportsVision ? 'ink3' : 'clay'}
+                onPress={() => setModelKind('vision')}
               />
-              <Row label="问答" value={chatModelName() || '未填写'} valueTone={chatModelName() ? 'ink3' : 'brand'} />
+              <Row
+                label="问答"
+                value={chatModel ? `${chatModel}${chatOverridden ? '（已改）' : ''}` : '未填写，点这里填'}
+                valueTone={chatModel ? 'ink3' : 'brand'}
+                onPress={() => setModelKind('chat')}
+                last
+              />
               {/* 语音单独一行：它跟上面两个不是一回事 —— 不需要 Key、不联网、
                   也不申请麦克风权限（走系统识别对话框）。写清楚这一点，
                   用户才不会以为「关掉 AI 就没有语音录入」 */}
-              <Row
-                label="语音"
-                value={ASR_AVAILABLE ? '系统识别 · 免费' : '这台设备用不了'}
-                last
-              />
+              <Row label="语音" value={ASR_AVAILABLE ? '系统识别 · 免费' : '这台设备用不了'} last />
             </Card>
             <Meta tone="ink4" style={styles.note}>
-              模型名可以随服务商的调整而变。如果哪天报「模型不存在」，多半是官方改了名字，
-              {isCustom ? '回到上面把模型名改成文档里的新名字即可。' : '换成「自定义」填上新名字即可，不必等 App 更新。'}
+              点「识图」或「问答」任意一行，就能改模型名 —— 留空即回到预置的默认值。
+              报「模型不存在 / model not found」时，多半是服务商改了名字，到它的文档里抄一个新的填进来就行，
+              不必等 App 更新。
             </Meta>
             <Meta tone="ink4" style={styles.note}>
               语音走手机自带的识别对话框，不消耗模型调用，也不需要 API Key。关掉上面的开关不影响它。
@@ -243,25 +259,9 @@ export default function AiSettingsScreen() {
         onSaved={() => void refresh()}
       />
 
-      <AiProviderModal
-        visible={providerOpen}
-        currentKey={activeProviderKey()}
-        onClose={() => {
-          setProviderOpen(false);
-          bumpProvider((n) => n + 1);
-          /* 换了供应商，Key 也换了一家 —— 让 store 重新读一次，
-             否则 `hasKey` 还停在旧值，界面上会显示一个不存在的『已配置』 */
-          void refresh();
-        }}
-      />
-
-      <AiEndpointModal
-        visible={endpointOpen}
-        onClose={() => {
-          setEndpointOpen(false);
-          bumpProvider((n) => n + 1);
-        }}
-      />
+      <AiProviderModal visible={providerOpen} onClose={() => setProviderOpen(false)} />
+      <AiEndpointModal visible={endpointOpen} onClose={() => setEndpointOpen(false)} />
+      <AiModelModal kind={modelKind} onClose={() => setModelKind(null)} />
     </Screen>
   );
 }

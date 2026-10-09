@@ -24,9 +24,16 @@ import {
 } from 'react';
 
 import {
+  activeProvider,
+  activeProviderKey,
   bumpUsage,
+  chatModelName,
   currentAiKey,
+  defaultModelName,
   EMPTY_USAGE,
+  endpointUrl,
+  findProvider,
+  hasModelOverride,
   hydrateAi,
   isAiEnabled,
   maskKey,
@@ -34,10 +41,17 @@ import {
   rollUsage,
   saveAiEnabled,
   saveAiKey,
+  saveAiModel,
+  saveAiProvider,
+  saveCustomEndpoint,
+  visionModelName,
   writeAiUsage,
   type AiKind,
+  type AiModelKind,
+  type AiProviderDef,
   type AiUsage,
 } from '@/lib/ai/config';
+import { DEFAULT_PROVIDER_KEY as DEFAULT_PROVIDER } from '@/lib/ai/config';
 import { today } from '@/lib/date';
 
 export interface AiValue {
@@ -60,6 +74,29 @@ export interface AiValue {
   /** 记一次调用，顺带落盘 */
   record: (kind: AiKind) => void;
   refresh: () => Promise<void>;
+
+  /* ---- 供应商与模型 ----
+     这些必须是 **React 状态**，不能只放 config 的模块级变量：
+     模块级变量改了不会通知 React（换肤那条坑同理），
+     界面就会「明明切过去了，名字还是旧的」—— 而且不报错。
+     config 那侧仍然保留运行时值，因为 client.ts 是不经过 React 的调用方。 */
+  provider: AiProviderDef;
+  /** 自定义端点地址；非自定义时为空串 */
+  endpoint: string;
+  /** 识图模型名；空串＝当前这家看不了图 */
+  visionModel: string;
+  chatModel: string;
+  /** 当前这家能不能识图。界面据此决定露不露识物入口 */
+  supportsVision: boolean;
+  /** 这家预置的默认模型名，输入框拿它当 placeholder */
+  defaultVision: string;
+  defaultChat: string;
+  /** 用户是否改过这个名字 */
+  visionOverridden: boolean;
+  chatOverridden: boolean;
+  setProvider: (key: string) => Promise<void>;
+  saveEndpoint: (url: string) => Promise<void>;
+  saveModel: (kind: AiModelKind, value: string) => Promise<void>;
 }
 
 const AiContext = createContext<AiValue | null>(null);
@@ -74,16 +111,29 @@ export function AiProvider({ children }: { children: ReactNode }) {
   const [enabled, setEnabledState] = useState(false);
   const [key, setKey] = useState('');
   const [usage, setUsage] = useState<AiUsage>(EMPTY_USAGE);
+  const [providerKey, setProviderKeyState] = useState<string>(DEFAULT_PROVIDER);
+  const [endpoint, setEndpointState] = useState('');
+  const [visionModel, setVisionState] = useState('');
+  const [chatModel, setChatState] = useState('');
 
   /* record 要基于「最新的」用量累加，而它可能在同一个渲染批里被连调两次
      （识别一次 + 问答一次）。用 ref 记住最新值，state 只负责触发重渲染。 */
   const usageRef = useRef<AiUsage>(EMPTY_USAGE);
+
+  /** 把 config 那侧「供应商 / 端点 / 模型名」的当前值同步进 React 状态 */
+  const syncProviderState = useCallback(() => {
+    setProviderKeyState(activeProviderKey());
+    setEndpointState(endpointUrl());
+    setVisionState(visionModelName());
+    setChatState(chatModelName());
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
       await hydrateAi();
       setEnabledState(isAiEnabled());
       setKey(currentAiKey());
+      syncProviderState();
       const next = await readAiUsage(currentMonth());
       usageRef.current = next;
       setUsage(next);
@@ -92,7 +142,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
     } finally {
       setReady(true);
     }
-  }, []);
+  }, [syncProviderState]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 本 Provider 存在的理由就是启动时把状态读进来
@@ -118,6 +168,36 @@ export function AiProvider({ children }: { children: ReactNode }) {
     void writeAiUsage(next).catch(() => undefined);
   }, []);
 
+  /**
+   * 切供应商。
+   *
+   * ★ 切完必须**重新同步一次**：Key 换成那一家的了（hasKey 要跟着变），
+   *   端点与两个模型名也都换了。少同步一处，界面上就会出现
+   *   「显示已配置、实际用的是上一家的 Key」这种看不出错的错。
+   */
+  const setProvider = useCallback(
+    async (next: string) => {
+      await saveAiProvider(next);
+      setKey(currentAiKey());
+      syncProviderState();
+    },
+    [syncProviderState],
+  );
+
+  const saveEndpoint = useCallback(async (url: string) => {
+    await saveCustomEndpoint({ endpoint: url });
+    setEndpointState(url.trim());
+  }, []);
+
+  const saveModel = useCallback(
+    async (kind: AiModelKind, value: string) => {
+      await saveAiModel(kind, value);
+      setVisionState(visionModelName());
+      setChatState(chatModelName());
+    },
+    [],
+  );
+
   const value = useMemo<AiValue>(
     () => ({
       ready,
@@ -130,8 +210,36 @@ export function AiProvider({ children }: { children: ReactNode }) {
       saveKey: saveKeyAction,
       record,
       refresh,
+      provider: findProvider(providerKey),
+      endpoint,
+      visionModel,
+      chatModel,
+      supportsVision: visionModel.length > 0,
+      defaultVision: defaultModelName('vision'),
+      defaultChat: defaultModelName('chat'),
+      visionOverridden: visionModel.length > 0 && hasModelOverride('vision'),
+      chatOverridden: chatModel.length > 0 && hasModelOverride('chat'),
+      setProvider,
+      saveEndpoint,
+      saveModel,
     }),
-    [ready, enabled, key, usage, setEnabled, saveKeyAction, record, refresh],
+    [
+      ready,
+      enabled,
+      key,
+      usage,
+      setEnabled,
+      saveKeyAction,
+      record,
+      refresh,
+      providerKey,
+      endpoint,
+      visionModel,
+      chatModel,
+      setProvider,
+      saveEndpoint,
+      saveModel,
+    ],
   );
 
   return <AiContext.Provider value={value}>{children}</AiContext.Provider>;

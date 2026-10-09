@@ -276,10 +276,13 @@ const META_KEY = 'ai.key';
 const META_ENABLED = 'ai.enabled';
 const META_USAGE = 'ai.usage';
 const META_PROVIDER = 'ai.provider';
-/** 自定义端点的三件套，只在 provider === 'custom' 时有意义 */
+/** 自定义那家只需要存端点；模型名走下面的通用覆盖槽位 */
 const META_CUSTOM_ENDPOINT = 'ai.custom.endpoint';
-const META_CUSTOM_VISION = 'ai.custom.vision';
-const META_CUSTOM_CHAT = 'ai.custom.chat';
+/** 上一版把自定义的两个模型名存在这两个键上，**只在 hydrate 时读一次做迁移** */
+const META_LEGACY_CUSTOM_VISION = 'ai.custom.vision';
+const META_LEGACY_CUSTOM_CHAT = 'ai.custom.chat';
+
+export type AiModelKind = 'vision' | 'chat';
 
 /**
  * Key 按供应商分开存：`ai.key.<providerKey>`。
@@ -291,35 +294,73 @@ const META_CUSTOM_CHAT = 'ai.custom.chat';
  */
 const keySlot = (providerKey: string) => `${META_KEY}.${providerKey}`;
 
+/**
+ * 模型名按「供应商 + 用途」存：`ai.model.<providerKey>.<vision|chat>`。
+ *
+ * ★★ 为什么对**所有**供应商开放，而不只是「自定义」那家：
+ *   官方下线模型名是常事 —— DeepSeek 的 `deepseek-chat` / `deepseek-reasoner`
+ *   用了整整一年，2026-07-24 被直接下线，请求当场失败。
+ *   写死在表里的名字，早晚有一天会让用户撞上一句莫名其妙的报错，
+ *   而那时未必有人来改这张表。让用户能自己填，比每次发版跟着改可靠。
+ *
+ * 空串＝用这家预置的默认名（清空输入框即恢复默认）。
+ */
+const modelSlot = (providerKey: string, kind: AiModelKind) => `ai.model.${providerKey}.${kind}`;
+
+interface ModelOverride {
+  vision: string;
+  chat: string;
+}
+
 let runtimeKey: string | null = null;
 let runtimeEnabled: boolean | null = null;
 let runtimeProvider: string | null = null;
-let runtimeCustom: { endpoint: string; vision: string; chat: string } | null = null;
+let runtimeEndpoint: string | null = null;
+let runtimeModels: Record<string, ModelOverride> = {};
 let hydrated = false;
 
-/** 启动时调一次，把用户存过的 Key / 开关 / 用量 / 供应商读进内存 */
+/** 启动时调一次，把用户存过的 Key / 开关 / 用量 / 供应商 / 模型名读进内存 */
 export async function hydrateAi(): Promise<void> {
   if (hydrated) return;
   hydrated = true;
   try {
     const { getDatabase, readMeta } = await import('../db');
     const db = await getDatabase();
-    const [legacyKey, enabled, provider, endpoint, vision, chat] = await Promise.all([
+    const [legacyKey, enabled, provider, endpoint, legacyVision, legacyChat] = await Promise.all([
       readMeta(db, META_KEY),
       readMeta(db, META_ENABLED),
       readMeta(db, META_PROVIDER),
       readMeta(db, META_CUSTOM_ENDPOINT),
-      readMeta(db, META_CUSTOM_VISION),
-      readMeta(db, META_CUSTOM_CHAT),
+      readMeta(db, META_LEGACY_CUSTOM_VISION),
+      readMeta(db, META_LEGACY_CUSTOM_CHAT),
     ]);
 
     if (enabled != null) runtimeEnabled = enabled === '1';
     if (provider) runtimeProvider = provider;
-    if (endpoint != null || vision != null || chat != null) {
-      runtimeCustom = { endpoint: endpoint ?? '', vision: vision ?? '', chat: chat ?? '' };
-    }
+    runtimeEndpoint = endpoint ?? null;
 
-    /* 老槽位迁移：先读新的，没有才看老的 */
+    /* 模型覆盖：每家两个槽位。本地 meta 读，一次并发读完 */
+    const overrides: Record<string, ModelOverride> = {};
+    await Promise.all(
+      AI_PROVIDERS.flatMap((p) =>
+        (['vision', 'chat'] as const).map(async (kind) => {
+          const value = await readMeta(db, modelSlot(p.key, kind));
+          if (value) {
+            overrides[p.key] = { ...(overrides[p.key] ?? { vision: '', chat: '' }), [kind]: value };
+          }
+        }),
+      ),
+    );
+
+    /* 上一版自定义那家的模型名存在 ai.custom.*，迁到通用槽位（只补空缺） */
+    const custom = overrides.custom ?? { vision: '', chat: '' };
+    overrides.custom = {
+      vision: custom.vision || (legacyVision ?? ''),
+      chat: custom.chat || (legacyChat ?? ''),
+    };
+    runtimeModels = overrides;
+
+    /* 老 Key 槽位迁移：先读新的，没有才看老的 */
     const active = runtimeProvider ?? DEFAULT_PROVIDER_KEY;
     const saved = (await readMeta(db, keySlot(active))) ?? (active === DEFAULT_PROVIDER_KEY ? legacyKey : null);
     if (saved) runtimeKey = saved;
@@ -338,7 +379,7 @@ export async function saveAiKey(key: string): Promise<void> {
     const db = await getDatabase();
     const slot = keySlot(activeProviderKey());
     await writeMeta(db, slot, trimmed);
-    /* 老槽位一起清掉并改写成新槽位，免得下次启动又从老的读回来 */
+    /* 老槽位一起清掉，免得下次启动又从老的读回来 */
     if (slot !== META_KEY) await writeMeta(db, META_KEY, '');
   } catch {
     // 写不进去就只在本次会话生效，界面会照实提示
@@ -375,56 +416,104 @@ export async function saveAiProvider(key: string): Promise<void> {
     const saved = await readMeta(db, keySlot(key));
     if (saved) runtimeKey = saved;
   } catch {
-    // 同上
+    // 同上：写不进去只影响下次启动
   }
 }
 
-/** 自定义端点三件套的当前值 */
+/** 自定义端点三件套的当前值。模型名两项是通用覆盖槽位在 custom 这一格上的值 */
 export function customEndpointSettings(): { endpoint: string; vision: string; chat: string } {
-  return runtimeCustom ?? { endpoint: '', vision: '', chat: '' };
+  return {
+    endpoint: runtimeEndpoint ?? '',
+    vision: modelOverride('custom', 'vision'),
+    chat: modelOverride('custom', 'chat'),
+  };
 }
 
 /** 写入自定义端点。三项一次写全，免得出现半套配置 */
-export async function saveCustomEndpoint(patch: Partial<{ endpoint: string; vision: string; chat: string }>): Promise<void> {
-  const next = { ...customEndpointSettings(), ...patch };
-  runtimeCustom = next;
+export async function saveCustomEndpoint(
+  patch: Partial<{ endpoint: string; vision: string; chat: string }>,
+): Promise<void> {
+  if (patch.endpoint !== undefined) {
+    const value = patch.endpoint.trim();
+    runtimeEndpoint = value;
+    hydrated = true;
+    try {
+      const { getDatabase, writeMeta } = await import('../db');
+      const db = await getDatabase();
+      await writeMeta(db, META_CUSTOM_ENDPOINT, value);
+    } catch {
+      // 同上
+    }
+  }
+  if (patch.vision !== undefined) await saveAiModel('vision', patch.vision, 'custom');
+  if (patch.chat !== undefined) await saveAiModel('chat', patch.chat, 'custom');
+}
+
+/* ---------------------------------------------------------- 模型名的读写 */
+
+/** 某家某个槽位上的覆盖值；空串＝没覆盖过 */
+export function modelOverride(providerKey: string, kind: AiModelKind): string {
+  return (runtimeModels[providerKey] ?? { vision: '', chat: '' })[kind];
+}
+
+/** 当前生效的端点是用户填的，还是这家预置的 */
+export function endpointUrl(): string {
+  const p = activeProvider();
+  if (p.key !== 'custom') return p.endpoint;
+  return (runtimeEndpoint ?? '').trim();
+}
+
+/** 这家预置的默认模型名。界面拿它当输入框的 placeholder 与「默认」提示 */
+export function defaultModelName(kind: AiModelKind): string {
+  const p = activeProvider();
+  return kind === 'vision' ? (p.visionModel ?? '') : p.chatModel;
+}
+
+/** 当前这家这个槽位有没有被用户改过。界面据此显示「已自定义」 */
+export function hasModelOverride(kind: AiModelKind): boolean {
+  return modelOverride(activeProviderKey(), kind).length > 0;
+}
+
+/**
+ * 写入某个模型名。空串＝清除覆盖、回到这家预置的默认名。
+ *
+ * `providerKey` 默认取当前这家；自定义端点那边显式传 'custom'。
+ */
+export async function saveAiModel(
+  kind: AiModelKind,
+  value: string,
+  providerKey: string = activeProviderKey(),
+): Promise<void> {
+  const trimmed = value.trim();
+  const current = runtimeModels[providerKey] ?? { vision: '', chat: '' };
+  runtimeModels = { ...runtimeModels, [providerKey]: { ...current, [kind]: trimmed } };
   hydrated = true;
   try {
     const { getDatabase, writeMeta } = await import('../db');
     const db = await getDatabase();
-    await Promise.all([
-      writeMeta(db, META_CUSTOM_ENDPOINT, next.endpoint),
-      writeMeta(db, META_CUSTOM_VISION, next.vision),
-      writeMeta(db, META_CUSTOM_CHAT, next.chat),
-    ]);
+    await writeMeta(db, modelSlot(providerKey, kind), trimmed);
   } catch {
-    // 同上
+    // 同上：写不进去只影响下次启动
   }
 }
 
-/** 当前生效的端点。自定义那家读用户填的 */
-export function endpointUrl(): string {
-  const p = activeProvider();
-  return p.key === 'custom' ? customEndpointSettings().endpoint.trim() : p.endpoint;
-}
-
 /**
- * 当前生效的识图模型名；**空串表示这家看不了图**。
+ * 当前生效的识图模型名；**空串表示这家（或这个槽位）看不了图**。
  *
  * 界面拿它决定识物入口露不露脸；`askVision` 再兜一道，
  * 免得别处漏判时把请求发出去换个语焉不详的模型侧错误。
  */
 export function visionModelName(): string {
-  const p = activeProvider();
-  if (p.key === 'custom') return customEndpointSettings().vision.trim();
-  return p.visionModel ?? '';
+  const own = modelOverride(activeProviderKey(), 'vision');
+  if (own) return own;
+  return activeProvider().visionModel ?? '';
 }
 
 /** 当前生效的问答模型名 */
 export function chatModelName(): string {
-  const p = activeProvider();
-  if (p.key === 'custom') return customEndpointSettings().chat.trim();
-  return p.chatModel;
+  const own = modelOverride(activeProviderKey(), 'chat');
+  if (own) return own;
+  return activeProvider().chatModel;
 }
 
 /** 这家供应商能不能识图 */
