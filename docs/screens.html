@@ -144,11 +144,11 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
 <div class="wrap">
 
 <header class="cover">
-  <div class="eyebrow">收纳柜 App &middot; 界面设计 &middot; v2.0.0</div>
+  <div class="eyebrow">收纳柜 App &middot; 界面设计 &middot; v2.1.4</div>
   <h1>格物</h1>
   <p class="lede">东西放在哪，你记得，它也记得。一套以「位置」为骨架、以「持有成本」为情绪回报的本地收纳记录工具。</p>
   <div class="meta">
-    <span>15 屏</span>
+    <span>17 屏</span>
     <span>六套浅色 + 系统深色自动接管</span>
     <span>暖棕纸感 &middot; 衬线叙述</span>
     <span>Android &middot; 纯本地</span>
@@ -188,7 +188,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
   <div class="sec-head">
     <span class="sec-num">02</span>
     <h2>界面</h2>
-    <span class="note">十五屏 &middot; 前十屏按使用动线排列，后五屏是库存与 AI 功能的新界面</span>
+    <span class="note">十七屏 &middot; 前十屏按使用动线排列，后七屏是库存、AI 与统计功能的新界面</span>
   </div>
 
   <div class="screens">
@@ -361,6 +361,13 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5l1.9 4.6 4.6 1.9-4.6 1.9-1.9 4.6-1.9-4.6L5.5 10l4.6-1.9z" stroke="#8C5A34" stroke-width="1.6" stroke-linejoin="round"/><path d="M18.5 16.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z" stroke="#8C5A34" stroke-width="1.4" stroke-linejoin="round"/></svg>
                 <span style="color:#8C5A34">找封面</span>
               </div>
+              <!-- ★ 识物：同是实线品牌描边，但底色换成品牌浅底 —— 三个方块里它最像「主操作」。
+                   只有调用方（支持者档 + 已开 AI 且这家供应商能看图）传了处理函数才出现；
+                   表单自己不知道「支持者档」「有没有配 Key」这些事 -->
+              <div style="width:72px;height:72px;border-radius:11px;border:0.5px solid #8C5A34;background:#F3E9DE;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;flex:0 0 auto">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3.5 8V5.5a2 2 0 0 1 2-2H8M16 3.5h2.5a2 2 0 0 1 2 2V8M20.5 16v2.5a2 2 0 0 1-2 2H16M8 20.5H5.5a2 2 0 0 1-2-2V16M3.5 12h17" stroke="#8C5A34" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span style="color:#8C5A34">识物</span>
+              </div>
             </div>
             <div style="color:#C9BEB0;margin-top:8px;padding:0 0 9px">图片会压缩后存入应用内，删除系统相册不影响这里</div>
           </div>
@@ -396,7 +403,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#A99C8E" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">03</div><div class="nm">录入 &middot; 连续录入模式</div><div class="ds">两个按钮上下叠、主按钮在上且更大：「保存并录下一件」优先于「保存并完成」。推进感靠标题下那句回执（「刚记下「X」，继续下一件」），不靠进度条 —— 上一版稿里的「第 3 件」进度条和「最多 9 张」并不存在。照片给两个入口：「添加」走本地相册，「找封面」要联网，用品牌色描边把这两件事区分开。照片这一组**没有卡片外壳**（方块自带描边，再套卡片就是两层边框）—— 卡片只给下面四组字段用，每张卡左右各留 17px，靠卡片自身的边距；这是页面上最容易漏的一处，漏了不报错、只是卡片顶到屏幕两边。这屏画到按钮为止，中间还有「归类 / 时间与花费 / 更多信息」三组字段，只有名称必填。「数量」排在「时间与花费」组里、「过期时间」下面那一行，占位提示是「留空 = 只此一件」—— <b>留空是单件物品，不是 0</b>，所以老用户不改任何东西，行为一个字节都不变。录入是 tab 路由，底部标签栏一直在；中央那颗 + 永远品牌色、永远不带文字，所以「当前在录入页」不会让标签栏有任何变化。</div></figcaption>
+      <figcaption><div class="no">03</div><div class="nm">录入 &middot; 连续录入模式</div><div class="ds">两个按钮上下叠、主按钮在上且更大：「保存并录下一件」优先于「保存并完成」。推进感靠标题下那句回执（「刚记下「X」，继续下一件」），不靠进度条 —— 上一版稿里的「第 3 件」进度条和「最多 9 张」并不存在。照片给三个入口：「添加」走本地相册，「找封面」要联网，「识物」要联网 + 花你自己的 Key —— 后两个用品牌色区分开，识物再加一层品牌浅底，三个方块里它最像主操作。<b>识物只在支持者档 + AI 已开 + 这家供应商看得懂图时才出现</b>（表单不知道这三件事，由调用方决定传不传处理函数）—— 留一个点下去必然报错的按钮，比没有这个按钮更糟。照片这一组**没有卡片外壳**（方块自带描边，再套卡片就是两层边框）—— 卡片只给下面四组字段用，每张卡左右各留 17px，靠卡片自身的边距；这是页面上最容易漏的一处，漏了不报错、只是卡片顶到屏幕两边。这屏画到按钮为止，中间还有「归类 / 时间与花费 / 更多信息」三组字段，只有名称必填。「数量」排在「时间与花费」组里、「过期时间」下面那一行，占位提示是「留空 = 只此一件」—— <b>留空是单件物品，不是 0</b>，所以老用户不改任何东西，行为一个字节都不变。录入是 tab 路由，底部标签栏一直在；中央那颗 + 永远品牌色、永远不带文字，所以「当前在录入页」不会让标签栏有任何变化。</div></figcaption>
     </figure>
 
     <!-- 04 -->
@@ -1049,14 +1056,15 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <div style="color:#C9BEB0;margin-top:5px">没有 Key？到 bigmodel.cn 手机号注册即领 <span style="color:#8C5A34">↗</span></div>
         </div>
 
-        <!-- ★ 语音单列一行：它跟上面两个不是一回事 —— 不需要 Key、不联网、也不申请麦克风权限。
-             不写清这一点，用户会以为「关掉 AI 就没有语音录入」 -->
+        <!-- ★ 语音单列一行：它跟上面两个不是一回事 —— 不需要 Key、不联网、也不申请麦克风权限
+             （走系统识别对话框）。所以它的值写「不耗 Key」而不是「免费」——
+             它与识物、问答同属支持者档，共用上面那个总闸，写「免费」会被读成「整件事不要钱」 -->
         <div style="padding:10px 17px 0;flex:0 0 auto">
           <div style="color:#9A8D80;padding-bottom:5px">模型</div>
           <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
             <div class="fr"><span class="fk">识图</span><span class="fv">GLM-4.6V-Flash · 免费</span></div>
             <div class="fr"><span class="fk">问答</span><span class="fv">GLM-4.7-Flash · 免费</span></div>
-            <div class="fr"><span class="fk">语音</span><span class="fv">系统识别 · 免费</span></div>
+            <div class="fr"><span class="fk">语音</span><span class="fv">系统识别 · 不耗 Key</span></div>
           </div>
         </div>
 
@@ -1073,8 +1081,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           </div>
         </div>
       </div></div>
-      <figcaption><div class="no">13</div><div class="nm">AI 助手 &middot; 设置页</div><div class="ds">这一页要把三件事同时说清，缺一件用户就会犹豫：<b>要不要花钱</b>（两个模型都是免费档，写在模型行上，不藏在说明里）、<b>数据去哪了</b>（上传的只是 ≤1024px 压缩副本）、<b>关掉会怎样</b>（关掉开关等于这条链路不存在，其它功能一个不少）。所以顺序是「总开关 → 凭证 → 模型 → 用量 → 隐私」—— 先答「会不会偷偷联网」，再轮到「Key 怎么填」。<br>用量卡是刻意的：让用户随时看见花了多少钱，他才有底气把开关一直开着。这里恒为 &#165;0.00（两个模型都免费），但那个数字仍然由 <code>estimateMonthlyCost</code> 算出来而不是写死 —— 将来换一档模型，它会自己变。<br><b>语音单独一行</b>，因为它跟上面两个不是一回事：不需要 Key、不联网、也不申请麦克风权限（走系统识别对话框）。不写清这一点，用户会以为「关掉 AI 就没有语音录入」。<br>这一页是长页，稿子画到用量卡为止；下面还有一张「隐私」卡。未激活的档位进来时整页只剩一句解释与一个出口 —— <b>不做成「能看不能按」，灰按钮看起来像坏了</b>，而用户真正需要的是知道怎么解锁。</div></figcaption>
-    </figure>
+      <figcaption><div class="no">13</div><div class="nm">AI 助手 &middot; 设置页</div><div class="ds">这一页要把三件事同时说清，缺一件用户就会犹豫：<b>要不要花钱</b>（两个模型都是免费档，写在模型行上，不藏在说明里）、<b>数据去哪了</b>（上传的只是 ≤1024px 压缩副本）、<b>关掉会怎样</b>（关掉开关等于这条链路不存在，其它功能一个不少）。所以顺序是「总开关 → 凭证 → 模型 → 用量 → 隐私」—— 先答「会不会偷偷联网」，再轮到「Key 怎么填」。<br>用量卡是刻意的：让用户随时看见花了多少钱，他才有底气把开关一直开着。这里恒为 &#165;0.00（两个模型都免费），但那个数字仍然由 <code>estimateMonthlyCost</code> 算出来而不是写死 —— 将来换一档模型，它会自己变。<br><b>语音单独一行</b>，因为它跟上面两个不是一回事：不需要 Key、不联网、也不申请麦克风权限（走系统识别对话框），所以它的值写「不耗 Key」而非「免费」—— 它与识物、问答同属支持者档，共用上面那个总闸；写「免费」会被读成「整件事不要钱」。<br>这一页是长页，稿子画到用量卡为止；下面还有一张「隐私」卡。未激活的档位进来时整页只剩一句解释与一个出口 —— <b>不做成「能看不能按」，灰按钮看起来像坏了</b>，而用户真正需要的是知道怎么解锁。</div></figcaption>    </figure>
 
     <!-- 14 -->
     <figure class="fig" data-slug="ask">
@@ -1149,55 +1156,150 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="margin-top:4px;flex:0 0 auto"><path d="M4 4l8 8M12 4l-8 8" stroke="#C9BEB0" stroke-width="1.6" stroke-linecap="round"/></svg>
         </div>
 
-        <div style="padding:18px 17px 0;flex:0 0 auto">
+        <!-- ★ 转写卡走在 ItemForm 的 header 插槽里，与字段一起滚 ——
+             外面再套一层滚动容器会让两个垂直 ScrollView 抢手势。
+             转写那句话**可直接编辑**：听错一个字不必重说整句，
+             「重说」要重走一遍系统识别框，还不一定比上次准 -->
+        <div style="padding:16px 17px 0;flex:0 0 auto">
           <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;padding:11px 12px">
-            <div style="display:flex;align-items:center;gap:4px;color:#C9BEB0"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><rect x="9" y="2.5" width="6" height="11" rx="3" stroke="#C9BEB0" stroke-width="2"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5" stroke="#C9BEB0" stroke-width="2" stroke-linecap="round"/></svg>听到的是</div>
-            <div style="margin-top:3px;line-height:1.7">厨房橱柜二放了一包牛肉面，保质期到年底</div>
+            <div style="display:flex;align-items:center;gap:4px;color:#C9BEB0"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><rect x="9" y="2.5" width="6" height="11" rx="3" stroke="#C9BEB0" stroke-width="2"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5" stroke="#C9BEB0" stroke-width="2" stroke-linecap="round"/></svg>听到的是（可以直接改）</div>
+            <div style="margin-top:3px;line-height:1.7">厨房橱柜二放了一包牛肉面，保质期到年底<span style="display:inline-block;width:1.5px;height:12px;background:#8C5A34;vertical-align:-2px"></span></div>
+            <div style="display:flex;gap:8px;margin-top:9px">
+              <div style="flex:1;text-align:center;padding:7px;border-radius:9px;border:0.5px solid #E3DCD1;color:#6B6055">重说</div>
+              <div style="flex:1;text-align:center;padding:7px;border-radius:9px;border:0.5px solid #E3DCD1;color:#6B6055">重新识别</div>
+            </div>
           </div>
+          <!-- 照实说 AI 那一步的结果：写「已让 AI 读过一遍」是假话，
+               失败时用户会以为「这么简单都识别不了」，而真相可能是「模型根本没连上」 -->
+          <div style="color:#C9BEB0;margin-top:7px;line-height:1.6">本机规则听出 4 项；AI 又补上 2 项（分类、价格）。</div>
         </div>
 
-        <!-- ★ 行尾那枚小标的两种含义必须分得开：
-             「待确认」＝本地规则听出来的，「AI」＝模型补出来的，后者把握更小 -->
-        <div style="padding:16px 17px 0;flex:0 0 auto">
+        <!-- ★ 下面是**手动录入那张表**（ItemForm）：语音页不再自己造一套字段。
+             所以「语音能填哪些东西」与「手动能填哪些东西」永远一致 ——
+             上一版在语音页另画三行，于是「价格 / 购买日期 / 库存说了也白说」。
+             行尾那枚小标的两种含义必须分得开：「待确认」＝本地规则听出来的，
+             「AI」＝模型补出来的，后者把握更小；模型只补空着的行，绝不覆盖已有值 -->
+        <div style="margin:12px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:4px">必填</div>
           <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
-            <div style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:0.5px solid #F1ECE4">
-              <span style="color:#9A8D80;width:46px;flex:0 0 auto">名称</span>
-              <span style="flex:1;min-width:0;font-weight:500">牛肉面</span>
-              <span class="tgn" style="color:#6B6055">待确认</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:0.5px solid #F1ECE4">
-              <span style="color:#9A8D80;width:46px;flex:0 0 auto">位置</span>
-              <span style="flex:1;min-width:0;font-weight:500">厨房 &middot; 橱柜2</span>
-              <span class="tgn" style="color:#6B6055">待确认</span>
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style="flex:0 0 auto"><path d="M5 2l5 5-5 5" stroke="#C9BEB0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;padding:11px 14px">
-              <span style="color:#9A8D80;width:46px;flex:0 0 auto">到期</span>
-              <span style="flex:1;min-width:0;font-weight:500;font-variant-numeric:tabular-nums">2026-12-31</span>
-              <span class="tg">AI</span>
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style="flex:0 0 auto"><path d="M5 2l5 5-5 5" stroke="#C9BEB0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </div>
+            <div class="fr" style="min-height:42px"><span class="fk" style="width:52px">名称</span><span class="fv" style="flex:1;text-align:left">牛肉面</span><span class="tgn" style="color:#6B6055">待确认</span></div>
+          </div>
+        </div>
+        <div style="margin:10px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:4px">归类</div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
+            <div class="fr" style="min-height:42px"><span class="fk" style="width:52px">分类</span><span class="fv" style="flex:1;text-align:left">食品 &middot; 泡面</span><span class="tg">AI</span></div>
+            <div class="fr" style="min-height:42px"><span class="fk" style="width:52px">位置</span><span class="fv" style="flex:1;text-align:left">厨房 &middot; 橱柜2</span><span class="tgn" style="color:#6B6055">待确认</span></div>
           </div>
         </div>
 
-        <!-- 「让 AI 读一遍」只在两条件下出现：这一档能用 AI，且确实还有没听出来的行。
-             三行都填上了就没有可补的，多一个按钮只是噪音。免费档不做灰按钮 ——
-             语音本身不该因为 AI 而被加门槛 -->
-        <div style="padding:16px 17px 0;flex:0 0 auto">
-          <div style="border:0.5px solid #E3DCD1;border-radius:11px;padding:11px;text-align:center;color:#6B6055;font-weight:600">✦ 让 AI 读一遍，补齐没听出来的</div>
-          <div style="color:#C9BEB0;margin-top:7px;line-height:1.6">听错了？点任意一行都能改，也可以按「重说」重录一遍。</div>
-        </div>
-
-        <div style="margin-top:auto;padding:0 17px 18px;display:flex;gap:8px;flex:0 0 auto">
-          <div style="flex:1;text-align:center;padding:12px;border-radius:11px;border:0.5px solid #E3DCD1;color:#6B6055;font-weight:600">重说</div>
-          <div style="flex:1.7;text-align:center;padding:12px;border-radius:11px;background:#8C5A34;color:#fff;font-weight:600">确认并保存</div>
+        <!-- 提交按钮由 ItemForm 出，整幅宽 —— 「重说」已经上移到转写卡里，
+             底部不再与它分权重。这屏画到「归类」为止：下面还有「时间与花费」
+             （购买日期 / 价格 / 过期时间 / 数量）与「更多信息」两组，与手动录入完全一致 -->
+        <div style="margin-top:auto;padding:12px 17px 18px;flex:0 0 auto">
+          <div style="text-align:center;padding:12px;border-radius:11px;background:#8C5A34;color:#fff;font-weight:600">确认并保存</div>
+          <div style="text-align:center;color:#C9BEB0;margin-top:7px">下面还有「时间与花费」「更多信息」两组</div>
         </div>
       </div></div>
-      <figcaption><div class="no">15</div><div class="nm">语音录入 &middot; 确认三行</div><div class="ds">一句话 → 三个字段。说的是「厨房橱柜二放了一包牛肉面，保质期到年底」，拿到的是 名称 牛肉面 / 位置 厨房&middot;橱柜2 / 到期 12-31，<b>然后停下来等你确认</b>。<br>三条不变量：<br>① <b>绝不直接入库</b>。识别有误差，结果一律先落到这三行里，点「确认并保存」才写库。<br>② <b>不申请录音权限</b>。识别走系统对话框，录音发生在识别器 App 里，格物的权限清单一个字节都不变 —— 代价是会离开 App、拿不到实时转写、部分 ROM 没有识别器。<br>③ <b>解析可以不准，界面必须诚实</b>。没听懂的行写「未识别」并留出改的入口，不拿一个猜出来的值冒充听懂了 —— 猜错的东西用户不一定发现，而「未识别」他一定会看见。<br>行尾那枚小标的两种含义必须分得开：「待确认」＝本地规则听出来的，「AI」＝模型补出来的，后者把握更小。<b>AI 只补空着的行，绝不覆盖已有值</b>，而且位置不参与 —— 模型不知道你的柜子叫什么，补出来的必然是编的。用户手动一动某一行，那一行的「AI」标就摘掉。<br>底部两个按钮 1 : 1.7，「重说」让位给「确认并保存」；待机态则是居中波形 + 一个「开始说话」大按钮。<b>波形是装饰不是音量表</b> —— 走系统识别时录音在另一个进程里，拿不到任何音频数据，所以只做匀速呼吸的错相动画，不做「跟着说话起伏」的假象：那会让人以为它真在听。</div></figcaption>
+      <figcaption><div class="no">15</div><div class="nm">语音录入 &middot; 转写 + 复用录入表单</div><div class="ds">说的是「厨房橱柜二放了一包牛肉面，保质期到年底」，拿到的是 名称 牛肉面 / 分类 食品&middot;泡面 / 位置 厨房&middot;橱柜2，<b>然后停下来等你确认</b>。<br>★ <b>这一页复用的就是手动录入那张表</b>（ItemForm，隐去照片区、顶部插一张转写卡）。上一版语音页自己另写了一套三行字段，于是「价格 / 购买日期 / 库存说了也白说」——那三项在手动表单里一直都在，只是语音这条路没接上。<b>同一件事两套实现，代价就是「支持哪些属性」要在两边各答一遍，然后必然答歪一边。</b>现在表单加字段，语音这条路自动跟上，不用改三遍。<br>三条不变量：<br>① <b>绝不直接入库</b>。识别有误差，结果一律先落到字段里，点「确认并保存」才写库。<br>② <b>不申请录音权限</b>。识别走系统对话框，录音发生在识别器 App 里，格物的权限清单一个字节都不变 —— 代价是会离开 App、拿不到实时转写、部分 ROM 没有识别器。<br>③ <b>解析可以不准，界面必须诚实</b>。没听懂的行留空并留出改的入口，不拿一个猜出来的值冒充听懂了。<br>转写卡里那句话<b>可以直接改</b>：听错一个字不必重说整句（「重说」要重走一遍系统识别框，还不一定比上次准），改完按「重新识别」按新文字重跑一次。卡下那行小字是 AI 那一步的<b>照实汇报</b>——「本地规则听出 4 项；AI 又补上 2 项」。上一版无论成败都写「已让 AI 读过一遍」，那是假话：「模型没连上」与「本机规则没听懂」这两件完全不同的事，在用户眼里长得一样。<br>行尾那枚小标的两种含义必须分得开：「待确认」＝本地规则听出来的，「AI」＝模型补出来的，后者把握更小。<b>AI 只补空着的行，绝不覆盖已有值</b>，而且位置不参与 —— 模型不知道你的柜子叫什么，补出来的必然是编的。用户手动一动某一行，那一行的「AI」标就摘掉。<br>底部只剩一个整幅宽的「确认并保存」——「重说」已经上移到转写卡里，不再分权重；待机态则是居中波形 + 一个「开始说话」大按钮。<b>波形是装饰不是音量表</b> —— 走系统识别时录音在另一个进程里，拿不到任何音频数据，所以只做匀速呼吸的错相动画，不做「跟着说话起伏」的假象：那会让人以为它真在听。</div></figcaption>
     </figure>
 
-  </div>
-</section>
+    <!-- 16 -->
+    <figure class="fig" data-slug="stats">
+      <div class="shot"><div class="ph">
+        <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
+        <div style="padding:2px 17px 0;flex:0 0 auto">
+          <div style="width:27px;height:27px;border-radius:50%;background:#fff;border:0.5px solid #EBE5DB;display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9 2 4 7l5 5" stroke="#2B241F" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div style="padding:4px 17px 0;flex:0 0 auto"><div class="hd">统计洞察</div></div>
+
+        <!-- 总览：MetricStrip「值在上、标签在下」。这一页是长页，稿子画到「每天在烧多少钱」为止 -->
+        <div style="margin:12px 17px 0;background:#fff;border-radius:12px;border:0.5px solid #EBE5DB;display:flex;overflow:hidden">
+          <div class="cell" style="flex:1;align-items:center;padding:9px 8px"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums">329</span><span style="color:#9A8D80;margin-top:2px;font-size:11px">在库物品</span></div>
+          <div class="cell" style="flex:1;align-items:center;padding:9px 8px;border-left:0.5px solid #EBE5DB"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums">&#165;42,680</span><span style="color:#9A8D80;margin-top:2px;font-size:11px">总价值</span></div>
+          <div class="cell" style="flex:1;align-items:center;padding:9px 8px;border-left:0.5px solid #EBE5DB"><span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:#8C5A34">&#165;38.60</span><span style="color:#9A8D80;margin-top:2px;font-size:10px">日均持有成本</span></div>
+        </div>
+        <!-- ★ 两处口径必须写在页面上：总价值的分母与日均合计的分母不是同一批人。
+             不写清楚，用户会拿日均去对逐件相加，对不上就以为数据错了 -->
+        <div style="color:#C9BEB0;margin:7px 17px 0;line-height:1.55">总价值按 268 件有价格的算；日均合计只算同时填了价格与购买日期的 251 件。</div>
+
+        <div style="margin:12px 17px 0;flex:0 0 auto">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font-weight:500">钱花在哪</span><span style="color:#C9BEB0">按分类合计</span></div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;margin-top:6px;padding:9px 11px">
+            <div style="display:flex;align-items:center;gap:8px;padding:5px 0"><span style="color:#6B6055;width:34px;flex:0 0 auto">数码</span><div style="flex:1;height:8px;border-radius:4px;background:#F2EDE5;overflow:hidden"><div style="width:100%;height:100%;border-radius:4px;background:#8C5A34"></div></div><span style="width:52px;text-align:right;flex:0 0 auto">&#165;18,420</span></div>
+            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:0.5px solid #F1ECE4"><span style="color:#6B6055;width:34px;flex:0 0 auto">家电</span><div style="flex:1;height:8px;border-radius:4px;background:#F2EDE5;overflow:hidden"><div style="width:54%;height:100%;border-radius:4px;background:#9A8D80"></div></div><span style="width:52px;text-align:right;flex:0 0 auto">&#165;9,860</span></div>
+            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:0.5px solid #F1ECE4"><span style="color:#6B6055;width:34px;flex:0 0 auto">工具</span><div style="flex:1;height:8px;border-radius:4px;background:#F2EDE5;overflow:hidden"><div style="width:28%;height:100%;border-radius:4px;background:#9A8D80"></div></div><span style="width:52px;text-align:right;flex:0 0 auto">&#165;5,240</span></div>
+            <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:0.5px solid #F1ECE4"><span style="color:#9A8D80;width:34px;flex:0 0 auto">其他</span><div style="flex:1;height:8px;border-radius:4px;background:#F2EDE5;overflow:hidden"><div style="width:50%;height:100%;border-radius:4px;background:#D8D0C4"></div></div><span style="width:52px;text-align:right;flex:0 0 auto;color:#9A8D80">&#165;9,160</span></div>
+          </div>
+          <!-- 满格基准是榜首那一类，不是总额；汇总项永远排最后、数字转灰 -->
+          <div style="color:#C9BEB0;margin-top:6px;line-height:1.55">条长以最高的一类为满格。合计 &#165;42,680 与上方「总价值」同源。</div>
+        </div>
+
+        <div style="margin:10px 17px 0;flex:0 0 auto">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font-weight:500">每天在烧多少钱</span><span style="color:#C9BEB0">持有成本最高的 3 件</span></div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;margin-top:6px;overflow:hidden">
+            <div class="fr" style="min-height:34px"><span class="fv" style="flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">iPhone 15 Pro</span><span style="color:#9A8D80">322 天</span><span class="fv" style="width:56px">&#165;24.40<span style="color:#9A8D80;font-weight:400">/天</span></span></div>
+            <div class="fr" style="min-height:34px"><span class="fv" style="flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">博世冲击钻</span><span style="color:#9A8D80">803 天</span><span class="fv" style="width:56px">&#165;0.58<span style="color:#9A8D80;font-weight:400">/天</span></span></div>
+            <div class="fr" style="min-height:34px"><span class="fv" style="flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">人体工学椅</span><span style="color:#9A8D80">46 天</span><span class="fv" style="width:56px">&#165;32.60<span style="color:#9A8D80;font-weight:400">/天</span></span></div>
+          </div>
+          <div style="color:#C9BEB0;margin-top:6px;line-height:1.55">摆天数而不是再给一个金额：日均高有两种原因 —— 贵，还是刚买。</div>
+        </div>
+      </div></div>
+      <figcaption><div class="no">16</div><div class="nm">统计洞察 &middot; 钱花在哪、每天烧多少</div><div class="ds">四块：<b>总览</b>（多少件、总价值、日均持有成本）、<b>钱花在哪</b>（按分类合计的条形）、<b>每天在烧多少钱</b>（持有成本最高的几件）、<b>柜子都塞满了吗</b>与<b>最近半年</b>（入库趋势，这屏画不下，在下面）。<br>★ <b>两处口径必须写在页面上</b>，这是这一页最容易挨骂的地方：总价值的分母是「填了价格的 268 件」，日均合计的分母是「价格与购买日期都齐备的 251 件」——<b>两个数的样本不一样</b>。不写清楚，用户会拿日均去对逐件相加，对不上就以为数据算错了。所以每个数字旁边都标样本数，条形图下面也再写一句「与上方总价值同源」。<br><b>条形图以最大值为满格，不是按占比。</b>只有两件东西时按占比画两根条都会顶满，看着像坏了；按最大值基准，差距才看得出来。汇总项「其他」永远排最后、数字转灰——插在中间会打断「谁最烧钱」的阅读顺序。<br>「每天在烧多少钱」旁边摆的是<b>天数而不是又一个金额</b>：日均高有两种原因，贵，或者刚买，光看钱分不出来。算法与详情页那张成本卡同一套，缺价格或购买日期的物品不出现在这里。<br>排行不足三行时整块收起（两块东西排「前十」是凑数）；「记了东西但一件都没填价格」会得到一条卡内提示，而不是一个空页面。<br>空库时整页换成一句「先记几件东西，这里会告诉你钱花在哪、每天在烧多少、柜子塞到几成」，给一个「去记一件」的出口。未激活的支持者档进来时整页只剩一句解释与一个出口 —— 与 AI 助手那一页同构，<b>不做成「能看不能按」</b>。</div></figcaption>
+    </figure>
+
+    <!-- 17 -->
+    <figure class="fig" data-slug="scan-result">
+      <div class="shot"><div class="ph">
+        <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
+        <div style="padding:2px 17px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex:0 0 auto">
+          <div>
+            <div class="hd">录入</div>
+            <div style="color:#9A8D80;margin-top:3px">识别完成 &middot; 用时 1.2 秒</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="margin-top:4px;flex:0 0 auto"><path d="M4 4l8 8M12 4l-8 8" stroke="#C9BEB0" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </div>
+
+        <!-- ★ 识物不另开一页：照片落进沙盒，识别结果**回填手动录入那张表** -->
+        <div style="margin:11px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:4px">照片（1）</div>
+          <div style="display:flex;gap:8px;padding:4px 0">
+            <div style="width:72px;height:72px;border-radius:11px;border:0.5px solid #E3DCD1;background:#F5EFE0;display:flex;align-items:center;justify-content:center;flex:0 0 auto">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="6" y="2.5" width="12" height="19" rx="2" stroke="#8A6B33" stroke-width="1.5"/><path d="M9.5 7h5M9.5 10.5h5" stroke="#8A6B33" stroke-width="1.4" stroke-linecap="round"/></svg>
+            </div>
+            <div style="width:72px;height:72px;border-radius:11px;border:0.5px dashed #E3DCD1;background:#FDFCFA;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;flex:0 0 auto">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="6.5" width="19" height="13" rx="3" stroke="#9A8D80" stroke-width="1.6"/><circle cx="12" cy="13" r="3.4" stroke="#9A8D80" stroke-width="1.6"/><path d="M8.6 6.5 10 4.2h4l1.4 2.3" stroke="#9A8D80" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              <span style="color:#9A8D80">添加</span>
+            </div>
+          </div>
+          <div style="color:#C9BEB0;margin-top:4px">识别副本已压到长边 1024px，原图留在本机</div>
+        </div>
+
+        <!-- 「AI」标 = 模型填的那一行，而且**可改**：用户动一下这一行，标就摘掉 -->
+        <div style="margin:9px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:4px">归类</div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
+            <div class="fr" style="min-height:40px"><span class="fk" style="width:52px">名称</span><span class="fv" style="flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">康师傅老陈醋酸辣牛肉面</span><span class="tg">AI</span></div>
+            <div class="fr" style="min-height:40px"><span class="fk" style="width:52px">分类</span><span class="fv" style="flex:1;text-align:left">食品 &middot; 泡面</span><span class="tg">AI</span></div>
+          </div>
+        </div>
+        <div style="margin:9px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:4px">时间与花费</div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
+            <div class="fr" style="min-height:40px"><span class="fk" style="width:52px">价格</span><span class="fv" style="flex:1;text-align:left;font-variant-numeric:tabular-nums">&#165;6.50</span><span class="tg">AI</span></div>
+            <div class="fr" style="min-height:40px"><span class="fk" style="width:52px">过期时间</span><span class="fv" style="flex:1;text-align:left;font-variant-numeric:tabular-nums">2027-04-10</span><span class="tgn" style="color:#6B6055">按分类默认</span></div>
+          </div>
+        </div>
+
+        <!-- ★ 提示紧贴触发它的入口。上一版放在表单最底部，而识物按钮在页面顶部，
+             提示一直都在、只是没人会滚到底去看见它，观感就是「点了没反应」 -->
+        <div style="margin-top:auto;padding:12px 17px 18px;flex:0 0 auto">
+          <div style="text-align:center;color:#9A8D80;margin-bottom:7px">识别只是预填，保存前你说了算</div>
+          <div style="text-align:center;padding:12px;border-radius:11px;background:#8C5A34;color:#fff;font-weight:600">保存并录下一件</div>
+        </div>
+      </div></div>
+      <figcaption><div class="no">17</div><div class="nm">录入 &middot; 识物跑完之后</div><div class="ds">拍一张包装，回来看到的就是这一屏：名称、分类、价格、过期时间都已经填好，行尾挂着一枚「AI」标。<b>保存前你把关就行</b> —— 三十秒的敲字变成三秒。<br>★ <b>识物不另开一页。</b>它与语音走的是同一条路：结果回填「手动录入那张表」（见 15 屏）。这是刻意的 —— 另画一页就要在两边各答一遍「识物能填哪些字段」，然后必然有一边答歪；回填同一张表，表单加字段时两条路自动跟上。<br>「AI」标是<b>可改的</b>：用户一动某一行，那一行的标就摘掉 —— 标的意思是「这是机器填的、还没经过你」，不是「这一行属于 AI」。过期时间那行挂的是中性标「按分类默认」而不是 AI 标：它不是模型看出来的，是按分类的保质期规则算的。<b>哪一项是谁填的，界面照实说。</b><br>照片那一格是识别用的那张原图（已落进沙盒）；「添加」仍只走本机相册。旁边那行小字是唯一会被追问的事：<b>上传的只是长边 ≤1024px、JPEG 质量 0.8 的压缩副本</b>，原图与物品数据不出手机。<br>底部那句「识别只是预填，保存前你说了算」不能省 —— 上一版没有它，用户以为点了识物就直接入库了。提示的位置也比措辞重要：上一版把「缺 Key / 没开开关」的提示放在表单最底部，而识物按钮在页面顶部，<b>提示一直都在、只是没人会滚到底去看见它</b>，观感就是「点了没反应」。</div></figcaption>
+    </figure>
 
 <section>
   <div class="sec-head">
@@ -1218,7 +1320,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
 </section>
 
 <footer>
-  格物 &middot; 收纳柜 App &middot; 界面设计 v1.3.1 &middot; 依据《收纳柜App产品需求文档》V1 冻结范围绘制
+  格物 &middot; 收纳柜 App &middot; 界面设计 v2.1.4 &middot; 依据《收纳柜App产品需求文档》V1 冻结范围绘制
 </footer>
 
 </div>
