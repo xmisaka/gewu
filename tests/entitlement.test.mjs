@@ -188,7 +188,7 @@ test('三处功能都有门控文案，且都写明了「免费档没有被拿�
    * 注意：本文件是 .mjs，`--experimental-strip-types` 只处理 .ts ——
    * 这里写 `as const` / `as readonly string[]` 会直接 SyntaxError（不是类型报错，是解析失败）。
    */
-  for (const key of ['theme', 'batch', 'ai', 'stats']) {
+  for (const key of ['theme', 'ai', 'stats']) {
     const copy = SUPPORTER_FEATURES[key];
     assert.ok(copy, `${key} 缺文案`);
     assert.equal(copy.sheetTitle, '支持者功能');

@@ -107,7 +107,7 @@ export function checkActivation(code: string, publicKeyB64Url?: string): Activat
  * 需要支持者档的功能。**这张表是唯一的真相** ——
  * 界面不要自己写 `entitled && xxx`，否则以后漏掉一处就是一道暗门。
  */
-export type SupporterFeature = 'theme' | 'batch' | 'ai' | 'stats';
+export type SupporterFeature = 'theme' | 'ai' | 'stats';
 
 /** 门控浮层的标题与正文用得到；文案放在这儿，三处入口才不会各说各话 */
 export const SUPPORTER_FEATURES: Record<
@@ -119,11 +119,6 @@ export const SUPPORTER_FEATURES: Record<
     sheetTitle: '支持者功能',
     sheetBody:
       '六套浅色主题全部解锁，含后续新增。免费档保留「素笺」「靛青」「青瓷」三套，日常记录完全够用；系统深色时的「玄夜」照旧，不受影响。',
-  },
-  batch: {
-    name: '批量操作',
-    sheetTitle: '支持者功能',
-    sheetBody: '批量操作可以一次选中多条，做删除、移动分类、批量打标签。免费档仍可逐条编辑每一条记录。',
   },
   ai: {
     name: 'AI 功能',
