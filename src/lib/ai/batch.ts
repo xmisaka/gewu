@@ -41,10 +41,15 @@ export type BatchStatus = 'pending' | 'running' | 'done' | 'empty' | 'failed';
 /**
  * 已落盘的照片引用（相对沙盒路径）。
  * 只保留批量用得到的两项；结构上是 `photos/pipeline` 的 `IngestedPhoto` 的子集。
+ *
+ * ★ 带上 `width / height` 是为了「单条重试」：重试时照片早已落盘，
+ *   有尺寸就不用让 `toUploadBase64` 先试一版、量出来再重做（那要多解码一次）。
  */
 export interface BatchPhoto {
   filePath: string;
   thumbPath: string;
+  width: number;
+  height: number;
 }
 
 export interface BatchEntry {
@@ -141,6 +146,8 @@ export function applyResult(
   entries: readonly BatchEntry[],
   key: string,
   result: { fields: ExtractedFields; filled: ExtractedKey[]; confidence: number | null } | null,
+  /** 库里真实存在的分类。模型给的是**中文名字**，要对得上才有意义 */
+  categories: readonly { id: string; name: string }[] = [],
 ): BatchEntry[] {
   if (!result) {
     return patchEntry(entries, key, { status: 'empty', notice: null });
@@ -156,6 +163,13 @@ export function applyResult(
   /* 空值不覆盖 —— 与上面那条承诺一致：模型没读出来的字段，保留条目现值 */
   if (f.name) patch.name = f.name;
   if (f.expireDate) patch.expireDate = f.expireDate;
+  /* ★ 分类名要能在库里的分类中找得到才生效 —— 与单件识物同一条口径
+     （见 `extract.parseExtract` 的注释）。找不到就当它没填，
+     别让一个不存在的分类名漏进界面：用户会看到一行点了却选不中的分类。 */
+  if (f.categoryName) {
+    const hit = categories.find((c) => c.name === f.categoryName);
+    if (hit) patch.categoryId = hit.id;
+  }
   return patchEntry(entries, key, patch);
 }
 
@@ -267,6 +281,56 @@ export function toDrafts(
     });
   }
   return out;
+}
+
+/** 「详细编辑」回写的窄类型：只含 `ItemForm` 能改、且批量条目存得下的那些字段 */
+export interface BatchEditSeed {
+  name: string;
+  categoryId: string | null;
+  locationId: string | null;
+  expireDate: DateString | null;
+  brand: string | null;
+  model: string | null;
+  price: number | null;
+  quantity: number | null;
+  purchaseDate: DateString | null;
+  tags: string[];
+  note: string | null;
+}
+
+/**
+ * 把「详细编辑」的结果写回条目。
+ *
+ * ★ 与 `applyResult` 的取舍**正好相反**：那边是「模型给的、空值不覆盖」，
+ *   这里是**用户显式改的** —— 他就是来改这个的，空值也该覆盖（清空也是意图）。
+ *   但两者都只动**这一条**：不碰其他条目，也不碰勾选状态。
+ *
+ * 字段分两处落：`name / categoryId / locationId / expireDate` 是条目自带的草稿，
+ * 其余（品牌 / 型号 / 单价 / 数量 / 购买日期 / 标签 / 备注）归模型的 `fields`。
+ */
+export function applyEditResult(
+  entries: readonly BatchEntry[],
+  key: string,
+  seed: BatchEditSeed,
+): BatchEntry[] {
+  const target = entries.find((e) => e.key === key);
+  if (!target) return entries.slice();
+  return patchEntry(entries, key, {
+    name: seed.name,
+    categoryId: seed.categoryId,
+    locationId: seed.locationId,
+    expireDate: seed.expireDate,
+    fields: {
+      ...target.fields,
+      brand: seed.brand,
+      model: seed.model,
+      price: seed.price,
+      quantity: seed.quantity,
+      purchaseDate: seed.purchaseDate,
+      tags: seed.tags,
+      note: seed.note,
+    },
+  });
 }
 
 /**

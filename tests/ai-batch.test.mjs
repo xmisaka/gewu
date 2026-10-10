@@ -11,6 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  applyEditResult,
   applyResult,
   applyUniform,
   attachPhoto,
@@ -27,6 +28,13 @@ import {
   toDrafts,
   toggleSelected,
 } from '../src/lib/ai/batch.ts';
+import {
+  clearEditing,
+  peekEditing,
+  putEditResult,
+  putEditing,
+  takeEditResult,
+} from '../src/lib/ai/batch-draft.ts';
 import { EMPTY_FIELDS } from '../src/lib/ai/extract.ts';
 
 /** 一条条目，默认是「刚建出来的 pending」 */
@@ -209,4 +217,104 @@ test('toDrafts：跳过不能保存的，defaults 只兜没设过的', () => {
 
 test('toDrafts：空数组进、空数组出（保存按钮在 0 件时不该被调用）', () => {
   assert.deepEqual(toDrafts([]), []);
+});
+
+/* ----------------------------------------------------- 分类映射（阶段二修） */
+
+test('★★ applyResult：模型给的分类名要能对上库里的分类才生效', () => {
+  const cats = [
+    { id: 'c1', name: '食品' },
+    { id: 'c2', name: '药品' },
+  ];
+  const hit = applyResult([make()], 'k', ok({ name: '巧克力', categoryName: '食品' }), cats);
+  assert.equal(hit[0].categoryId, 'c1', '对得上就该落成 id');
+
+  const miss = applyResult([make()], 'k', ok({ name: '巧克力', categoryName: '零食' }), cats);
+  assert.equal(miss[0].categoryId, null, '对不上就当它没填 —— 别把不存在的分类名漏进界面');
+
+  const noList = applyResult([make()], 'k', ok({ name: '巧克力', categoryName: '食品' }));
+  assert.equal(noList[0].categoryId, null, '没传分类清单时不该瞎猜');
+});
+
+/* ----------------------------------------------------- 详细编辑回写 */
+
+/** 一份「详细编辑」产出的种子 */
+const editSeed = (over = {}) => ({
+  name: 'x',
+  categoryId: null,
+  locationId: null,
+  expireDate: null,
+  brand: null,
+  model: null,
+  price: null,
+  quantity: null,
+  purchaseDate: null,
+  tags: [],
+  note: null,
+  ...over,
+});
+
+test('applyEditResult：用户显式改的字段全量覆盖（与 applyResult 的取舍正好相反）', () => {
+  const before = applyResult([make()], 'k', ok({ name: '德芙巧克力', brand: '德芙', price: 12.5 }))[0];
+  const after = applyEditResult(
+    [before],
+    'k',
+    editSeed({
+      name: '巧克力',
+      categoryId: 'c1',
+      locationId: 'l1',
+      expireDate: '2027-01-01',
+      brand: null, // 用户清空了品牌 —— 这也是意图，要覆盖
+      model: 'X-1',
+      price: 9.9,
+      quantity: 3,
+      purchaseDate: '2026-10-01',
+      tags: ['零食'],
+      note: '过年买的',
+    }),
+  )[0];
+
+  assert.equal(after.name, '巧克力');
+  assert.equal(after.fields.brand, null, '用户清空的字段要跟着清空');
+  assert.equal(after.fields.model, 'X-1');
+  assert.equal(after.fields.price, 9.9);
+  assert.equal(after.fields.quantity, 3);
+  assert.deepEqual(after.fields.tags, ['零食']);
+  assert.equal(after.fields.note, '过年买的');
+  assert.equal(after.expireDate, '2027-01-01');
+  assert.equal(after.categoryId, 'c1');
+  assert.equal(after.locationId, 'l1');
+});
+
+test('applyEditResult：只动那一条，其他条目纹丝不动', () => {
+  const list = [make({ key: 'a', name: 'A' }), make({ key: 'b', name: 'B' })];
+  const after = applyEditResult(list, 'b', editSeed({ name: 'B 改过了' }));
+  assert.equal(after[0].name, 'A');
+  assert.equal(after[1].name, 'B 改过了');
+});
+
+test('applyEditResult：key 不在清单里时原样返回（不抛错）', () => {
+  const after = applyEditResult([make({ key: 'a' })], 'not-there', editSeed({ name: 'x' }));
+  assert.equal(after.length, 1);
+  assert.equal(after[0].name, '');
+});
+
+/* ----------------------------------------------------- 详细编辑的跨页槽 */
+
+test('batch-draft：editing 槽是 peek + 显式 clear（可重复读）', () => {
+  putEditing({ key: 'k1', seed: editSeed({ name: '甲' }) });
+  assert.equal(peekEditing()?.key, 'k1');
+  assert.equal(peekEditing()?.key, 'k1', 'peek 不能清空 —— 编辑页每次渲染都得拿得到');
+  clearEditing();
+  assert.equal(peekEditing(), null);
+});
+
+test('batch-draft：result 槽取走即清空（清单页只会取一次）', () => {
+  putEditResult({ key: 'k2', seed: editSeed({ name: '乙' }) });
+  assert.equal(takeEditResult()?.key, 'k2');
+  assert.equal(
+    takeEditResult(),
+    null,
+    '取过一次就该空了，否则下次进这一页会被当成新结果又应用一遍',
+  );
 });

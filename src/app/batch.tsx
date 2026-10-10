@@ -10,26 +10,29 @@
  *    而用户看到的只是一句「调用太频繁」，完全想不到是自己这边并发了。
  *    所以下面是一个朴素的 `for` 循环，一张跑完再下一张。
  *    代价是最坏要等几分钟（9 张 × 每张最长 60s），所以才要有进度（流式冒条）、
- *    停止键，以及「别退出这一页」的提示。
+ *    停止键（可续跑）、单条重试，以及「别退出这一页」的提示。
  *
- * ── 三个刻意的取舍 ────────────────────────────────────────────
+ * ── 四条刻意的取舍 ────────────────────────────────────────────
  * 1. **先落盘、再联网**（与单件识物同一条）：用户选的这张图本来就是这件东西的图，
  *    识别失败也不该白拍。照片在联网之前就走完了压缩与入库。
- * 2. **失败/空结果不丢条目**：照片留着、条目留着，标一句「补个名字就能存」。
- *    直接丢掉会产生没人引用的孤儿文件，而照片表里那行也没了。
+ * 2. **失败/空结果不丢条目**：照片留着、条目留着，标一句「补个名字就能存」，
+ *    还能单条重试。直接丢掉会产生没人引用的孤儿文件。
  * 3. **离开这一页会清掉未入库的照片**（见 cleanup 那段）——
  *    本页是「审完一次入库」的语境，不做跨会话恢复：退出即放弃，
  *    留着照片只会在 cache 里悄悄堆积。
+ * 4. **「统一分类 / 位置」记在 state 里，而不是一次性刷一遍**：
+ *    识别是流式的，用户在第 3 张还在跑的时候设了「统一分类＝食品」，
+ *    第 4 张出来也该带上它。一次性 `applyUniform` 只覆盖当时已存在的条目。
  *
- * ── 不复用 ItemForm 的理由（见 roadmap 8.5，这里再记一句）
- * `ItemForm` 是整页级组件：自带滚动、双提交按钮、自己的 `useTagLibrary` 与重名检测；
+ * ── 不复用 ItemForm 的理由（见 roadmap 8.5）
+ * `ItemForm` 是整页级组件（自带滚动、双提交按钮、自己的 `useTagLibrary` 与重名检测），
  * 它的 `draft` 只在**首次挂载**时取 `prefill` —— 清单会随识别进度重渲染、行会被重挂，
- * 用户刚改的名称立刻被冲回识别初稿。而它的提交语义（「录一件存一件」）
- * 与这里要的「全部审完一次入库」正好相反。
+ * 用户刚改的名称立刻被冲回识别初稿。所以清单行只做**轻量内联**，
+ * 要改全字段就跳 `/batch/item`（新开一页复用 `ItemForm`，见那里的头注释）。
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
@@ -40,8 +43,9 @@ import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { Button, Chip, ChipRow, IconButton } from '@/components/ui/controls';
 import { Gutter, PageHeader, Screen } from '@/components/ui/layout';
 import { Body, Label, Meta } from '@/components/ui/typography';
-import { Palette, Radius, Space } from '@/constants/theme';
+import { GUTTER, Palette, Radius, Space } from '@/constants/theme';
 import {
+  applyEditResult,
   applyResult,
   applyUniform,
   attachPhoto,
@@ -57,14 +61,17 @@ import {
   savableCount,
   toDrafts,
   toggleSelected,
+  type BatchEditSeed,
   type BatchEntry,
+  type BatchPhoto,
 } from '@/lib/ai/batch';
+import { putEditing, takeEditResult } from '@/lib/ai/batch-draft';
 import { askVision, describeAiError } from '@/lib/ai/client';
 import { buildVisionPrompt, parseExtract } from '@/lib/ai/extract';
 import { toUploadBase64 } from '@/lib/ai/upload';
 import { today } from '@/lib/date';
 import { listCategories } from '@/lib/db/categories';
-import { createItemsBatch } from '@/lib/db/items';
+import { createItemsBatch, findItemsByName } from '@/lib/db/items';
 import { lastUsedLocationId, listCabinetViews } from '@/lib/db/locations';
 import { addPhoto } from '@/lib/db/photos';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
@@ -153,9 +160,36 @@ function BatchRunner() {
   const [catTarget, setCatTarget] = useState<PickTarget>(null);
   const [locTarget, setLocTarget] = useState<PickTarget>(null);
 
+  /**
+   * 统一分类 / 位置。
+   *
+   * ★ 必须同时存一份 ref：识别循环里要读的**是当下最新**的值，
+   *   而 `useCallback` 闭包只会捕获它创建那一刻的 state。
+   *   用户在第三张还在跑时改了这个值，第四张要立刻用上 —— 只读 state 会拿到旧值，
+   *   而且不报错（只是那一条的分类没跟上）。
+   */
+  const [uniform, setUniformState] = useState<{
+    categoryId: string | null;
+    locationId: string | null;
+  }>({ categoryId: null, locationId: null });
+  const uniformRef = useRef(uniform);
+  const setUniform = useCallback(
+    (patch: Partial<{ categoryId: string | null; locationId: string | null }>) => {
+      uniformRef.current = { ...uniformRef.current, ...patch };
+      setUniformState(uniformRef.current);
+    },
+    [],
+  );
+
+  /** 与库里已有物品重名的名字（只提示、不阻断，与单件录入口径一致） */
+  const [dupes, setDupes] = useState<ReadonlySet<string>>(() => new Set());
+
   const categoryState = useAsyncData(() => listCategories(), [], []);
   const cabinetState = useAsyncData(() => listCabinetViews(), [], []);
   const lastLocState = useAsyncData(() => lastUsedLocationId(), [], null as string | null);
+
+  const categories = categoryState.data;
+  const categoryNames = useMemo(() => categories.map((c) => c.name), [categories]);
 
   /** 停止标志。只影响「还开不开下一张」—— 正在飞的那条请求由它自己的超时兜住 */
   const stopRef = useRef(false);
@@ -163,14 +197,19 @@ function BatchRunner() {
   const savedKeysRef = useRef<Set<string>>(new Set());
   /** 只启动一次（分类读完 → 开相册 → 开跑） */
   const startedRef = useRef(false);
-  /** 卸载时要读到最新的条目，而 cleanup 只跑一次，拿不到闭包里的 state */
+  /** cleanup 与事件回调要读到最新条目，而它们拿不到闭包里的 state */
   const entriesRef = useRef<BatchEntry[]>([]);
+  /** 原始选中的图与对应 key —— 停止之后「继续识别」要靠它们接上 */
+  const sourcesRef = useRef<SourceImage[]>([]);
+  const keysRef = useRef<string[]>([]);
 
   const progress = useMemo(() => progressOf(entries), [entries]);
   const savable = useMemo(() => savableCount(entries), [entries]);
-  const uniforms = { locationId: lastLocState.data };
+  const pendingCount = useMemo(
+    () => entries.reduce((n, e) => (e.status === 'pending' ? n + 1 : n), 0),
+    [entries],
+  );
 
-  /* 让 cleanup 读到最新条目 */
   useEffect(() => {
     entriesRef.current = entries;
   }, [entries]);
@@ -203,18 +242,103 @@ function BatchRunner() {
     };
   }, []);
 
-  /* ---------------------------------------------------------- 串行识别 */
+  /**
+   * 同名检测。
+   *
+   * 防抖 700ms（清单里每次敲字都会改 entries），逐个名字查一次 ——
+   * 条数上限是 9，本地 SQLite 一条查询是毫秒级，不值得为它写一条聚合 SQL。
+   * ★ 查重失败**静默**：这是一句附加提示，不该因为它让整页报错。
+   */
+  useEffect(() => {
+    const names = Array.from(new Set(entries.map((e) => e.name.trim()).filter(Boolean)));
+    if (names.length === 0) {
+      setDupes(new Set());
+      return;
+    }
+    let alive = true;
+    const timer = setTimeout(() => {
+      void (async () => {
+        const found = new Set<string>();
+        for (const n of names) {
+          try {
+            const hits = await findItemsByName(n);
+            if (hits.length > 0) found.add(n);
+          } catch {
+            // 忽略：这只是提示
+          }
+        }
+        if (alive) setDupes(found);
+      })();
+    }, 700);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [entries]);
 
-  const runAll = useCallback(
-    async (sources: SourceImage[], names: string[]) => {
-      stopRef.current = false;
-      const seeded = sources.map((_, i) => newEntry(`b${Date.now()}-${i}`, null));
-      setEntries(seeded);
-      setPhase('running');
+  /* 「详细编辑」改完回来 —— 把结果写回那一条 */
+  useFocusEffect(
+    useCallback(() => {
+      const r = takeEditResult();
+      if (r) setEntries((prev) => applyEditResult(prev, r.key, r.seed));
+    }, []),
+  );
 
-      for (let i = 0; i < sources.length; i += 1) {
+  /* ---------------------------------------------------------- 识别 */
+
+  /**
+   * 用一张**已经落盘**的照片跑一次识别，并把结果写进那一条。
+   *
+   * 抽出来是为了给「单条重试」复用：重试时照片早就在沙盒里了，
+   * 没必要（也不该）让用户重新选一次图。
+   */
+  const recognizePhoto = useCallback(
+    async (key: string, photo: BatchPhoto, names: string[]) => {
+      try {
+        /* 上传源用**刚落盘的压缩图**，不是原始选中的那张 ——
+           相机原图动辄 4000×3000，从它缩到 1024 要整张解码一遍，
+           低端机上就是好几秒，而这一步越慢越容易顶到超时。 */
+        const base64 = await toUploadBase64(photoUri(photo.filePath), photo.width, photo.height);
+
+        /* 这一句是整条链路上唯一会等很久的地方（超时上限 60s） */
+        const raw = await askVision(buildVisionPrompt(names), base64);
+        record('vision');
+
+        /* 解析。返回 null ＝ 一个字段都没读出来，归为「待补名」 */
+        const parsed = parseExtract(raw, { today: today(), categories: names });
+        setEntries((prev) => {
+          const next = applyResult(prev, key, parsed, categories);
+          /* ★ 统一值只套**这一条**。用 applyUniform 会把其他条目里
+             用户单独改过的分类/位置一并冲掉 —— 那不叫「统一」，叫覆盖。 */
+          const u = uniformRef.current;
+          let out = next;
+          if (u.categoryId) out = assign(out, key, { categoryId: u.categoryId });
+          if (u.locationId) out = assign(out, key, { locationId: u.locationId });
+          return out;
+        });
+      } catch (err) {
+        /* 失败**不中断整批**：这一条降级成「待补名」，照片照旧留着，还能重试。
+           文案来自 describeAiError —— 它已经把「超时」「限流」「Key 不对」分开说了。 */
+        setEntries((prev) =>
+          markFailed(
+            prev,
+            key,
+            `${describeAiError(err)}。照片已经存下了，补个名字就能保存，也可以点重试`,
+          ),
+        );
+      }
+    },
+    [categories, record],
+  );
+
+  /** 从第 `from` 条接着跑（串行）。`runAll` 走 0，`resume` 走第一个 pending */
+  const runFrom = useCallback(
+    async (from: number, names: string[]) => {
+      const sources = sourcesRef.current;
+      const keys = keysRef.current;
+      for (let i = from; i < sources.length; i += 1) {
         if (stopRef.current) break;
-        const key = seeded[i].key;
+        const key = keys[i];
         setEntries((prev) => markRunning(prev, key));
 
         try {
@@ -225,34 +349,40 @@ function BatchRunner() {
             setEntries((prev) => markFailed(prev, key, '这张图处理不了，单独再试一次'));
             continue;
           }
-          setEntries((prev) =>
-            attachPhoto(prev, key, { filePath: photo.filePath, thumbPath: photo.thumbPath }),
-          );
+          const ref: BatchPhoto = {
+            filePath: photo.filePath,
+            thumbPath: photo.thumbPath,
+            width: photo.width,
+            height: photo.height,
+          };
+          setEntries((prev) => attachPhoto(prev, key, ref));
 
-          /* 2) 上传源用**刚落盘的压缩图**，不是原始选中的那张 ——
-                相机原图动辄 4000×3000，从它缩到 1024 要整张解码一遍，
-                低端机上就是好几秒，而这一步越慢越容易顶到超时。 */
-          const base64 = await toUploadBase64(photoUri(photo.filePath), photo.width, photo.height);
-
-          /* 3) 联网。这一句是整条链路上唯一会等很久的地方（超时上限 60s） */
-          const raw = await askVision(buildVisionPrompt(names), base64);
-          record('vision');
-
-          /* 4) 解析。返回 null ＝ 一个字段都没读出来，归为「待补名」 */
-          const parsed = parseExtract(raw, { today: today(), categories: names });
-          setEntries((prev) => applyResult(prev, key, parsed));
+          /* 2) 压缩 → 联网 → 解析，都在 recognizePhoto 里 */
+          await recognizePhoto(key, ref, names);
         } catch (err) {
-          /* 失败**不中断整批**：这一条降级成「待补名」，照片照旧留着。
-             文案来自 describeAiError —— 它已经把「超时」「限流」「Key 不对」分开说了。 */
+          /* ingestMany 自己不会抛（单张失败进 failed 数组），
+             走到这里说明是落盘之外的意外 */
           setEntries((prev) =>
-            markFailed(prev, key, `${describeAiError(err)}。照片已经存下了，补个名字就能保存`),
+            markFailed(prev, key, `${describeAiError(err)}。照片没有存下，单独再试一次`),
           );
         }
       }
+    },
+    [recognizePhoto],
+  );
 
+  const runAll = useCallback(
+    async (sources: SourceImage[], names: string[]) => {
+      stopRef.current = false;
+      const seeded = sources.map((_, i) => newEntry(`b${Date.now()}-${i}`, null));
+      sourcesRef.current = sources;
+      keysRef.current = seeded.map((e) => e.key);
+      setEntries(seeded);
+      setPhase('running');
+      await runFrom(0, names);
       setPhase('review');
     },
-    [record],
+    [runFrom],
   );
 
   const start = useCallback(async () => {
@@ -283,6 +413,35 @@ function BatchRunner() {
     });
   }, [categoryState.loading, cabinetState.loading, start]);
 
+  /* ---------------------------------------------------------- 停止 / 继续 / 重试 */
+
+  const stop = useCallback(() => {
+    stopRef.current = true;
+    setHint('已停止。前面识别好的可以照常保存，剩下的点「继续识别」接着跑。');
+  }, []);
+
+  /** 接着跑队列里仍是 pending 的那些（同一次会话内；不做跨会话恢复） */
+  const resume = useCallback(async () => {
+    const idx = entriesRef.current.findIndex((e) => e.status === 'pending');
+    if (idx < 0) return;
+    setHint(null);
+    stopRef.current = false;
+    setPhase('running');
+    await runFrom(idx, categoryNames);
+    setPhase('review');
+  }, [categoryNames, runFrom]);
+
+  /** 单条重试：用它的照片重跑一次识别，不重新选图 */
+  const retryOne = useCallback(
+    async (key: string) => {
+      const entry = entriesRef.current.find((e) => e.key === key);
+      if (!entry?.photo) return;
+      setEntries((prev) => markRunning(prev, key));
+      await recognizePhoto(key, entry.photo, categoryNames);
+    },
+    [categoryNames, recognizePhoto],
+  );
+
   /* ---------------------------------------------------------- 保存 */
 
   const save = useCallback(async () => {
@@ -290,7 +449,9 @@ function BatchRunner() {
     if (picked.length === 0) return;
     setPhase('saving');
     try {
-      const drafts = toDrafts(picked, { locationId: uniforms.locationId });
+      const drafts = toDrafts(picked, {
+        locationId: uniform.locationId ?? lastLocState.data,
+      });
       const ids = await createItemsBatch(drafts);
 
       /* 照片逐条挂。★ 与 items 不在同一个事务里（photos 的插入在它自己的模块），
@@ -318,14 +479,9 @@ function BatchRunner() {
       setHint('没能保存，再试一次。');
       setPhase('review');
     }
-  }, [bump, entries, uniforms.locationId]);
+  }, [bump, entries, lastLocState.data, uniform.locationId]);
 
   /* ---------------------------------------------------------- 交互 */
-
-  const stop = useCallback(() => {
-    stopRef.current = true;
-    setHint('已停止。前面识别好的这些可以照常保存。');
-  }, []);
 
   const close = useCallback(() => router.back(), [router]);
 
@@ -334,13 +490,14 @@ function BatchRunner() {
       const target = catTarget;
       setCatTarget(null);
       if (!target) return;
-      setEntries((prev) =>
-        target.mode === 'uniform'
-          ? applyUniform(prev, { categoryId: id })
-          : assign(prev, target.key, { categoryId: id }),
-      );
+      if (target.mode === 'uniform') {
+        setUniform({ categoryId: id });
+        setEntries((prev) => applyUniform(prev, { categoryId: id }));
+      } else {
+        setEntries((prev) => assign(prev, target.key, { categoryId: id }));
+      }
     },
-    [catTarget],
+    [catTarget, setUniform],
   );
 
   const onPickLocation = useCallback(
@@ -348,13 +505,23 @@ function BatchRunner() {
       const target = locTarget;
       setLocTarget(null);
       if (!target) return;
-      setEntries((prev) =>
-        target.mode === 'uniform'
-          ? applyUniform(prev, { locationId: id })
-          : assign(prev, target.key, { locationId: id }),
-      );
+      if (target.mode === 'uniform') {
+        setUniform({ locationId: id });
+        setEntries((prev) => applyUniform(prev, { locationId: id }));
+      } else {
+        setEntries((prev) => assign(prev, target.key, { locationId: id }));
+      }
     },
-    [locTarget],
+    [locTarget, setUniform],
+  );
+
+  /** 详细编辑：把这一条放进一次性槽，跳到复用 `ItemForm` 的页面 */
+  const openEdit = useCallback(
+    (entry: BatchEntry) => {
+      putEditing({ key: entry.key, seed: seedFromEntry(entry), photo: entry.photo });
+      router.push('/batch/item');
+    },
+    [router],
   );
 
   /* ---------------------------------------------------------- 渲染 */
@@ -393,6 +560,8 @@ function BatchRunner() {
     );
   }
 
+  const showTools = phase === 'running' || phase === 'review';
+
   return (
     <Screen>
       <PageHeader
@@ -407,10 +576,13 @@ function BatchRunner() {
         }
       />
 
-      {phase === 'review' ? (
+      {showTools ? (
         <ChipRow>
           <Chip label="统一分类" onPress={() => setCatTarget({ mode: 'uniform' })} />
           <Chip label="统一位置" onPress={() => setLocTarget({ mode: 'uniform' })} />
+          {phase === 'review' && pendingCount > 0 ? (
+            <Chip label={`继续识别 ${pendingCount}`} onPress={() => void resume()} />
+          ) : null}
         </ChipRow>
       ) : null}
 
@@ -419,13 +591,16 @@ function BatchRunner() {
           <EntryRow
             key={entry.key}
             entry={entry}
-            categories={categoryState.data}
+            categories={categories}
             cabinets={cabinetState.data}
+            duplicated={dupes.has(entry.name.trim())}
             onRename={(name) => setEntries((prev) => rename(prev, entry.key, name))}
             onToggle={() => setEntries((prev) => toggleSelected(prev, entry.key))}
             onRemove={() => setEntries((prev) => removeEntry(prev, entry.key))}
             onPickCategory={() => setCatTarget({ mode: 'one', key: entry.key })}
             onPickLocation={() => setLocTarget({ mode: 'one', key: entry.key })}
+            onEdit={() => openEdit(entry)}
+            onRetry={() => void retryOne(entry.key)}
           />
         ))}
 
@@ -456,7 +631,7 @@ function BatchRunner() {
 
       <CategoryPickerModal
         visible={catTarget !== null}
-        categories={categoryState.data}
+        categories={categories}
         title={catTarget?.mode === 'uniform' ? '统一分类' : '这一件的分类'}
         onClose={() => setCatTarget(null)}
         onPick={onPickCategory}
@@ -478,26 +653,34 @@ function EntryRow({
   entry,
   categories,
   cabinets,
+  duplicated,
   onRename,
   onToggle,
   onRemove,
   onPickCategory,
   onPickLocation,
+  onEdit,
+  onRetry,
 }: {
   entry: BatchEntry;
   categories: { id: string; name: string }[];
   cabinets: CabinetView[];
+  duplicated: boolean;
   onRename: (name: string) => void;
   onToggle: () => void;
   onRemove: () => void;
   onPickCategory: () => void;
   onPickLocation: () => void;
+  onEdit: () => void;
+  onRetry: () => void;
 }) {
   const styles = useStyles();
   const categoryName = entry.categoryId
     ? (categories.find((c) => c.id === entry.categoryId)?.name ?? '未分类')
     : '未分类';
   const locationName = findLocationName(cabinets, entry.locationId);
+  /** 失败 / 空结果且照片还在 → 可以原地重试 */
+  const canRetry = (entry.status === 'failed' || entry.status === 'empty') && !!entry.photo;
 
   return (
     <View style={styles.row}>
@@ -543,12 +726,39 @@ function EntryRow({
             </Label>
           </Pressable>
         </View>
-        <Meta color={statusColor(entry)} style={styles.status}>
-          {statusText(entry)}
-        </Meta>
+        <View style={styles.statusRow}>
+          <Meta color={statusColor(entry)} style={styles.status}>
+            {statusText(entry)}
+          </Meta>
+          {canRetry ? (
+            <Pressable accessibilityRole="button" onPress={onRetry} hitSlop={6}>
+              <Label color={Palette.brand}>重试</Label>
+            </Pressable>
+          ) : null}
+        </View>
+        {duplicated ? (
+          <Meta color={Palette.amber} style={styles.status}>
+            与库里已有物品重名
+          </Meta>
+        ) : null}
       </View>
 
-      <IconButton icon="trash-outline" size={18} tone="ink3" accessibilityLabel="不要这一件" onPress={onRemove} />
+      <View style={styles.rowActions}>
+        <IconButton
+          icon="create-outline"
+          size={18}
+          tone="ink3"
+          accessibilityLabel="详细编辑"
+          onPress={onEdit}
+        />
+        <IconButton
+          icon="trash-outline"
+          size={18}
+          tone="ink3"
+          accessibilityLabel="不要这一件"
+          onPress={onRemove}
+        />
+      </View>
     </View>
   );
 }
@@ -588,6 +798,23 @@ function findLocationName(cabinets: CabinetView[], id: string | null): string | 
   return null;
 }
 
+/** 条目 → 详细编辑的种子（模型的输出 + 用户的草稿合起来） */
+function seedFromEntry(e: BatchEntry): BatchEditSeed {
+  return {
+    name: e.name,
+    categoryId: e.categoryId,
+    locationId: e.locationId,
+    expireDate: e.expireDate,
+    brand: e.fields.brand,
+    model: e.fields.model,
+    price: e.fields.price,
+    quantity: e.fields.quantity,
+    purchaseDate: e.fields.purchaseDate,
+    tags: e.fields.tags,
+    note: e.fields.note,
+  };
+}
+
 /* ================================================================== 样式 */
 
 const useStyles = makeStyles((Palette) => ({
@@ -602,7 +829,7 @@ const useStyles = makeStyles((Palette) => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Space.sm,
-    marginHorizontal: 17,
+    marginHorizontal: GUTTER,
     marginBottom: Space.sm,
     paddingVertical: Space.sm,
     paddingRight: Space.xs,
@@ -625,7 +852,9 @@ const useStyles = makeStyles((Palette) => ({
   rowBody: { flex: 1, gap: 2 },
   nameInput: { fontSize: 15, fontWeight: '500', color: Palette.ink, padding: 0 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: Space.xs },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: Space.sm },
   status: { fontSize: 12 },
+  rowActions: { flexDirection: 'row', alignItems: 'center' },
 
   hint: { marginBottom: Space.sm, lineHeight: 20 },
   saveBtn: { marginTop: Space.sm },

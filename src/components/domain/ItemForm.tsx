@@ -123,11 +123,17 @@ export interface ItemFormProps {
    *     （用户说「客厅有台电脑」通常没提分类，正需要猜），
    *     **日期一律照用**（「昨天买的」是用户亲口说的，改成今天就是改错了），
    *     而且识别出来的那几行要挂「AI」标 —— 它们不是用户敲的。
+   *   - `'draft'` —— 预填的是**一份已有的草稿**（批量识图清单里那一条，
+   *     用户点「详细编辑」进来的）。与 `'voice'` 的差别：这里的分类已经是用户的意图
+   *     （他可能刚在清单里选过），**不该被猜词覆盖**；日期也照用 ——
+   *     它既不是「新买的一件」，也不是刚识别出来的毛坯。
+   *     简言之：`seedFinal` 与 voice 相反，但**不重算日期**（那是 duplicate 特有的）。
    *
-   * ★ 两者共用同一个 `prefill` 字段，是因为字段集合完全一致（都是 ItemSeed）；
-   *   差别只在「这些值可不可信」这个语义上，所以用一个开关表达，而不是两套入参。
+   * ★ 三者共用同一个 `prefill` 字段，是因为字段集合完全一致（都是 ItemSeed）；
+   *   差别只在「这些值可不可信、要不要重算日期」这个语义上，
+   *   所以用一个开关表达，而不是三套入参。
    */
-  prefillMode?: 'duplicate' | 'voice';
+  prefillMode?: 'duplicate' | 'voice' | 'draft';
   initialPhotos?: Photo[];
   /**
    * 不显示照片区。
@@ -299,16 +305,19 @@ export function ItemForm({
   const isEdit = !!initialItem;
   const isPrefill = !isEdit && !!prefill;
   const isVoice = prefillMode === 'voice';
-  /** 预填值是否视为「已定稿」。复制是，语音不是 —— 见 prefillMode 的注释 */
+  /** 详细编辑：预填一份已有的草稿，**不重算日期**（见 prefillMode 的注释） */
+  const isDraft = prefillMode === 'draft';
+  /** 预填值是否视为「已定稿」。复制与详细编辑是，语音不是 —— 见 prefillMode 的注释 */
   const seedFinal = isPrefill && !isVoice;
 
   const [draft, setDraft] = useState<DraftState>(() => {
     const base = stateFrom(initialItem ?? prefill, defaults);
-    if (!seedFinal) return base;
+    if (!seedFinal || isDraft) return base;
 
     /* 复制出来的是**新**买的一件：购买日期回到今天，
        过期时间按分类重新带一份（原件的日期属于原件，抄过来就是错的）。
-       ★ 语音不走这一支 —— 那里的日期是用户亲口说的。 */
+       ★ 语音不走这一支 —— 那里的日期是用户亲口说的。
+       ★ 详细编辑也不走 —— 那是在改一份已有草稿，日期是它自己的。 */
     const start = base.purchaseDate ?? today();
     const cat = categories.find((c) => c.id === base.categoryId);
     const months = cat?.defaultExpireMonths ?? defaultExpireMonths(cat?.name ?? null);

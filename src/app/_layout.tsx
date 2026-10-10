@@ -146,6 +146,12 @@ function AppShell() {
           name="batch"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
+        {/* 批量识图的「详细编辑」：新开一页复用 `ItemForm`（清单行装不下整张表单）。
+            同样走 modal —— 它是「从清单里临时进去改一条、改完回来」的语境。 */}
+        <Stack.Screen
+          name="batch/item"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
       </Stack>
 
       <UpdateSheet
