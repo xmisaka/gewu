@@ -26,7 +26,7 @@ import {
 } from '@/components/domain/ItemForm';
 import { IconButton } from '@/components/ui/controls';
 import { Loading } from '@/components/ui/feedback';
-import { Gutter, PageHeader, Screen } from '@/components/ui/layout';
+import { Gutter, HStack, PageHeader, Screen } from '@/components/ui/layout';
 import { Meta } from '@/components/ui/typography';
 import { Space } from '@/constants/theme';
 import { askVision, describeAiError } from '@/lib/ai/client';
@@ -207,17 +207,40 @@ export default function ComposeScreen() {
              等于设置页那句「关掉开关等于这条链路不存在」是句空话。 */
         right={
           aiEnabled ? (
-            <IconButton
-              icon="mic-outline"
-              accessibilityLabel="语音录入"
-              onPress={() => {
-                if (!entitled) {
-                  setGateOpen(true);
-                  return;
-                }
-                router.push('/voice');
-              }}
-            />
+            <HStack gap={0}>
+              {/* 批量识图：与语音并列，两者都是「另一种录入方式」——
+                  一个说一句录一件，一个选一堆录一堆。
+
+                  ★ 它是**页面级**入口，刻意不放进照片条：那里的「识物」是
+                    「给当前这一件识个图」，而批量会一次创建很多件，
+                    与录入页上这份还没填完的表单毫无关系。
+
+                  ★ 与识物一样要求「这家能看图」：纯文本模型进来只会拿到模型侧的报错。 */}
+              {canRecognize ? (
+                <IconButton
+                  icon="layers-outline"
+                  accessibilityLabel="批量识图"
+                  onPress={() => {
+                    if (!entitled) {
+                      setGateOpen(true);
+                      return;
+                    }
+                    router.push('/batch');
+                  }}
+                />
+              ) : null}
+              <IconButton
+                icon="mic-outline"
+                accessibilityLabel="语音录入"
+                onPress={() => {
+                  if (!entitled) {
+                    setGateOpen(true);
+                    return;
+                  }
+                  router.push('/voice');
+                }}
+              />
+            </HStack>
           ) : undefined
         }
       />

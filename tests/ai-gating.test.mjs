@@ -1,9 +1,9 @@
 /**
  * AI 族入口的门控口径 —— 源码静态断言。
  *
- * 这一族一共 **4 个入口 + 2 个可深链的页面**，分散在 4 个文件里：
- *   首页搜索框右侧（麦克风 / 星标）· 录入页右上（麦克风）·
- *   录入页照片条的「识物」· `/ask` 与 `/voice` 两个页面自身的兜底。
+ * 这一族一共 **5 个入口 + 3 个可深链的页面**，分散在 5 个文件里：
+ *   首页搜索框右侧（麦克风 / 星标）· 录入页右上（语音 / 批量识图）·
+ *   录入页照片条的「识物」· `/ask`、`/voice`、`/batch` 三个页面自身的兜底。
  *
  * ★★ 它们必须挂在**同一个判据** `useAi().enabled`（总开关）上，
  *    而不是 `active`（那还要求填了 Key，是「能不能跑」），更不能各页现编一个。
@@ -23,9 +23,10 @@ const read = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8');
 /** 必须自己挡总开关的文件 */
 const GATED_FILES = [
   ['../src/app/(tabs)/index.tsx', '首页搜索框右侧的麦克风与星标'],
-  ['../src/app/(tabs)/compose.tsx', '录入页右上的麦克风与照片条的识物'],
+  ['../src/app/(tabs)/compose.tsx', '录入页右上的语音 / 批量识图，以及照片条的识物'],
   ['../src/app/ask.tsx', '问一问页（深链兜底）'],
   ['../src/app/voice.tsx', '语音录入页（深链兜底）'],
+  ['../src/app/batch.tsx', '批量识图页（深链兜底）'],
 ];
 
 /**
@@ -71,7 +72,7 @@ test('AI 族入口一律挂在总开关（enabled）上，不挂在 active 上',
   }
   assert.equal(checked, GATED_FILES.length);
   // 兜底：清单本身被改短了也要报出来，否则「漏检」会伪装成「全绿」
-  assert.equal(GATED_FILES.length, 4, '入口清单变了，请同步这份测试与 store/ai.tsx 的口径注释');
+  assert.equal(GATED_FILES.length, 5, '入口清单变了，请同步这份测试与 store/ai.tsx 的口径注释');
 });
 
 test('全量扫描：新页面若读 AI store 就必须挡总开关，或写进豁免清单', () => {
@@ -93,8 +94,8 @@ test('全量扫描：新页面若读 AI store 就必须挡总开关，或写进�
   );
 });
 
-test('两个深链兜底页面：先挡档位、后挡总开关，顺序不能反', () => {
-  for (const rel of ['../src/app/ask.tsx', '../src/app/voice.tsx']) {
+test('深链兜底页面：先挡档位、后挡总开关，顺序不能反', () => {
+  for (const rel of ['../src/app/ask.tsx', '../src/app/voice.tsx', '../src/app/batch.tsx']) {
     const src = read(rel);
     const gate = src.indexOf('if (!entitled)');
     const off = src.indexOf('if (!aiEnabled)');

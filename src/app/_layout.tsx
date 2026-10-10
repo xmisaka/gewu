@@ -11,6 +11,7 @@
  *   ├─ trash             回收站
  *   ├─ supporter         支持者（未激活＝贴码页；已激活＝状态页）
  *   ├─ voice             语音录入（说一句话 → 结构化预览 → 待确认）
+ *   ├─ batch             批量识图（一次选多张 → 逐张识别 → 清单核对 → 一次入库）
  *   ├─ ai                AI 助手设置（总开关 / Key / 模型 / 用量；我的 → 整理）
  *   └─ ask               问一问（本机检索 + 模型措辞；01 屏搜索框右侧星标）
  *
@@ -139,6 +140,12 @@ function AppShell() {
             办完事就返回的独立语境，不像 voice 那样需要压在列表上临时进行 */}
         <Stack.Screen name="ai" />
         <Stack.Screen name="ask" />
+        {/* 批量识图：从录入页右上角进来，选一批照片 → 逐张识别 → 清单核对 → 一次入库。
+            与 voice 同属「临时进行的一项操作」，压在录入页上比普通压栈更贴合语境。 */}
+        <Stack.Screen
+          name="batch"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
       </Stack>
 
       <UpdateSheet

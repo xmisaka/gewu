@@ -302,33 +302,56 @@ export async function getRawItem(id: string): Promise<Item | null> {
 /* ------------------------------------------------------------ 写入 */
 
 export async function createItem(draft: ItemDraft): Promise<string> {
-  const db = await getDatabase();
-  const id = draft.id ?? (await import('../id')).uuid();
-  const now = Date.now();
-
-  await db.runAsync(
-    `INSERT INTO items
-      (id, name, category_id, location_id, purchase_date, price, expire_date,
-       brand, model, quantity, tags, note, sort_order, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-    id,
-    draft.name.trim(),
-    draft.categoryId,
-    draft.locationId,
-    draft.purchaseDate,
-    draft.price,
-    draft.expireDate,
-    draft.brand,
-    draft.model,
-    draft.quantity,
-    JSON.stringify(draft.tags ?? []),
-    draft.note,
-    draft.sortOrder,
-    now,
-    now,
-  );
-
+  const [id] = await createItemsBatch([draft]);
   return id;
+}
+
+/**
+ * 批量新建（批量识图用）。
+ *
+ * ★ **一个事务里写完** —— 中途失败整批回滚。不要「一半写进去了」这种状态：
+ *   清单页给用户的反馈是「已保存 N 件」，若实际只进了前几条，
+ *   他没有任何线索能发现（列表里就是少了几条，而且不报错）。
+ *
+ * ★ `createItem` 也走这里 —— INSERT 的列与顺序只留一份，
+ *   加字段时不会出现「单条加了、批量漏了」这种静默不一致。
+ */
+export async function createItemsBatch(drafts: ItemDraft[]): Promise<string[]> {
+  if (drafts.length === 0) return [];
+  const db = await getDatabase();
+  const { uuid } = await import('../id');
+  const now = Date.now();
+  const ids: string[] = [];
+
+  await db.withTransactionAsync(async () => {
+    for (const draft of drafts) {
+      const id = draft.id ?? uuid();
+      ids.push(id);
+      await db.runAsync(
+        `INSERT INTO items
+          (id, name, category_id, location_id, purchase_date, price, expire_date,
+           brand, model, quantity, tags, note, sort_order, created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+        id,
+        draft.name.trim(),
+        draft.categoryId,
+        draft.locationId,
+        draft.purchaseDate,
+        draft.price,
+        draft.expireDate,
+        draft.brand,
+        draft.model,
+        draft.quantity,
+        JSON.stringify(draft.tags ?? []),
+        draft.note,
+        draft.sortOrder,
+        now,
+        now,
+      );
+    }
+  });
+
+  return ids;
 }
 
 /** 部分更新；自动刷新 updated_at */

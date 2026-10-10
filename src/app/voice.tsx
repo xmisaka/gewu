@@ -60,7 +60,7 @@ import { ItemForm, type FormPayload, type ItemSeed } from '@/components/domain/I
 import { Button, IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, ScreenScroll } from '@/components/ui/layout';
 import { Body, Meta, Title } from '@/components/ui/typography';
-import { GUTTER, Palette, Space, Type } from '@/constants/theme';
+import { GUTTER, Space, Type } from '@/constants/theme';
 import { ASR_AVAILABLE, asrMessage, listenOnce } from '@/lib/ai/asr';
 import { askText, describeAiError } from '@/lib/ai/client';
 import { buildVoicePrompt, parseExtract } from '@/lib/ai/extract';
