@@ -16,9 +16,11 @@ import { readFileSync } from 'node:fs';
 
 import {
   compareVersionName,
+  decideCheck,
   formatVersionChange,
   isNewerVersion,
   parseUpdateManifest,
+  readAutoCheck,
   readTimestamp,
   readVersionCode,
   shouldCheckNow,
@@ -166,6 +168,56 @@ test('meta 里读出来的字符串要能安全当数字用', () => {
   assert.equal(readVersionCode(null), null);
   assert.equal(readVersionCode('v11'), null);
   assert.equal(readVersionCode('0'), null);
+});
+
+/* ------------------------------------------------------------ 自动检查总开关 */
+
+test('★ 总开关关掉后，自动路径一次网都不发', () => {
+  assert.equal(
+    decideCheck({ manual: false, autoCheck: false, lastCheckAt: null, now: 1_000_000 }),
+    'disabled',
+  );
+});
+
+test('★ 总开关管不着手动检查 —— 挡了它等于把更新入口整个堵死', () => {
+  /* 关掉自动检查是用户的正当选择，但不该以「再也更新不了」为代价 */
+  assert.equal(
+    decideCheck({ manual: true, autoCheck: false, lastCheckAt: null, now: 1_000_000 }),
+    'go',
+  );
+});
+
+test('总开关开着时，24h 节流照旧生效', () => {
+  const now = 10 * UPDATE_CHECK_INTERVAL_MS;
+  assert.equal(decideCheck({ manual: false, autoCheck: true, lastCheckAt: now - 1, now }), 'throttled');
+  assert.equal(
+    decideCheck({ manual: false, autoCheck: true, lastCheckAt: now - UPDATE_CHECK_INTERVAL_MS, now }),
+    'go',
+  );
+  assert.equal(decideCheck({ manual: false, autoCheck: true, lastCheckAt: null, now }), 'go');
+});
+
+test('开关先于节流判断：关着就是关着，不管上次什么时候查的', () => {
+  /* 反过来的话，用户会看到「刚关掉开关，它还是查了一次」 */
+  assert.equal(
+    decideCheck({ manual: false, autoCheck: false, lastCheckAt: 0, now: 1_000_000 }),
+    'disabled',
+  );
+});
+
+test('★ 开关读不出来一律当「开」：写成 === "1" 会让老用户静默失去更新提示', () => {
+  assert.equal(readAutoCheck('1'), true);
+  assert.equal(readAutoCheck('0'), false);
+  assert.equal(readAutoCheck(null), true);
+  assert.equal(readAutoCheck(''), true);
+  assert.equal(readAutoCheck('garbage'), true);
+});
+
+test('★ check.ts 必须走 decideCheck，不许自己再写一遍判断', () => {
+  /* 自己写一遍的后果：总开关会在某个分支里被绕开，而且不报错 */
+  const src = readFileSync(new URL('../src/lib/update/check.ts', import.meta.url), 'utf8');
+  assert.ok(src.includes('decideCheck('), 'check.ts 没走 decideCheck —— 总开关可能被绕开');
+  assert.ok(!src.includes('shouldCheckNow'), 'check.ts 又自己判节流了，应该交给 decideCheck');
 });
 
 /* ------------------------------------------------------------ 文案 */

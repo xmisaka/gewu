@@ -4,11 +4,13 @@
  * 职责：读本机版本 → 决定要不要开网 → 按 主源 / 备用源 顺序拉清单 → 比出结论。
  * 判定规则全在 `policy.ts`，这里只负责把「时钟、网络、库」三样东西搬到位。
  *
- * 三条口径（方案页 §05、§07 定的）：
+ * 四条口径（方案页 §05、§07 + 2026-10-11 加的总开关）：
  *   1. **失败静默**。更新检查失败不是用户需要知道的事，自动路径连设置页那行文案都不改。
  *   2. **不强制**。拿到新版本也只是给一个可以关掉的弹窗，不做倒计时、不挡返回。
  *   3. **只发一个版本号**。请求里没有任何标识信息 —— 不带设备 id、不带安装 id、
  *      不发 POST。整个请求就是一句 `GET /version.json`。
+ *   4. **可关闭**。用户可以彻底关掉自动检查（`update.autoCheck`）。
+ *      ★ 关的只是「自动」：手动入口永远可点，否则用户关了之后想更新都找不到路。
  */
 
 import Constants from 'expo-constants';
@@ -16,9 +18,9 @@ import Constants from 'expo-constants';
 import { VERSION_URLS } from '@/constants/site';
 import { readUpdateState, writeLastCheckAt, type UpdateState } from '@/lib/db/update';
 import {
+  decideCheck,
   isNewerVersion,
   parseUpdateManifest,
-  shouldCheckNow,
   shouldPrompt,
   type LocalVersion,
   type UpdateManifest,
@@ -44,6 +46,8 @@ export function readLocalVersion(): LocalVersion {
 }
 
 export type CheckOutcome =
+  /** 用户关掉了自动检查，这次连网都没开。**手动路径永远不会走到这里** */
+  | { kind: 'disabled' }
   /** 当天已经查过了，这次连网都没开 */
   | { kind: 'throttled' }
   /** 查到了，但没有更新的版本 */
@@ -65,9 +69,13 @@ export type CheckOutcome =
 /**
  * 查一次更新。
  *
- * `manual` 只影响两件事：绕过 24h 节流，以及允许把失败写进界面状态。
+ * `manual` 只影响两件事：绕过 24h 节流与**自动检查总开关**，以及允许把失败写进界面状态。
  * 它**不影响**节流窗口的写法 —— 手动查过也照样把时间戳刷新，
  * 否则连点两次就等于是绕开了节流，等于没有节流。
+ *
+ * 「要不要走」这一步整个交给 policy 的 decideCheck（纯函数，被测试钉住）：
+ * 这里只负责把「时钟、库、网络」三样东西搬到位，自己不再写一遍判断 ——
+ * 否则总开关很容易在某个分支里被绕开，而且不报错。
  */
 export async function checkForUpdate(options: { manual?: boolean } = {}): Promise<CheckOutcome> {
   const manual = options.manual === true;
@@ -75,7 +83,16 @@ export async function checkForUpdate(options: { manual?: boolean } = {}): Promis
   const now = Date.now();
 
   const state: UpdateState = await readUpdateState();
-  if (!manual && !shouldCheckNow(state.lastCheckAt, now)) return { kind: 'throttled' };
+  const decision = decideCheck({
+    manual,
+    autoCheck: state.autoCheck,
+    lastCheckAt: state.lastCheckAt,
+    now,
+  });
+  /* 关着 / 被节流都在这里收口，且**都不写时间戳** ——
+     没开网就没开网，不该占掉当天的名额 */
+  if (decision === 'disabled') return { kind: 'disabled' };
+  if (decision === 'throttled') return { kind: 'throttled' };
 
   const manifest = await fetchFromAnySource();
   await writeLastCheckAt(now).catch(() => {

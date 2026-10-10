@@ -165,6 +165,39 @@ export function shouldPrompt(remote: UpdateManifest, suppressedVersionCode: numb
   return remote.versionCode > suppressedVersionCode;
 }
 
+/**
+ * meta 里的自动检查总开关。
+ *
+ * **没写过的库一律当「开」**。写成 `value === '1'` 那种正判，读不到就等于「关」，
+ * 老用户在升级后会**悄悄**失去更新提示 —— 而且不报错、不红屏，只是再也等不到。
+ * 所以判据是反着来的：只有明确写了 '0' 才算关。
+ */
+export function readAutoCheck(value: string | null): boolean {
+  return value !== '0';
+}
+
+/** 这次检查走不走 */
+export type CheckDecision = 'go' | 'disabled' | 'throttled';
+
+/**
+ * 决定这次检查要不要真的开网。三道门，按顺序：
+ *   1. **手动** —— 用户自己点进来的，既不受总开关约束，也不受节流约束。
+ *   2. **总开关** —— 关着就一次网都不发。
+ *   3. **24h 节流**。
+ *
+ * ★ 第 1 条是不变量：开关只关**自动**。若连手动一起挡掉，
+ *   用户关掉之后就再也找不到更新入口 —— 一个可选设置会把唯一的通路堵死，
+ *   而「关掉自动检查」本不该以「再也更新不了」为代价。
+ */
+export function decideCheck(
+  params: { manual: boolean; autoCheck: boolean; lastCheckAt: number | null; now: number },
+  intervalMs: number = UPDATE_CHECK_INTERVAL_MS,
+): CheckDecision {
+  if (params.manual) return 'go';
+  if (!params.autoCheck) return 'disabled';
+  return shouldCheckNow(params.lastCheckAt, params.now, intervalMs) ? 'go' : 'throttled';
+}
+
 /** meta 里存的是字符串，读出来要能安全地当数字用 */
 export function readTimestamp(value: string | null): number | null {
   if (value === null) return null;

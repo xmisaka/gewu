@@ -19,7 +19,12 @@ import {
   type ReactNode,
 } from 'react';
 
-import { writeDismissedVersionCode } from '@/lib/db/update';
+import {
+  clearLastCheckAt,
+  readUpdateState,
+  writeAutoCheck,
+  writeDismissedVersionCode,
+} from '@/lib/db/update';
 import { checkForUpdate, readLocalVersion, type CheckOutcome } from '@/lib/update/check';
 import type { LocalVersion, UpdateManifest, UpdateStatus } from '@/lib/update/policy';
 
@@ -30,6 +35,10 @@ export interface UpdateValue {
   local: LocalVersion;
   /** 更新弹窗是否展开。由本 Provider 管，因为它同时被自动与手动两条路驱动 */
   sheetOpen: boolean;
+  /** 自动检查总开关。false = 用户关了，冷启动不再联网 */
+  autoCheck: boolean;
+  /** 拨开关。重新打开时会清掉节流时间戳，让下次冷启动立即生效 */
+  setAutoCheck: (on: boolean) => Promise<void>;
   /** 手动查一次：会真的开网，且允许把失败如实写进状态 */
   checkNow: () => Promise<void>;
   /** 「以后再说」：关掉，并记住这个版本号不再自动弹 */
@@ -44,6 +53,9 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<UpdateStatus>('idle');
   const [manifest, setManifest] = useState<UpdateManifest | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  /* 自动检查总开关。先给 true（默认开），冷启动读到库里的值再校正 ——
+     这一步极快，用户切到「我的」页时早已落定，不会看到开关闪动 */
+  const [autoCheck, setAutoCheckState] = useState(true);
   /* 版本号来自 app.json，运行期不会变，读一次就够 */
   const [local] = useState<LocalVersion>(() => readLocalVersion());
 
@@ -54,6 +66,10 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
    */
   const apply = useCallback((outcome: CheckOutcome, manual: boolean) => {
     switch (outcome.kind) {
+      case 'disabled':
+        /* 总开关关着，这次连网都没开。什么都不改 —— 设置页那行仍是「点击检查」，
+           因为手动入口不受开关约束 */
+        return;
       case 'throttled':
         return;
       case 'failed':
@@ -71,11 +87,18 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  /* 冷启动查一次。节流在 checkForUpdate 里，所以这里不必再判断「今天查过没有」。
+  /* 冷启动查一次。节流与总开关都在 checkForUpdate 里，这里不必再判断。
      整个过程不阻塞启动：真查到了才会冒出弹窗 */
   useEffect(() => {
     let alive = true;
     void (async () => {
+      /* 先把开关读出来校正界面（初值是 true，读到 '0' 再改成 false） */
+      try {
+        const state = await readUpdateState();
+        if (alive) setAutoCheckState(state.autoCheck);
+      } catch {
+        // 读不到就当开，与 db 层的退化口径一致
+      }
       try {
         const outcome = await checkForUpdate();
         if (alive) apply(outcome, false);
@@ -97,6 +120,19 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
     }
   }, [apply]);
 
+  const setAutoCheck = useCallback(async (on: boolean) => {
+    /* 先乐观更新：开关必须立刻跟手，写库失败也不该让它跳回去 */
+    setAutoCheckState(on);
+    try {
+      await writeAutoCheck(on);
+      /* ★ 重新打开时清掉节流时间戳 —— 否则用户刚拨开开关，
+         还要等满 24h 的下一个窗口才查得到，看起来就像这开关没用 */
+      if (on) await clearLastCheckAt();
+    } catch {
+      // 写不进去只是下次启动会退回默认（开），不值得打断
+    }
+  }, []);
+
   const remindLater = useCallback(() => {
     setSheetOpen(false);
     const code = manifest?.versionCode;
@@ -107,8 +143,18 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
   const closeSheet = useCallback(() => setSheetOpen(false), []);
 
   const value = useMemo<UpdateValue>(
-    () => ({ status, manifest, local, sheetOpen, checkNow, remindLater, closeSheet }),
-    [status, manifest, local, sheetOpen, checkNow, remindLater, closeSheet],
+    () => ({
+      status,
+      manifest,
+      local,
+      sheetOpen,
+      autoCheck,
+      setAutoCheck,
+      checkNow,
+      remindLater,
+      closeSheet,
+    }),
+    [status, manifest, local, sheetOpen, autoCheck, setAutoCheck, checkNow, remindLater, closeSheet],
   );
 
   return <UpdateContext.Provider value={value}>{children}</UpdateContext.Provider>;

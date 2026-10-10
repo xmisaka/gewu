@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { ContactSection } from '@/components/domain/ContactSection';
 import { ThemePickerModal } from '@/components/domain/ThemePickerModal';
@@ -74,7 +74,7 @@ export default function MineScreen() {
     useTheme();
   const { entitled } = useEntitlement();
   const { active: aiActive, hasKey: aiHasKey } = useAi();
-  const { status, local, checkNow } = useUpdate();
+  const { status, local, checkNow, autoCheck, setAutoCheck } = useUpdate();
   const activeTheme = THEMES[activeKey];
   const [busy, setBusy] = useState<string | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
@@ -521,6 +521,25 @@ export default function MineScreen() {
                 valueTone={entitled ? 'brand' : 'ink3'}
                 onPress={() => router.push('/supporter')}
               />
+              {/* 自动检查挨着「检查更新」摆：一行是「要不要自动查」，一行是「我手动去查」，
+                  同一件事的两面。★ 关掉的只有自动 —— 下面那行随时还能点，
+                  否则用户关了之后想更新都找不到入口，一个可选设置会把唯一通路堵死 */}
+              <View style={styles.switchRow}>
+                <View style={styles.switchText}>
+                  <Body tone="ink2">自动检查更新</Body>
+                  <Meta tone="ink4" style={styles.switchDesc}>
+                    关闭后不再自动联网检查，你仍可随时手动检查
+                  </Meta>
+                </View>
+                <Switch
+                  value={autoCheck}
+                  onValueChange={(next) => void setAutoCheck(next)}
+                  trackColor={{ false: Palette.line, true: Palette.brandBg }}
+                  thumbColor={autoCheck ? Palette.brand : Palette.surface}
+                  accessibilityLabel="自动检查更新"
+                />
+              </View>
+
               {/* 按方案页 04 屏，这一行落在「支持格物」卡里（而不是「关于」）——
                   对一个没有商店的 App 来说，「支持我」和「有新版本去哪拿」是同一件事的两面。
                   检查中不再响应点击：连点两次等于开两次网，结果却一样 */}
@@ -708,6 +727,22 @@ const useStyles = makeStyles((Palette) => ({
   /* 免费档下另外三枚色点降透明度，与选择器里的处理保持一致 */
   dotLocked: { opacity: 0.45 },
   themeTip: { marginTop: Space.md, padding: Space.md },
+
+  /* 自动检查开关行：与 ai.tsx 的总开关同一形态（左文右开关），
+     行高与内距贴 SettingRow，免得夹在设置行里显得突出 */
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Space.md,
+    minHeight: 46,
+    paddingVertical: Space.sm,
+    paddingHorizontal: Space.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Palette.line3,
+  },
+  switchText: { flex: 1 },
+  switchDesc: { marginTop: 2, lineHeight: 18, fontSize: 12.5 },
 
   supportNote: { marginTop: Space.sm, paddingHorizontal: Space.lg, lineHeight: 19 },
 
