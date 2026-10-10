@@ -216,12 +216,13 @@ export function readLedger() {
     .filter(Boolean);
 }
 
-function appendLedger(entries) {
+/** 追加台账。导出给 tools/license-batch.mjs 复用 —— 台账只留一个写入者，格式才不会分叉。 */
+export function appendLedger(entries) {
   ensureHomeDir();
   fs.appendFileSync(LEDGER_FILE, entries.map((e) => JSON.stringify(e)).join('\n') + '\n', 'utf8');
 }
 
-function todayLocal() {
+export function todayLocal() {
   const now = new Date();
   const p = (n) => String(n).padStart(2, '0');
   return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
