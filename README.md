@@ -407,3 +407,23 @@ Expo SDK 57 · React Native 0.86 · React 19 · expo-router 57 · TypeScript · 
 > 同版本号重打时版本串失去区分力，改用「差分 + 归因」：
 > 确认 `createBundleReleaseJsAndAssets` 非 UP-TO-DATE，再扫基线之后被改的源文件
 > （本机 `find -newermt` 静默失效，用 Python `st_mtime`），最后新旧 bundle 逐字节比。
+
+### 卖一份支持者档（发码 / 对账）
+
+爱发电的自动发货是**码池**：把一批码一行一个粘进商品的「自动随机回复」，每卖出一件
+平台取一行私信发出去。格物的码是离线签名、App 内验签，所以发码端只做两件事 —— 签一批、粘进去。
+
+```bash
+node tools/license-batch.mjs issue --count 50    # ① 签一批（离线）
+node tools/afdian-stock.mjs status               # ② 对账：还剩多少枚 × 卖了多少件
+node tools/afdian-stock.mjs restock --count 50 --yes  # ③ 补货（默认演练，--yes 才真写）
+```
+
+- 标识约定 `<渠道>-<批次>-<序号>`（`afdian-20261010-001`）：渠道前缀让 `license-audit` 查得出泄漏源，
+  逐码序号让台账里 50 枚码是 50 条记录，而不是一条「某人买了 50 个」的可疑形态。
+- 产物在 `~/.gewu/batches/`：`codes-*.txt` 整份粘进爱发电，`batch-*.json` 是粘贴凭据。
+  **码就是钱，绝不写进仓库** —— 指到 git 目录会被拒绝。
+- `~/.gewu/afdian.json` 存 user_id / token / plan_id / sku_id（600 权限，见 `afdian-stock.mjs init`）。
+- 三条硬约束：追加码池**只许 `append`**（`overwrite` 会让未卖出的码全部作废）；补货**默认演练**；
+  同名批次**拒绝重签**（否则「哪一批还剩多少」就查不清了）。
+- 本机直连 `ifdian.net:443` 是通的，不需要代理；万一不通可以 `--proxy socks5://127.0.0.1:10808`。
