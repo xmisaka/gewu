@@ -107,7 +107,7 @@ export function checkActivation(code: string, publicKeyB64Url?: string): Activat
  * 需要支持者档的功能。**这张表是唯一的真相** ——
  * 界面不要自己写 `entitled && xxx`，否则以后漏掉一处就是一道暗门。
  */
-export type SupporterFeature = 'theme' | 'batch' | 'ai';
+export type SupporterFeature = 'theme' | 'batch' | 'ai' | 'stats';
 
 /** 门控浮层的标题与正文用得到；文案放在这儿，三处入口才不会各说各话 */
 export const SUPPORTER_FEATURES: Record<
@@ -130,6 +130,12 @@ export const SUPPORTER_FEATURES: Record<
     sheetTitle: '支持者功能',
     sheetBody:
       '识物入库、问一问与语音录入：拍一张、说一句就能带出名称、分类和规格，省掉手工敲字。免费档不受影响，逐条手工录入照旧，功能一个不少；Key 由你自己申请、调用量记在你自己的账号上，格物不代出 Key、也不按量收费。',
+  },
+  stats: {
+    name: '统计洞察',
+    sheetTitle: '支持者功能',
+    sheetBody:
+      '总价值、日均持有成本、分类价值分布、柜子占用与近半年入库趋势，一页看完。免费档的录入、到期提醒、库存、照片与备份全部照旧，功能一个不少。',
   },
 };
 

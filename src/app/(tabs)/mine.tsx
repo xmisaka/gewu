@@ -413,8 +413,15 @@ export default function MineScreen() {
                 onPress={() => router.push('/category')}
               />
               {/* 统计排在「分类管理」后面、不挂在最前：它是「整理完了想看看」的收尾动作，
-                  不是每天要点的入口。行尾不给计数 —— 那些数字要在页内展开才有意义 */}
-              <SettingRow label="统计洞察" onPress={() => router.push('/stats')} />
+                  不是每天要点的入口。行尾不给计数 —— 那些数字要在页内展开才有意义。
+                  属支持者档：未激活弹门控浮层（不藏行），理由同下方 AI 助手那行。 */}
+              <SettingRow
+                label="统计洞察"
+                onPress={() => {
+                  if (entitled) router.push('/stats');
+                  else setGateFeature('stats');
+                }}
+              />
               <SettingRow
                 label="封面图源"
                 value={stockKeyStatus()}
@@ -504,7 +511,7 @@ export default function MineScreen() {
               {AFDIAN_URL.length > 0 ? (
                 <SettingRow
                   label="去爱发电支持"
-                  value="¥28 一次买断"
+                  value="¥36 一次买断"
                   onPress={() => router.push('/supporter')}
                 />
               ) : null}

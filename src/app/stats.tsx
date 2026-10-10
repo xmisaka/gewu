@@ -9,6 +9,10 @@
  * ★ 入口在「我的 → 整理」，**不占底部第六格**：底部五格是「找东西」的骨架，
  *   往里塞统计会把骨架打乱（与 AI 助手不占第六格同一条理由）。
  *
+ * ★ **属支持者档**（10-10 起，走门控表 `SUPPORTER_FEATURES.stats`，别在 UI 里自判档位）：
+ *   入口未激活弹 `SupporterGateSheet`；页面本体自带守卫 —— 深链直接进来时，
+ *   未激活档不能看到完整统计（同 `ai.tsx` 的守卫模式）。
+ *
  * ★ **不引图表库**。横向条、格位方块、月度柱全部用 View 拼 —— 一为体积，
  *   二为它们能直接吃主题令牌，换肤时不会有一块图还挂在旧配色上。
  *
@@ -21,14 +25,15 @@
 
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { SlotDots } from '@/components/domain/CabinetGrid';
+import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { IconButton } from '@/components/ui/controls';
 import { EmptyState, Loading, MetricStrip } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, ScreenScroll, SectionCard } from '@/components/ui/layout';
-import { ItemText, Label, Meta } from '@/components/ui/typography';
-import { Space } from '@/constants/theme';
+import { Body, ItemText, Label, Meta } from '@/components/ui/typography';
+import { Palette, Space } from '@/constants/theme';
 import { listItems } from '@/lib/db/items';
 import { listCabinetViews } from '@/lib/db/locations';
 import { formatCount, formatDailyCost, formatMoney, formatMoneyCompact } from '@/lib/format';
@@ -43,6 +48,7 @@ import {
   summarize,
 } from '@/lib/stats';
 import { useAppState } from '@/lib/store/app-state';
+import { useEntitlement } from '@/lib/store/entitlement';
 import { makeStyles } from '@/lib/theme';
 import type { CabinetView, ItemView } from '@/lib/types';
 
@@ -57,6 +63,7 @@ const MIN_RANK_ROWS = 3;
 export default function StatsScreen() {
   const styles = useStyles();
   const router = useRouter();
+  const { entitled } = useEntitlement();
   const { dataVersion } = useAppState();
 
   const itemsState = useAsyncData(() => listItems(), [dataVersion], [] as ItemView[]);
@@ -79,6 +86,33 @@ export default function StatsScreen() {
   );
 
   const loading = itemsState.loading && items.length === 0;
+
+  /* 页面本体守卫（深链兜底）：未激活只留一句解释与一个出口。
+     不做成「能看不能按」—— 灰按钮看起来像坏了，用户真正需要的是知道怎么解锁。 */
+  if (!entitled) {
+    return (
+      <Screen>
+        <View style={styles.topBar}>
+          <IconButton icon="chevron-back" accessibilityLabel="返回" onPress={() => router.back()} />
+        </View>
+        <PageHeader title="统计洞察" subtitle="统计洞察属于支持者功能" />
+        <Gutter>
+          <Card>
+            <Body tone="ink2" style={styles.lockedText}>
+              统计洞察需要支持者档。免费档的录入、到期提醒、库存、照片与备份全部照旧，一个不少。
+            </Body>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/supporter')}
+              style={styles.lockedBtn}>
+              <Label color={Palette.brand}>去激活 / 了解支持者档</Label>
+            </Pressable>
+          </Card>
+        </Gutter>
+        <SupporterGateSheet visible feature="stats" onClose={() => router.back()} />
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -278,6 +312,10 @@ export default function StatsScreen() {
 
 const useStyles = makeStyles((Palette) => ({
   topBar: { flexDirection: 'row', alignItems: 'center', paddingLeft: Space.sm, paddingTop: Space.xs },
+
+  /* 守卫页（未激活）：同 ai.tsx 的两件套 */
+  lockedText: { lineHeight: 21 },
+  lockedBtn: { marginTop: Space.md },
 
   /* 口径小字：比正文再小一档、比 ink3 再淡一档。
      它必须存在（两个数的样本不一样），但绝不能抢走数字的注意力 */

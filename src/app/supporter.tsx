@@ -165,7 +165,7 @@ export default function SupporterScreen() {
                   </Card>
 
                   <Meta tone="ink4" style={styles.afterNote}>
-                    验签在本机完成，不上传任何东西，也不需要联网。支持者皮肤、批量、AI 与语音入口现在都已解锁。
+                    验签在本机完成，不上传任何东西，也不需要联网。支持者皮肤、批量、统计洞察、AI 与语音入口现在都已解锁。
                   </Meta>
                   <Meta color={Palette.clay} style={styles.afterNote}>
                     这串码只属于你：请勿发到群里、论坛或二手平台。码内嵌有你的订单标识，一旦流出可以追溯到来源。
@@ -196,9 +196,9 @@ export default function SupporterScreen() {
                 <SectionCard title="还没买？">
                   <Gutter>
                     <Card>
-                      <Title style={styles.buyTitle}>支持者档 · ¥28</Title>
+                      <Title style={styles.buyTitle}>支持者档 · ¥36</Title>
                       <Meta tone="ink3" style={styles.buyLine}>
-                        一次买断，含 v2 内全部支持者功能：六套浅色主题、批量操作、AI 功能（识物 / 问一问 / 语音录入）、新功能优先体验。
+                        一次买断，含 v2 内全部支持者功能：六套浅色主题、批量操作、统计洞察、AI 功能（识物 / 问一问 / 语音录入）、新功能优先体验。
                       </Meta>
                       <Meta tone="ink4" style={styles.buyLine}>
                         免费档不受影响 —— 收纳、到期提醒、库存、照片、备份恢复全部照旧。

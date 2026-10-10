@@ -37,7 +37,7 @@ export interface SupporterGateSheetProps {
 
 /** 两项说明：价格与「已有码怎么办」。两者都是「不用问我」就能回答的问题 */
 const DISCLOSURES: readonly { title: string; body: string }[] = [
-  { title: '一次买断 ¥28', body: '含 v2 内全部支持者功能，不订阅、不自动续费。' },
+  { title: '一次买断 ¥36', body: '含 v2 内全部支持者功能，不订阅、不自动续费。' },
   { title: '已有激活码？', body: '直接粘贴，本机校验即可解锁 —— 不联网、不绑设备。' },
 ];
 
@@ -134,7 +134,7 @@ const useStyles = makeStyles((Palette) => ({
 
   disclosure: { flexDirection: 'row', alignItems: 'flex-start', gap: Space.sm, marginTop: Space.md },
   /* 序号做成一个小品牌色药丸：两条说明同等重要，用序号而不是图标，
-     免得「¥28」和「已有码」看起来像主次关系 */
+     免得「¥36」和「已有码」看起来像主次关系 */
   badge: {
     width: 18,
     height: 18,
