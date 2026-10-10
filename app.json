@@ -2,7 +2,7 @@
   "expo": {
     "name": "格物",
     "slug": "gewu",
-    "version": "2.1.2",
+    "version": "2.1.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gewu",
@@ -10,7 +10,7 @@
     "backgroundColor": "#FBF9F6",
     "android": {
       "package": "com.gewu.app",
-      "versionCode": 19,
+      "versionCode": 20,
       "adaptiveIcon": {
         "backgroundColor": "#F7F4EF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

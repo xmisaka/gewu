@@ -1,12 +1,10 @@
 {
-  "versionCode": 19,
-  "versionName": "2.1.2",
-  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.1.2-arm64.apk",
+  "versionCode": 20,
+  "versionName": "2.1.3",
+  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.1.3-arm64.apk",
   "size": "46.44 MB",
   "notes": [
-    "修复：问「我有几件衣服」不再答「没找到」，按分类本地清点并直接给出件数与物品卡片",
-    "问一问新增兜底（AI 已开启时）：本地没答上的问题把物品清单发给模型帮忙对条目，数字与答案仍由本机算",
-    "从 App 跳官网会带上当前主题，官网自动换成同一套配色",
+    "建议保持更新到最新版本",
     "无新权限、无新依赖，数据库结构未动；覆盖安装数据不丢"
   ],
   "force": false
