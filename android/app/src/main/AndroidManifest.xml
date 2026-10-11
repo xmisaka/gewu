@@ -3,6 +3,34 @@
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
   <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove"/>
   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" tools:node="remove"/>
+  <!-- ★★ 角标（badge）这一族 16 条，全部来自 expo-notifications 的传递依赖
+       `me.leolin:ShortcutBadger:1.1.22`（它会往合并清单里塞 20 条，AGP 滤掉 4 条、
+       实际进来 16 条：华为 / 三星 / OPPO / 索尼 / HTC / 各色第三方启动器）。
+       格物**从不写角标**（`setNotificationHandler` 里 `shouldSetBadge: false`，
+       渠道的 `showBadge` 是系统自己的小圆点，不走 ShortcutBadger），
+       所以它们是纯噪声：用户看不见，但一份「权限清单」里多出 16 条第三方启动器权限，
+       与「数据不出手机、权限最小」的定位自相矛盾。
+       ★ 判据＝两版 APK 的 `aapt2 dump badging` 权限**计数差**：加通知这一版
+         从 7 条涨到 28 条，预期只该多 2 条（POST_NOTIFICATIONS + 开机自恢复）。
+       ★ 只删这一个族；`WAKE_LOCK` / `c2dm.RECEIVE` / `BIND_GET_INSTALL_REFERRER_SERVICE`
+         留着 —— 它们来自 firebase-messaging，删了有把通知链路弄坏的风险，
+         而这三条都不弹权限框、对用户不可见。 -->
+  <uses-permission android:name="android.permission.READ_APP_BADGE" tools:node="remove"/>
+  <uses-permission android:name="com.anddoes.launcher.permission.UPDATE_COUNT" tools:node="remove"/>
+  <uses-permission android:name="com.htc.launcher.permission.READ_SETTINGS" tools:node="remove"/>
+  <uses-permission android:name="com.htc.launcher.permission.UPDATE_SHORTCUT" tools:node="remove"/>
+  <uses-permission android:name="com.huawei.android.launcher.permission.CHANGE_BADGE" tools:node="remove"/>
+  <uses-permission android:name="com.huawei.android.launcher.permission.READ_SETTINGS" tools:node="remove"/>
+  <uses-permission android:name="com.huawei.android.launcher.permission.WRITE_SETTINGS" tools:node="remove"/>
+  <uses-permission android:name="com.majeur.launcher.permission.UPDATE_BADGE" tools:node="remove"/>
+  <uses-permission android:name="com.oppo.launcher.permission.READ_SETTINGS" tools:node="remove"/>
+  <uses-permission android:name="com.oppo.launcher.permission.WRITE_SETTINGS" tools:node="remove"/>
+  <uses-permission android:name="com.sec.android.provider.badge.permission.READ" tools:node="remove"/>
+  <uses-permission android:name="com.sec.android.provider.badge.permission.WRITE" tools:node="remove"/>
+  <uses-permission android:name="com.sonyericsson.home.permission.BROADCAST_BADGE" tools:node="remove"/>
+  <uses-permission android:name="com.sonymobile.home.permission.PROVIDER_INSERT_BADGE" tools:node="remove"/>
+  <uses-permission android:name="me.everything.badger.permission.BADGE_COUNT_READ" tools:node="remove"/>
+  <uses-permission android:name="me.everything.badger.permission.BADGE_COUNT_WRITE" tools:node="remove"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
   <queries>
