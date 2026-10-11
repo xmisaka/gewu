@@ -1,12 +1,13 @@
 {
-  "versionCode": 21,
-  "versionName": "2.1.4",
-  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.1.4-arm64.apk",
-  "size": "46.44 MB",
+  "versionCode": 26,
+  "versionName": "2.2.0",
+  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.2.0-arm64.apk",
+  "size": "47.76 MB",
   "notes": [
-    "柜子与格位现在可以改名，格位也能单独删除",
-    "建议保持更新到最新版本",
-    "无新权限、无新依赖，数据库结构未动；覆盖安装数据不丢"
+    "到期提醒：食品药品快到期时手机会主动提醒你一声（我的 → 提醒，默认关闭）",
+    "批量识图：一次选最多 9 张照片，逐张识别后在清单里核对、一次入库（支持者档）",
+    "修复：从柜子详情新增录入后，返回回到那个柜子",
+    "新增 5 条权限（只有通知会在你打开「到期提醒」时弹框）；覆盖安装数据不丢"
   ],
   "force": false
 }
