@@ -22,7 +22,7 @@ import { ContactSection } from '@/components/domain/ContactSection';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { GUTTER, LIGHT_THEME_KEYS, Palette, Radius, Space, Type, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_URL, WECHAT_LICENSE_LEAD, WECHAT_LICENSE_SHORT } from '@/constants/site';
+import { AFDIAN_URL, WECHAT_LICENSE_SHORT } from '@/constants/site';
 import { formatDateCN } from '@/lib/date';
 import { useEntitlement } from '@/lib/store/entitlement';
 import { makeStyles, useTheme } from '@/lib/theme';
@@ -211,23 +211,18 @@ export default function SupporterScreen() {
                           onPress={() => router.push('/supporter')}>
                           <Meta color={Palette.brand}>在爱发电购买后会自动收到激活码</Meta>
                         </Pressable>
-                      ) : (
-                        <Meta tone="ink2" style={styles.buyLine}>
-                          {WECHAT_LICENSE_LEAD}
-                        </Meta>
-                      )}
+                      ) : null}
                     </Card>
                   </Gutter>
                 </SectionCard>
 
                 {/* 码就在这一页上给出来，不写「去『我的』页扫码」——
                     让想付钱的人多跳一次页面，是最没必要的一道流失。
+                    ★ 不传 lead：标题已经说明来意（加我微信获取激活码），二维码就在下面，
+                      再铺一段「扫下面这张码加我…」纯属啰嗦。
                     激活好的状态页不放它：那边是「看一眼状态」的语境，
                     要找我，同一页的说明里已经写了路。 */}
-                <ContactSection
-                  title="加我微信拿激活码"
-                  lead="扫下面这张码加我，说一声「要格物激活码」，我把码发给你。付款方式微信里说就行 —— 爱发电那条路还没走通，不用等它。"
-                />
+                <ContactSection title="加我微信获取激活码" lead={null} />
               </>
             )}
           </>

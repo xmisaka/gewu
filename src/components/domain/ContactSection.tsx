@@ -34,8 +34,12 @@ const DEFAULT_LEAD =
 export interface ContactSectionProps {
   /** 卡片标题，默认「联系我」 */
   title?: string;
-  /** 开场白。激活页那边要讲的是「怎么拿到码」，不是「有事找我」 */
-  lead?: string;
+  /**
+   * 开场白。传 `null` 就整段不渲染。
+   * ★ 激活页那边传 `null`：那张卡的标题已经说明来意（加我微信获取激活码），
+   *   二维码就在正下方，再铺一段「扫下面这张码加我…」纯属啰嗦。
+   */
+  lead?: string | null;
 }
 
 export function ContactSection({ title = '联系我', lead = DEFAULT_LEAD }: ContactSectionProps = {}) {
@@ -69,16 +73,24 @@ export function ContactSection({ title = '联系我', lead = DEFAULT_LEAD }: Con
       <SectionCard title={title}>
         <Gutter>
           <Card>
-            <Body tone="ink2" style={styles.lead}>
-              {lead}
-            </Body>
+            {lead ? (
+              <Body tone="ink2" style={styles.lead}>
+                {lead}
+              </Body>
+            ) : null}
 
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="放大微信二维码"
               onPress={() => setZoomed(true)}
               android_ripple={{ color: Palette.ripple }}
-              style={({ pressed }) => [styles.plate, pressed && styles.platePressed]}>
+              /* ★ 没写开场白时把那点上内距也去掉 —— 否则卡片顶上会空出一行的高度，
+                 看着像「这里本来有话、被删坏了」 */
+              style={({ pressed }) => [
+                styles.plate,
+                !lead && styles.plateFirst,
+                pressed && styles.platePressed,
+              ]}>
               <Image source={WECHAT_QR} style={styles.qr} contentFit="contain" />
             </Pressable>
 
@@ -139,6 +151,7 @@ const useStyles = makeStyles((Palette) => ({
     borderColor: Palette.line3,
   },
   platePressed: { opacity: 0.9 },
+  plateFirst: { marginTop: 0 },
   qr: { width: QR_SIZE, height: QR_SIZE },
 
   backdrop: {
