@@ -16,10 +16,11 @@ import { useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { Palette, Radius, Space } from '@/constants/theme';
+import { WECHAT_NAME } from '@/constants/site';
 import { WECHAT_QR, shareWechatQr } from '@/lib/contact';
 import { Button } from '../ui/controls';
 import { Card, Gutter, SectionCard } from '../ui/layout';
-import { Body, Meta } from '../ui/typography';
+import { Body, Heading, Meta } from '../ui/typography';
 import { makeStyles } from '@/lib/theme';
 
 /** 卡内二维码边长；再小就开始挑扫码器的对焦能力了 */
@@ -27,9 +28,9 @@ const QR_SIZE = 200;
 /** 放大态的边长。屏幕最窄的机型也放得下（264 + 两边留白 < 360） */
 const QR_ZOOM_SIZE = 264;
 
-/** 默认开场白。「我的」页用它；激活页会换一版更贴合语境的（见 props） */
+/** 默认开场白。「我的」页用它；激活页那边不传（标题已说明来意，二维码就在下面） */
 const DEFAULT_LEAD =
-  '格物没有账号、没有客服后台，也没有商店评论区。遇到问题、想提建议，或者只是想聊聊，都可以加我微信。支持者档的激活码也是从这儿找我拿。';
+  '格物没有账号、没有客服后台，也没有评论区。有问题、有建议，或者想获取激活码，都可以加我微信。';
 
 export interface ContactSectionProps {
   /** 卡片标题，默认「联系我」 */
@@ -79,23 +80,25 @@ export function ContactSection({ title = '联系我', lead = DEFAULT_LEAD }: Con
               </Body>
             ) : null}
 
+            {/* ★ 名字写在白底板**外面**。
+                底板恒为 `Palette.pure`（固定白，见文件头），名字要是也放进底板，
+                就只能用**写死的**深色值 —— 因为 `ink` 在深色主题下会变成近白，
+                白字压白底**直接看不见**，而且不报错。
+                放在外面就能用主题感知的 ink，也省得为它新增一个固定色令牌
+                （令牌表是 7 套 × 27 个，官网那边有断言钉着，不能随便加）。 */}
+            <Heading style={[styles.name, !lead && styles.nameFirst]}>{WECHAT_NAME}</Heading>
+
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="放大微信二维码"
               onPress={() => setZoomed(true)}
               android_ripple={{ color: Palette.ripple }}
-              /* ★ 没写开场白时把那点上内距也去掉 —— 否则卡片顶上会空出一行的高度，
-                 看着像「这里本来有话、被删坏了」 */
-              style={({ pressed }) => [
-                styles.plate,
-                !lead && styles.plateFirst,
-                pressed && styles.platePressed,
-              ]}>
+              style={({ pressed }) => [styles.plate, pressed && styles.platePressed]}>
               <Image source={WECHAT_QR} style={styles.qr} contentFit="contain" />
             </Pressable>
 
             <Meta tone="ink4" style={styles.hint}>
-              点一下放大；用另一台手机扫，或者分享出去在微信里长按识别。
+              扫二维码加我，点一下可放大
             </Meta>
 
             <Button
@@ -121,6 +124,7 @@ export function ContactSection({ title = '联系我', lead = DEFAULT_LEAD }: Con
           accessibilityLabel="关闭二维码"
           onPress={() => setZoomed(false)}
           style={styles.backdrop}>
+          <Heading color={Palette.pure}>{WECHAT_NAME}</Heading>
           <View style={styles.zoomPlate}>
             <Image source={WECHAT_QR} style={styles.zoomQr} contentFit="contain" />
           </View>
@@ -137,6 +141,8 @@ export function ContactSection({ title = '联系我', lead = DEFAULT_LEAD }: Con
 
 const useStyles = makeStyles((Palette) => ({
   lead: { lineHeight: 21 },
+  name: { marginTop: Space.md, alignSelf: 'center' },
+  nameFirst: { marginTop: 0 },
   hint: { marginTop: Space.sm, lineHeight: 18, textAlign: 'center' },
   shareBtn: { marginTop: Space.md },
 
@@ -151,7 +157,6 @@ const useStyles = makeStyles((Palette) => ({
     borderColor: Palette.line3,
   },
   platePressed: { opacity: 0.9 },
-  plateFirst: { marginTop: 0 },
   qr: { width: QR_SIZE, height: QR_SIZE },
 
   backdrop: {

@@ -13,10 +13,10 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Modal, Pressable, View } from 'react-native';
+import { Linking, Modal, Pressable, View } from 'react-native';
 
 import { GUTTER, Palette, Radius, Space, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_URL, WECHAT_LICENSE_SHORT } from '@/constants/site';
+import { AFDIAN_URL, LICENSE_HOWTO } from '@/constants/site';
 import { SUPPORTER_FEATURES, type SupporterFeature } from '@/lib/entitlement';
 import { makeStyles } from '@/lib/theme';
 import { Button } from '../ui/controls';
@@ -40,7 +40,7 @@ const DISCLOSURES: readonly { title: string; body: string }[] = [
   { title: '一次买断 ¥36', body: '含 v2 内全部支持者功能，不订阅、不自动续费。' },
   {
     title: '激活码怎么来？',
-    body: '去爱发电支持或者加我微信获取激活码；已经拿到码的，直接粘贴即可解锁 —— 不联网、不绑设备。',
+    body: `${LICENSE_HOWTO}。已经有码的直接粘贴，本机校验、不联网。`,
   },
 ];
 
@@ -99,12 +99,17 @@ export function SupporterGateSheet({ visible, feature, themeIntent, onClose }: S
         <View style={styles.foot}>
           {/* ★ 商品页还没上架时不摆「去支持」按钮，但**必须给出去哪拿码** ——
               否则浮层说了「¥36 一次买断」，用户却找不到任何能付钱的地方，
-              比没有这个浮层更让人恼火。二维码在主按钮原来的位置上说清楚。 */}
+              比没有这个浮层更让人恼火。二维码在主按钮原来的位置上说清楚。
+              ★ 按钮现在真的打开爱发电了（以前写的是 router.push('/supporter')，
+                而浮层本来就在那一页上，点下去等于把自己再压一遍）。 */}
           {hasStore ? (
-            <Button label="去爱发电支持" onPress={goActivate} />
+            <Button
+              label="去爱发电支持"
+              onPress={() => void Linking.openURL(AFDIAN_URL).catch(() => undefined)}
+            />
           ) : (
             <Meta tone="ink3" style={styles.storeNote}>
-              {WECHAT_LICENSE_SHORT}
+              {LICENSE_HOWTO}
             </Meta>
           )}
           <Button label="我已有激活码" tone="secondary" style={styles.secondary} onPress={goActivate} />

@@ -22,7 +22,7 @@ import { Loading, MetricStrip, PlainTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { DARK_THEME_KEY, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_URL, SITE_URL, siteUrlWithSkin } from '@/constants/site';
+import { AFDIAN_URL, LICENSE_HOWTO, SITE_URL, siteUrlWithSkin } from '@/constants/site';
 import { isThemeLocked, type SupporterFeature } from '@/lib/entitlement';
 import { clampLeadDays, describeLeadDays, describeNextNotification, isPresetLeadDays } from '@/lib/notify/plan';
 import { useNotify } from '@/lib/store/notify';
@@ -637,7 +637,7 @@ export default function MineScreen() {
                 <SettingRow
                   label="去爱发电支持"
                   value="¥36 一次买断"
-                  onPress={() => router.push('/supporter')}
+                  onPress={() => void Linking.openURL(AFDIAN_URL).catch(() => undefined)}
                 />
               ) : null}
               <SettingRow
@@ -680,8 +680,10 @@ export default function MineScreen() {
             <Meta tone="ink4" style={styles.supportNote}>
               {entitled
                 ? '激活码不绑设备、不限台数，换手机再粘一次即可，不需要联网。仅限本人使用，请勿外传。'
-                : `支持者档一次买断，不影响免费档 —— 收纳、到期、库存、照片、备份恢复全部照旧。${
-                    AFDIAN_URL.length > 0 ? '' : '现在加我微信就能拿激活码，二维码在下面「联系我」里。'
+                : `一次买断，免费档照旧 —— 收纳、到期、库存、照片、备份都不受影响。${
+                    AFDIAN_URL.length > 0
+                      ? ''
+                      : `${LICENSE_HOWTO}，二维码在本页「联系我」里。`
                   }`}
             </Meta>
           </Gutter>

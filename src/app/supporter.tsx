@@ -15,14 +15,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button, IconButton } from '@/components/ui/controls';
 import { ContactSection } from '@/components/domain/ContactSection';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { GUTTER, LIGHT_THEME_KEYS, Palette, Radius, Space, Type, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_URL, WECHAT_LICENSE_SHORT } from '@/constants/site';
+import { AFDIAN_URL, LICENSE_RECOVER } from '@/constants/site';
 import { formatDateCN } from '@/lib/date';
 import { useEntitlement } from '@/lib/store/entitlement';
 import { makeStyles, useTheme } from '@/lib/theme';
@@ -207,9 +207,10 @@ export default function SupporterScreen() {
                       {AFDIAN_URL.length > 0 ? (
                         <Pressable
                           accessibilityRole="button"
+                          accessibilityLabel="去爱发电支持"
                           style={styles.buyLink}
-                          onPress={() => router.push('/supporter')}>
-                          <Meta color={Palette.brand}>在爱发电购买后会自动收到激活码</Meta>
+                          onPress={() => void Linking.openURL(AFDIAN_URL).catch(() => undefined)}>
+                          <Meta color={Palette.brand}>去爱发电支持 →</Meta>
                         </Pressable>
                       ) : null}
                     </Card>
@@ -306,10 +307,10 @@ export default function SupporterScreen() {
                       码丢了
                     </Meta>
                     <View style={styles.rowValue}>
-                      <Body>微信上找我重发一份</Body>
+                      <Body>{LICENSE_RECOVER}</Body>
                       {/* ★ 原来这里只写「爱发电『我的订单』里可重看」——
-                          但码多半是**微信上**发的，而 `AFDIAN_URL` 为空时爱发电那条路点不到，
-                          让他去一个根本没有订单的地方翻，等于没有这条说明 */}
+                          但码多半是**微信上**发的，让他去一个根本没有订单的地方翻，
+                          等于没有这条说明 */}
                       <Meta tone="ink4">{AFDIAN_URL.length > 0 ? '爱发电订单页里也能重看' : '「我的」页最下面有我的二维码'}</Meta>
                     </View>
                   </View>
@@ -325,8 +326,8 @@ export default function SupporterScreen() {
                 </Card>
 
                 <Meta tone="ink4" style={styles.afterNote}>
-                  建议把这串码连同订单截图一起存进微信文件传输助手或网盘。格物这边没有服务器，也没有云端账本，
-                  微信聊天记录清了、手机丢了，就只剩这份存档了。{WECHAT_LICENSE_SHORT}
+                  建议把这串码存进微信文件传输助手或网盘 —— 格物没有服务器，
+                  聊天记录一清、手机一丢，就只剩这一份了。
                 </Meta>
                 <Meta color={Palette.clay} style={styles.afterNote}>
                   存的时候只发给你自己：请勿发到群里、论坛或二手平台。码内嵌有你的订单标识，外传可追溯到来源；
