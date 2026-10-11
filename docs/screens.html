@@ -107,6 +107,22 @@ p.small{font-size:15px;color:var(--ink2)}
 /* 行尾那一列：胶囊在上、价格与日均成本仍在下，价格一个像素都没挪 */
 .ph .tailR{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:0 0 auto}
 /* 「补货 +」小钮：**只在到期页那一组出现**，首页列表行上没有它 */
+/* 19 屏「批量识图」的清单行：勾选 + 缩略图 + 名称/分类·位置/状态 + 两个行内动作。
+   ★ 行内**不挂整页级 ItemForm** —— 一行即一屏高，清单就做不到「一屏扫过 N 条」，
+   而且清单会随进度重渲染重挂行、把用户刚改的名字冲回识别初稿（与 StockSheet 同一条教训）。
+   逐条要深改的走「详细编辑」跳独立页。 */
+.ph .br{display:flex;gap:8px;padding:8px 11px;align-items:flex-start;border-bottom:0.5px solid #F1ECE4}
+.ph .br:last-child{border-bottom:0}
+.ph .br .ck{flex:0 0 auto;margin-top:1px}
+.ph .br .bt{width:38px;height:38px;border-radius:9px;flex:0 0 auto;background:#F5EFE0;display:flex;align-items:center;justify-content:center}
+.ph .br .bb{flex:1;min-width:0}
+.ph .br .bn{font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ★ 修饰类名别叫 .ph —— 那是手机框本身的选择器，撞上就是把这一行撑成整屏高（本项目已踩） */
+.ph .br .bn.empty{color:#C9BEB0;font-weight:400}
+.ph .br .bm{margin-top:1px;color:#9A8D80;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph .br .bs{margin-top:2px;font-size:10.5px;color:#9A8D80;display:flex;align-items:center;gap:6px}
+.ph .br .ba{display:flex;flex-direction:column;gap:7px;flex:0 0 auto;padding-top:3px}
+.ph .bchip{display:inline-flex;align-items:center;background:#F2EDE5;border-radius:8px;padding:4px 9px;color:#6B6055}
 .ph .rst{display:inline-flex;align-items:center;gap:2px;background:var(--brand-bg);border-radius:6px;padding:1px 6px;color:var(--brand)}
 /* 底部快捷面板（Modal 滑出）：遮罩压住整屏，面板贴底 */
 .ph .scrim{position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(43,36,31,.42)}
@@ -144,11 +160,11 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
 <div class="wrap">
 
 <header class="cover">
-  <div class="eyebrow">收纳柜 App &middot; 界面设计 &middot; v2.1.4</div>
+  <div class="eyebrow">收纳柜 App &middot; 界面设计 &middot; v2.2.0</div>
   <h1>格物</h1>
   <p class="lede">东西放在哪，你记得，它也记得。一套以「位置」为骨架、以「持有成本」为情绪回报的本地收纳记录工具。</p>
   <div class="meta">
-    <span>17 屏</span>
+    <span>19 屏</span>
     <span>六套浅色 + 系统深色自动接管</span>
     <span>暖棕纸感 &middot; 衬线叙述</span>
     <span>Android &middot; 纯本地</span>
@@ -181,14 +197,14 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
       <tr><td>关键数字</td><td><span class="t-num">&#165;24.4</span></td><td class="spec">无衬线 30 / 500 &middot; 等宽</td></tr>
     </tbody>
   </table>
-  <p class="small" style="margin-top:14px">上表是 App 里的<b>真实</b>字号（对应 <code>Type</code> 令牌表）。下面十五屏的手机稿框固定 280px 宽，而真机常见 393dp，所以屏内文字按约 0.8 倍收细画 —— 直接用真字号，品名会在更窄的框里折成两行。两边不一致时，以这张表为准。</p>
+  <p class="small" style="margin-top:14px">上表是 App 里的<b>真实</b>字号（对应 <code>Type</code> 令牌表）。下面这些手机稿框固定 280px 宽，而真机常见 393dp，所以屏内文字按约 0.8 倍收细画 —— 直接用真字号，品名会在更窄的框里折成两行。两边不一致时，以这张表为准。</p>
 </section>
 
 <section>
   <div class="sec-head">
     <span class="sec-num">02</span>
     <h2>界面</h2>
-    <span class="note">十七屏 &middot; 前十屏按使用动线排列，后七屏是库存、AI 与统计功能的新界面</span>
+    <span class="note">十九屏 &middot; 前十屏按使用动线排列，后九屏是库存、AI、统计、提醒与批量录入的新界面</span>
   </div>
 
   <div class="screens">
@@ -343,9 +359,18 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
     <figure class="fig" data-slug="compose">
       <div class="shot"><div class="ph">
         <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
-        <div style="padding:2px 17px 0;flex:0 0 auto">
-          <div class="hd">录入</div>
-          <div style="color:#9A8D80;margin-top:3px">每件东西只敲一个名字就能存</div>
+        <!-- ★ 右上角这两枚是 v2.2.0 加进来的：语音（说一句录一件）与批量识图（选一堆录一堆）。
+             它们长在页头、不长在表单的图片条里 —— 前者的语义是「当前这一件配图」，
+             批量不属任何一件。判据与语音同两道门：支持者档 + AI 总开关。 -->
+        <div style="padding:2px 17px 0;flex:0 0 auto;display:flex;align-items:flex-start;justify-content:space-between">
+          <div>
+            <div class="hd">录入</div>
+            <div style="color:#9A8D80;margin-top:3px">每件东西只敲一个名字就能存</div>
+          </div>
+          <div style="display:flex;gap:7px;padding-top:1px">
+            <div style="width:26px;height:26px;border-radius:9px;border:0.5px solid #EBE5DB;background:#fff;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="2.5" width="6" height="11" rx="3" stroke="#8C5A34" stroke-width="1.7"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5" stroke="#8C5A34" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+            <div style="width:26px;height:26px;border-radius:9px;border:0.5px solid #EBE5DB;background:#fff;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3.2l8.8 4.6-8.8 4.6-8.8-4.6z" stroke="#8C5A34" stroke-width="1.7" stroke-linejoin="round"/><path d="M3.4 12.5l8.6 4.5 8.6-4.5M3.4 16.8l8.6 4.5 8.6-4.5" stroke="#8C5A34" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+          </div>
         </div>
         <div style="margin:11px 17px 0;flex:0 0 auto">
           <div style="color:#9A8D80;margin-bottom:4px">照片（0）</div>
@@ -599,11 +624,12 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <div class="hd">到期</div>
           <div style="color:#9A8D80;margin-top:3px">共 4 件需要关注</div>
         </div>
-        <!-- 顶部这条浅底说明卡现在说两件事：这一页盯什么、以及 V1 不做推送。
-             后者必须在（不写清楚，用户会以为提醒坏了） -->
+        <!-- 顶部这条浅底说明卡现在说两件事：这一页盯什么、以及系统提醒此刻是开是关。
+             ★ 第二句必须**跟着开关走**（四态各说一句）——
+             还写着「计划在后续版本加入」就是骗人（v2.2.0 已上）。 -->
         <div style="margin:11px 17px 0;background:#F2EDE5;border-radius:13px;padding:11px 12px;flex:0 0 auto">
           <div style="color:#6B6055;line-height:18px">这一页分两件事盯着：快过期的，和快用完该补货的。</div>
-          <div style="color:#C9BEB0;line-height:18px;margin-top:4px">V1 不会主动推送通知，打开这一页即可查看。系统级提醒计划在后续版本加入。</div>
+          <div style="color:#C9BEB0;line-height:18px;margin-top:4px">已开启到期提醒：提前 3 天在系统通知栏提醒你。</div>
         </div>
 
         <!-- ★ 库存那一组排在最前：「能补货」是可以此刻顺手补一件的，比「还有二十天到期」紧急。
@@ -743,7 +769,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <div class="tb on"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#8C5A34" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#8C5A34" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">08</div><div class="nm">我的 &middot; 数据与备份</div><div class="ds">备份状态置顶、单独用品牌浅底，按钮占满整行 —— 纯本地方案里这是唯一的救命绳，混进设置行就会被当成一条普通设置。四个出口（生成备份包 / 导出 CSV 清单 / 导入备份 / 清理本地备份包）收在一组，「整理」放柜子与格位、分类管理、封面图源、回收站四条 —— 位置和分类是同一类事，得挨着。<b>自动备份的状态刻意单独一行、不并进上面那张卡</b>：手动那份的包离开了这台手机才算防丢，自动那份只是本机缓存里的回滚副本，两者混在一起，用户会把「已经自动备过了」当成安全。清理入口只在本机确实有包时出现，新装用户看到一行「暂无」只是噪声。这屏画的是首屏，再往下还有「外观」（主题入口 + 五枚色点）与「关于」两组，主题弹层见 09。</div></figcaption>
+      <figcaption><div class="no">08</div><div class="nm">我的 &middot; 数据与备份</div><div class="ds">备份状态置顶、单独用品牌浅底，按钮占满整行 —— 纯本地方案里这是唯一的救命绳，混进设置行就会被当成一条普通设置。四个出口（生成备份包 / 导出 CSV 清单 / 导入备份 / 清理本地备份包）收在一组，「整理」放柜子与格位、分类管理、封面图源、回收站四条 —— 位置和分类是同一类事，得挨着。<b>自动备份的状态刻意单独一行、不并进上面那张卡</b>：手动那份的包离开了这台手机才算防丢，自动那份只是本机缓存里的回滚副本，两者混在一起，用户会把「已经自动备过了」当成安全。清理入口只在本机确实有包时出现，新装用户看到一行「暂无」只是噪声。这屏画的是首屏，再往下还有「提醒」（见 18 屏）、「外观」（主题入口 + 七枚色点）与「关于」三组，主题弹层见 09。</div></figcaption>
     </figure>
 
     <!-- 09 -->
@@ -1301,6 +1327,175 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
       <figcaption><div class="no">17</div><div class="nm">录入 &middot; 识物跑完之后</div><div class="ds">拍一张包装，回来看到的就是这一屏：名称、分类、价格、过期时间都已经填好，行尾挂着一枚「AI」标。<b>保存前你把关就行</b> —— 三十秒的敲字变成三秒。<br>★ <b>识物不另开一页。</b>它与语音走的是同一条路：结果回填「手动录入那张表」（见 15 屏）。这是刻意的 —— 另画一页就要在两边各答一遍「识物能填哪些字段」，然后必然有一边答歪；回填同一张表，表单加字段时两条路自动跟上。<br>「AI」标是<b>可改的</b>：用户一动某一行，那一行的标就摘掉 —— 标的意思是「这是机器填的、还没经过你」，不是「这一行属于 AI」。过期时间那行挂的是中性标「按分类默认」而不是 AI 标：它不是模型看出来的，是按分类的保质期规则算的。<b>哪一项是谁填的，界面照实说。</b><br>照片那一格是识别用的那张原图（已落进沙盒）；「添加」仍只走本机相册。旁边那行小字是唯一会被追问的事：<b>上传的只是长边 ≤1024px、JPEG 质量 0.8 的压缩副本</b>，原图与物品数据不出手机。<br>底部那句「识别只是预填，保存前你说了算」不能省 —— 上一版没有它，用户以为点了识物就直接入库了。提示的位置也比措辞重要：上一版把「缺 Key / 没开开关」的提示放在表单最底部，而识物按钮在页面顶部，<b>提示一直都在、只是没人会滚到底去看见它</b>，观感就是「点了没反应」。</div></figcaption>
     </figure>
 
+    <!-- 18 -->
+    <figure class="fig" data-slug="mine-notify">
+      <div class="shot"><div class="ph">
+        <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
+        <div style="padding:2px 17px 0;flex:0 0 auto">
+          <div class="hd">我的</div>
+          <div style="color:#9A8D80;margin-top:3px">数据都在这台手机里，请留意备份</div>
+        </div>
+
+        <!-- 提醒：v2.2.0 新加的独立一张卡，不并进「整理」——
+             它是同一件事的几个旋钮（要不要提醒 / 提前几天 / 要不要角标数字 / 通不通），
+             混进「整理」会让那张卡变成「什么都有一点」的抽屉。
+             ★ 开关画的是实现里的真色：ON 时轨道是品牌浅底、滑块是品牌色（不是常见的一整条品牌实底） -->
+        <div style="margin:11px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:4px">提醒</div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
+            <div class="fr" style="padding:11px">
+              <div style="flex:1;min-width:0">
+                <div style="color:#6B6055">到期提醒</div>
+                <div style="color:#C9BEB0;margin-top:2px;line-height:16px">已排 3 条 &middot; 最近一条 09-27</div>
+              </div>
+              <div style="width:36px;height:21px;border-radius:11px;background:#F3E9DE;flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;padding:2px"><div style="width:17px;height:17px;border-radius:50%;background:#8C5A34"></div></div>
+            </div>
+            <!-- 角标是**独立**的一个开关，与通知开关不联动，也不藏在它开着的前提下：
+                 角标答的是「有几件事要去看」，通知答的是「到点提醒你」。 -->
+            <div class="fr" style="padding:11px">
+              <div style="flex:1;min-width:0">
+                <div style="color:#6B6055">角标数字</div>
+                <div style="color:#C9BEB0;margin-top:2px;line-height:16px">「提醒」标签上显示待办件数；关掉只是不显示数字，点进去照样能看</div>
+              </div>
+              <div style="width:36px;height:21px;border-radius:11px;background:#F3E9DE;flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;padding:2px"><div style="width:17px;height:17px;border-radius:50%;background:#8C5A34"></div></div>
+            </div>
+            <!-- 「提前几天」只在**真的会响**时才给：关着摆一排按钮，用户会以为点了就生效。
+                 自己填天数的入口放在标签行右端，不跟四枚 chip 抢那一行 ——
+                 五个控件并排会在 320dp 屏或放大字体下顶出卡片，而挤出去不报错。 -->
+            <div class="fr" style="padding:11px;display:block">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <span style="color:#6B6055">提前几天提醒</span>
+                <span style="color:#8C5A34">自定义</span>
+              </div>
+              <div style="display:flex;background:#F2EDE5;border-radius:10px;padding:2px;margin-top:6px">
+                <span style="flex:1;text-align:center;padding:5px 0;border-radius:8px;color:#9A8D80">当天</span>
+                <span style="flex:1;text-align:center;padding:5px 0;border-radius:8px;color:#9A8D80">1 天</span>
+                <span style="flex:1;text-align:center;padding:5px 0;border-radius:8px;background:#fff;font-weight:500">3 天</span>
+                <span style="flex:1;text-align:center;padding:5px 0;border-radius:8px;color:#9A8D80">7 天</span>
+              </div>
+            </div>
+            <div class="fr" style="padding:11px">
+              <span style="color:#6B6055">试发一条</span>
+              <span style="color:#9A8D80;font-weight:500">看看通不通 &nbsp;&#8250;</span>
+            </div>
+          </div>
+          <div style="color:#C9BEB0;margin:5px 0 0 5px;line-height:16px">提醒时刻 =（到期日 &minus; 提前几天）当天上午 9:00</div>
+        </div>
+
+        <!-- 外观：这一屏画到主题入口为止，弹层见 09 -->
+        <div style="margin:11px 17px 0;flex:0 0 auto">
+          <div style="color:#9A8D80;margin-bottom:4px">外观</div>
+          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden;padding-bottom:9px">
+            <div class="fr" style="padding:11px"><span style="color:#6B6055">外观主题</span><span style="color:#8C5A34;font-weight:500">素笺 &nbsp;&#8250;</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 12px 0">
+              <span style="width:24px;height:24px;border-radius:50%;border:1.5px solid #2B241F;display:flex;align-items:center;justify-content:center;padding:3px;flex:0 0 auto"><span style="width:100%;height:100%;border-radius:50%;background:#8C5A34;display:block"></span></span>
+              <span style="width:24px;height:24px;border-radius:50%;border:1.5px solid transparent;display:flex;align-items:center;justify-content:center;padding:3px;flex:0 0 auto"><span style="width:100%;height:100%;border-radius:50%;background:#2C5282;display:block"></span></span>
+              <span style="width:24px;height:24px;border-radius:50%;border:1.5px solid transparent;display:flex;align-items:center;justify-content:center;padding:3px;flex:0 0 auto"><span style="width:100%;height:100%;border-radius:50%;background:#35605A;display:block"></span></span>
+              <span style="width:24px;height:24px;border-radius:50%;border:1.5px solid transparent;display:flex;align-items:center;justify-content:center;padding:3px;flex:0 0 auto"><span style="width:100%;height:100%;border-radius:50%;background:#A8372C;display:block"></span></span>
+              <span style="width:24px;height:24px;border-radius:50%;border:1.5px solid transparent;display:flex;align-items:center;justify-content:center;padding:3px;flex:0 0 auto"><span style="width:100%;height:100%;border-radius:50%;background:#6A4C86;display:block"></span></span>
+              <span style="width:24px;height:24px;border-radius:50%;border:1.5px solid transparent;display:flex;align-items:center;justify-content:center;padding:3px;flex:0 0 auto"><span style="width:100%;height:100%;border-radius:50%;background:#A53A63;display:block"></span></span>
+              <span style="width:24px;height:24px;border-radius:50%;border:1.5px solid transparent;display:flex;align-items:center;justify-content:center;padding:3px;flex:0 0 auto"><span style="width:100%;height:100%;border-radius:50%;background:#C9985C;display:block"></span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" stroke="#A99C8E" stroke-width="1.7"/></svg><span>物品</span></div>
+          <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2.5" stroke="#A99C8E" stroke-width="1.7"/><circle cx="8.6" cy="9.6" r="1.6" fill="#A99C8E"/><path d="M4.5 17.2l4.8-4.3 3.9 3.4 3-2.6 3.8 3.5" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/></svg><span>相册</span></div>
+          <div style="flex:1;display:flex;justify-content:center"><div style="width:42px;height:42px;border-radius:50%;background:#8C5A34;display:flex;align-items:center;justify-content:center;margin-top:-15px;border:3px solid #FBF9F6"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg></div></div>
+          <div class="tb"><div style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3a5.5 5.5 0 0 0-5.5 5.5v3.2L5 14.6h14l-1.5-2.9V8.5A5.5 5.5 0 0 0 12 3z" stroke="#A99C8E" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 17.6a2 2 0 0 0 4 0" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><div style="position:absolute;top:-5px;right:-9px;min-width:16px;height:16px;border-radius:8px;padding:0 4px;background:#AA523D;color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center">4</div></div><span>提醒</span></div>
+          <div class="tb on"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#8C5A34" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#8C5A34" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
+        </div>
+      </div></div>
+      <figcaption><div class="no">18</div><div class="nm">我的 &middot; 提醒（v2.2.0 新增）</div><div class="ds">系统级到期提醒的<b>唯一入口</b>，「我的」页往下第一张卡。它单独一张、不并进上面的「整理」：四个旋钮讲的是同一件事（要不要提醒 / 提前几天 / 要不要角标数字 / 通不通），混进那张卡会让它变成「什么都有一点」的抽屉。<br><b>默认关</b> —— 打开它要弹系统的通知权限框，那是用户的决定，不替他做。<br>★ <b>角标是独立的一个开关，与通知开关不联动</b>，也没藏在「到期提醒」开着的前提下：角标答的是「有几件事要去看」，通知答的是「到点提醒你」，关掉通知的人照样可能想看角标，反过来也一样。<br>★ <b>「提前几天」只在真的会响时才给</b>（关着或没权限时不摆这一排）—— 摆着而点了不会响，等于假的。自己填天数的入口放在标签行右端、不跟四枚 chip 抢同一行：五个控件并排会在 320dp 屏或放大字体下顶出卡片，<b>而挤出去不报错</b>。<br>「到期提醒」下面那行说明<b>四态各说一句</b>：「系统里没给权限」与「自己关掉了」必须分开 —— 前者要去系统设置里开，后者在这儿拨一下就行，写成同一句用户会在 App 里白折腾。开着时如实报「已排 N 条」，这个数随数据变、用户看得见它在动，就不会怀疑「开了到底有没有用」。<br>最下面「试发一条」不只是给用户试的，它是<b>唯一不用插线就能做的诊断</b>：立刻那一条走通知通道（不经过闹钟），二十秒后那一条走系统闹钟 —— 两条到没到，就把「闹钟被系统按住」与「通知本身被挡」一刀切开。<br>提醒时刻 =（到期日 &minus; 提前几天）当天上午 9:00。这一屏画到「外观」的主题入口为止，主题弹层见 09；再往下还有「关于」。</div></figcaption>
+    </figure>
+
+    <!-- 19 -->
+    <figure class="fig" data-slug="batch">
+      <div class="shot"><div class="ph">
+        <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
+        <div style="padding:2px 17px 0;flex:0 0 auto;display:flex;align-items:flex-start;justify-content:space-between">
+          <div>
+            <div class="hd">批量识图</div>
+            <div style="color:#9A8D80;margin-top:3px">识别中 3/9 &middot; 别退出这一页</div>
+          </div>
+          <!-- 跑着时是「停止」，跑完变「关闭」——同一个位置，两种语义 -->
+          <div style="width:26px;height:26px;border-radius:9px;border:0.5px solid #EBE5DB;background:#fff;display:flex;align-items:center;justify-content:center;margin-top:1px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#8C5A34" stroke-width="1.7"/><rect x="9.2" y="9.2" width="5.6" height="5.6" rx="1.3" fill="#8C5A34"/></svg></div>
+        </div>
+        <!-- 两个统一快选：同一批东西多半塞同一个柜子。
+             它们记在 state 里而不是「刷一遍」——识别是流式的，第 3 张还在跑时设的值，
+             第 4 张要立刻用上（而且只套之后那些条，不回头冲掉用户单独改过的） -->
+        <div style="display:flex;gap:7px;padding:9px 17px 0;flex:0 0 auto">
+          <span class="bchip">统一分类</span><span class="bchip">统一位置</span>
+        </div>
+        <div style="margin:9px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden;flex:0 0 auto">
+          <div class="br">
+            <div class="ck"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.4" fill="#8C5A34"/><path d="M5.2 8.2l2 2 3.6-4.1" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div class="bt"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="4.5" y="9.5" width="15" height="6.5" rx="3.25" transform="rotate(-40 12 12.7)" stroke="#8A6B33" stroke-width="1.6"/><path d="M9.2 14.6l5.4-4.6" stroke="#8A6B33" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+            <div class="bb">
+              <div class="bn">深海鱼油软胶囊</div>
+              <div class="bm"><span style="color:#8C5A34">食品</span> &middot; <span style="color:#8C5A34">厨房吊柜 &middot; 第三层</span></div>
+              <div class="bs">AI 填了 5 项，核对一下</div>
+            </div>
+            <div class="ba"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10-4-4L4 16v4z" stroke="#9A8D80" stroke-width="1.7" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" stroke="#9A8D80" stroke-width="1.7"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M9.5 7V4.8h5V7M7.2 7l.9 13h7.8l.9-13" stroke="#9A8D80" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+          <div class="br">
+            <div class="ck"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.4" fill="#8C5A34"/><path d="M5.2 8.2l2 2 3.6-4.1" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div class="bt" style="background:#F1ECE4"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2.8" y="4.2" width="18.4" height="15.6" rx="3" stroke="#9A8D80" stroke-width="1.6"/><circle cx="8.6" cy="9.6" r="1.5" fill="#9A8D80"/><path d="M4.6 17.4l4.6-4.1 3.7 3.2 2.9-2.5 3.6 3.4" stroke="#9A8D80" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+            <div class="bb">
+              <div class="bn">康师傅老陈醋酸辣牛肉面</div>
+              <div class="bm"><span style="color:#8C5A34">食品 &middot; 泡面</span> &middot; <span style="color:#8C5A34">厨房吊柜 &middot; 第三层</span></div>
+              <div class="bs">AI 填了 4 项，核对一下</div>
+              <!-- 同名只提示、不阻断：与单件录入同一条口径 -->
+              <div class="bs" style="color:#926521;display:block">与库里已有物品重名</div>
+            </div>
+            <div class="ba"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10-4-4L4 16v4z" stroke="#9A8D80" stroke-width="1.7" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" stroke="#9A8D80" stroke-width="1.7"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M9.5 7V4.8h5V7M7.2 7l.9 13h7.8l.9-13" stroke="#9A8D80" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+          <!-- 没读出字段的那一条：**照片留着、条目留着**，标一句「补个名字就能保存」。
+               丢弃它反而制造孤儿文件（照片早已落盘） -->
+          <div class="br">
+            <div class="ck"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="#C9BEB0" stroke-width="1.5" fill="none"/></svg></div>
+            <div class="bt"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2.8" y="4.2" width="18.4" height="15.6" rx="3" stroke="#9A8D80" stroke-width="1.6"/><circle cx="8.6" cy="9.6" r="1.5" fill="#9A8D80"/><path d="M4.6 17.4l4.6-4.1 3.7 3.2 2.9-2.5 3.6 3.4" stroke="#9A8D80" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+            <div class="bb">
+              <div class="bn empty">给它起个名字</div>
+              <div class="bm">未设置 &middot; 没定位置</div>
+              <div class="bs" style="color:#926521">没读出字段，补个名字就能保存 <span style="color:#8C5A34;white-space:nowrap">重试</span></div>
+            </div>
+            <div class="ba"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10-4-4L4 16v4z" stroke="#9A8D80" stroke-width="1.7" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" stroke="#9A8D80" stroke-width="1.7"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M9.5 7V4.8h5V7M7.2 7l.9 13h7.8l.9-13" stroke="#9A8D80" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+          <!-- 正在飞的那一条 -->
+          <div class="br">
+            <div class="ck"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="#C9BEB0" stroke-width="1.5" fill="none"/></svg></div>
+            <div class="bt"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2.8" y="4.2" width="18.4" height="15.6" rx="3" stroke="#9A8D80" stroke-width="1.6"/><circle cx="8.6" cy="9.6" r="1.5" fill="#9A8D80"/><path d="M4.6 17.4l4.6-4.1 3.7 3.2 2.9-2.5 3.6 3.4" stroke="#9A8D80" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+            <div class="bb">
+              <div class="bn empty">给它起个名字</div>
+              <div class="bm">未设置 &middot; 没定位置</div>
+              <div class="bs">识别中，请稍等</div>
+            </div>
+            <div class="ba"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10-4-4L4 16v4z" stroke="#9A8D80" stroke-width="1.7" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" stroke="#9A8D80" stroke-width="1.7"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M9.5 7V4.8h5V7M7.2 7l.9 13h7.8l.9-13" stroke="#9A8D80" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+          <!-- 还在队里的（严格串行：上一条没回来，这条不动） -->
+          <div class="br">
+            <div class="ck"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" stroke="#C9BEB0" stroke-width="1.5" fill="none"/></svg></div>
+            <div class="bt" style="background:#F1ECE4"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2.8" y="4.2" width="18.4" height="15.6" rx="3" stroke="#9A8D80" stroke-width="1.6"/><circle cx="8.6" cy="9.6" r="1.5" fill="#9A8D80"/><path d="M4.6 17.4l4.6-4.1 3.7 3.2 2.9-2.5 3.6 3.4" stroke="#9A8D80" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+            <div class="bb">
+              <div class="bn empty">给它起个名字</div>
+              <div class="bm">未设置 &middot; 没定位置</div>
+              <div class="bs">排队中</div>
+            </div>
+            <div class="ba"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10-10-4-4L4 16v4z" stroke="#9A8D80" stroke-width="1.7" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" stroke="#9A8D80" stroke-width="1.7"/></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M9.5 7V4.8h5V7M7.2 7l.9 13h7.8l.9-13" stroke="#9A8D80" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          </div>
+        </div>
+        <!-- 保存：一次性入库。★ 一个事务里写完，中途失败整批回滚 ——
+             不要「一半写进去了」这种无提示的坏状态 -->
+        <div style="margin-top:auto;padding:9px 17px 16px;flex:0 0 auto">
+          <div style="text-align:center;color:#9A8D80;margin-bottom:6px">有 7 件没勾选或还没名字，不会保存。</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:11px;background:#8C5A34;color:#fff;font-weight:600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3.5v11M8 10.5l4 4 4-4M4 20h16" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>保存 2 件</div>
+        </div>
+      </div></div>
+      <figcaption><div class="no">19</div><div class="nm">批量识图 &middot; 清单核对（v2.2.0 新增）</div><div class="ds">一次选最多 <b>9 张</b>照片，一张一张认完，在清单里核对，最后<b>一次入库</b>。入口在录入页页头右上角（麦克风左边，见 03 屏），走 AI 支持者档 + AI 总开关两道门，不引入新判据。<br>★ <b>必须严格串行，不能并发。</b>免费模型同一时刻只允许 1 条并发请求，任何「并发 2~3 提速」的写法都会稳定撞 429，而用户只看到「调用太频繁」，想不到是自己并发了。所以页头副标题是进度而不是总数：<b>「识别中 3/9 · 别退出这一页」</b>，右边那枚是「停止」；停止后队列里仍 pending 的会变成一颗「继续识别 N」，接着跑。<br>★ <b>识别一张就冒一条</b>，不等全部跑完。9 张最坏可接近 9 分钟，等最后一起出结果等于让用户对着空屏发呆。<br>★ <b>没读出字段的条目不丢</b>：照片留着、条目留着，标一句「没读出字段，补个名字就能保存」，并给「重试」。判据只有「勾了 + 有名字」两条，<b>刻意不看状态</b> —— 照片早已落盘，丢弃它反而制造孤儿文件。<br>★ <b>行内只做轻量编辑</b>（名称 + 分类 / 位置），<b>不挂整页级的 ItemForm</b>：一行即一屏高，清单就再也做不到「一屏扫过 N 条」；而且清单会随进度重渲染重挂行，把用户刚改的名字冲回识别初稿。要逐条深改的点「详细编辑」跳独立一页（复用录入表单，跳页＝全新挂载，天然绕开这一条）。<br>★ 顶部「统一分类 / 统一位置」是<b>快选而不是「刷一遍」</b>：识别是流式的，第 3 张还在跑时设的值第 4 张要立刻用上，而且<b>只套之后那些条</b>，不回头冲掉用户单独改过的。同名检测只提示不阻断，与单件录入同一口径。</div></figcaption>
+    </figure>
+
 <section>
   <div class="sec-head">
     <span class="sec-num">03</span>
@@ -1320,7 +1515,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
 </section>
 
 <footer>
-  格物 &middot; 收纳柜 App &middot; 界面设计 v2.1.4 &middot; 依据《收纳柜App产品需求文档》V1 冻结范围绘制
+  格物 &middot; 收纳柜 App &middot; 界面设计 v2.2.0 &middot; 依据《收纳柜App产品需求文档》V1 冻结范围绘制
 </footer>
 
 </div>
