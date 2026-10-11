@@ -1809,3 +1809,31 @@ bundle 4,510,840 → 4,510,868 B；Metro 模块 1962 未变。构建一轮 5m19s
 构建 5m20s；`npm run verify` 全绿（544 条）；`verify_apk.py` 全通过
 （正向含商品页 URL，反向 0 命中「创作者主页」与 utm 参数）；**权限仍 12 条**。
 官网 deploy 全量 + check_deploy 全通过，网站根首页未被动过。
+
+## 十一、发版记录：v2.2.0 已对外（2026-10-11）
+
+按「四之三 · 发版流程」完整走了一遍，七步全成：
+
+| # | 步骤 | 结果 |
+|---|---|---|
+| 1 | 提交推送 GitHub | `c48401f..d366b79 main -> main`（16 个本地提交一次推完） |
+| 2 | 升版本号 | `app.json` vc26（构建前已完成）；`docs/version.json` vc21/2.1.4 → **vc26/2.2.0** |
+| 3 | 构建 | vc26 · 5m20s · 50,078,464 B |
+| 4 | 传 `downloads/` | `sftp_upload.py --remote-dir gewu/downloads` → **远端 md5 == 本地** `18dfddef…` |
+| 5 | `shared.py` CHANGELOG | 头部加 v2.2.0（7 条）；v2.1.4 的 `current` 改 False；重跑 `design_changelog.py` |
+| 6 | `deploy.py` 全量 | 4 页 + images + vendor + favicon + version.json 全部落地并 md5 确认 |
+| 7 | 验证 | 服务器侧 `--resolve` 直击源站 + 外部视角 WebFetch，均确认 v2.2.0 |
+
+**发布文档**：`docs/releases/v2.2.0.md`（含下载、SHA256、校验项、新增 5 条权限逐条、注意事项）。
+
+★★ **这一次逮到审计脚本自己的一个老化点**：`check_deploy.py` ⑨ 里把
+「条目数 9」「最新版 v2.1.4」**写死**了 —— 加一版就红一次，而红久了就会有人把这条断言
+删掉。已改成**从 `shared.CHANGELOG` 推导**（条数 + 取 `current=True` 的那个版本号）。
+★ 顺带说明：原来那条 `'最新版 v2.1.4': 'v2.1.4' in log_html` 是**恒真**的
+（旧条目里永远有 v2.1.4），它从来就没验证过任何东西。
+
+**几个数字**：APK 50,078,464 B / sha256 `c32c2079…92f4bf` / md5 `18dfddef…`；
+权限 12 条（对 v2.1.4 净增 5，且没有删掉任何原有权限）；bundle 4,511,076 B；
+旧包（v2.1.0~v2.1.4）全部保留在 `downloads/`，兜底链接不会成死链。
+
+**遗留**：`docs/releases/` 里缺 v2.1.3 / v2.1.4 两份（上一轮没补）；v3 迁移与隐私政策三处仍未做。
