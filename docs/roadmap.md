@@ -1941,3 +1941,90 @@ bundle 4,510,840 → 4,510,868 B；Metro 模块 1962 未变。构建一轮 5m19s
 → 改过源文件数量时，**顺手比一下这行**：
 `Android Bundled … node_modules\expo-router\entry.js (N modules)`。
 （前提：这行结尾不带 `UP-TO-DATE`。）
+
+---
+
+## 十四、备份包的去向：能存进手机文件夹了 + 一个「界面在骗人」的刷新 bug（2026-10-11 晚）
+
+### 起因（真机反馈，原话）
+
+> 「手机备份，点立即备份之后会生成备份包，提示分享，但是不会保存到手机本地。
+> 分享出去之后还是显示还没备份过。」
+
+拆开来是**两件独立的事**，一件是纯 bug，一件是能力缺口。
+
+### 14.1 ★★ Bug：备份完界面不刷新，卡片一直写着「还没有备份过」
+
+| 项 | 内容 |
+|---|---|
+| 现象 | 弹完分享面板回到「我的」页，品牌卡仍是「还没有备份过 / 这 N 件物品还没有任何副本」 |
+| 数据层 | **是好的** —— 真机复验：退出 App 重进就变成「上次备份：今天」 |
+| 根因 | `metaState` 的依赖只有 `[dataVersion, cacheTick]`（`mine.tsx`），而 `runBackup` 两个都没碰；`(tabs)/_layout.tsx` 又没有 `unmountOnBlur` → **切 tab / 切后台回来都不会重新挂载**，那次读到的 `backupDays` 就一直停在旧值 |
+| ★ 代价 | 界面在骗人 → 用户以为没成功、**再点一次，白打一份全量包**（一份 ≈ 整个照片库） |
+
+**改法**：生成成功后 `setCacheTick((t) => t + 1)`。
+★ **不要用 `bump()`** —— 那是「业务数据变了」的信号，而备份一个字节都没碰业务数据；
+`cacheTick` 本来就是「本机备份文件变了」的口径（原先只给「清理本地备份包」用），
+把它拓宽成「清理掉几份 / 新生成一份」都算，语义正好。
+
+### 14.2 能力缺口：`shareAsync` 不等于「保存到手机」
+
+两个事实叠在一起，构成用户看到的那句话：
+
+1. 包只写在 `Paths.cache` → `/data/user/0/com.gewu.app/cache/`，
+   **App 私有目录，任何文件管理器都进不去**；
+2. 唯一的出口是系统分享面板，而面板里有没有「保存到文件」**全看 ROM**，国产 ROM 上常年没有。
+
+→ 于是用户「点了备份、也分享了」，却在手机上找不到任何东西 —— 而 App 里又恰好不刷新（14.1），
+两件事一叠加，结论就只有一句「备份根本没成」。
+
+**改法**：生成之后**问一次去向**，两条路分开走。
+
+```
+点「立即备份」
+  └─ 生成包 → 记时间戳 → 清 cache → 刷新界面
+       └─ Alert「备份包已生成 / 接下来怎么处理？」
+            ├─ 保存到手机  → Android SAF，写进用户自己挑的文件夹（记住，下次一路直存）
+            └─ 发送出去    → 系统分享面板（微信 / 网盘 / 邮件）
+```
+
+★ 文案上必须把两者**分开说**：存到手机**仍在同一台手机上**，手机丢了照样没有 ——
+这是 `backup.ts` 文件头那条「手动＝包离开这台手机才算防丢」的延续，
+不能让「保存到手机」冒充「已防丢」。所以保存成功的弹窗里明写「★ 它还在这一台手机上」。
+
+### 14.3 ★★★ SAF 三条判据（都是从 `expo-file-system@57.0.7` 源码里读出来的，不是猜的）
+
+| 判据 | 证据 | 后果 |
+|---|---|---|
+| **授权是持久的** | `FilePickerContract.parseResult` 对 `ACTION_OPEN_DOCUMENT_TREE` 的结果调了 `takePersistableUriPermission` | 第一次选完目录，之后**点一下就落盘**，不再弹选择器 |
+| **`content://` 绕过权限服务** | `FileSystemPath.checkPermission()`：`if (uri.isContentUri) return true` | 与技能 §7.1 那条同一个机制 —— **Expo Go 与正式包行为一致**，不像 DocumentPicker 那样两边相反 |
+| **`File.copy()` 到 SAF 是流式的** | `DestinationSpec.isDirectory = this is FileSystemDirectory` → `CopyMoveStrategy.SAF` → `DestinationSink.SAF` → `copyFileWithChannelFallback` | 一份上百 MB 的包**不在 JS 堆里多占一份**。★ 换成 `bytesSync()` + `write()` 峰值就是两份全量包，低端机直接 OOM |
+
+配套：`StorageAccessFramework.requestDirectoryPermissionsAsync()`（legacy API）**不用** ——
+新 API 的 `Directory.pickDirectoryAsync()` 直接回一个 `Directory` 实例，少一层手工拼 URI。
+
+**失败自愈**：记住的目录可能是失效的（用户撤销 / 文件夹被删 / 换存储卡）。
+写成**最多两轮**：第一轮用记住的；抛错就清掉它、**再请用户选一次**，
+而不是把一次失败直接甩给用户。用户在选择器里按返回 → 静默退出（靠 `/cancel/i` 认）。
+
+**iOS 先藏起来**：`canSaveToDevice()` 只认 Android。iOS 那条路是「存储到『文件』」，
+实现完全不同，等第六章的 iOS 适配时再单独做 —— 不给 iOS 用户一个按下去只会报错的按钮。
+
+### 14.4 改动清单
+
+| 文件 | 改了什么 |
+|---|---|
+| `src/lib/backup/backup.ts` | 拆开原 `shareBackup()`（生成/分享/清理捆在一起，没法只做一半）：新增 `markManualBackup` / `shareBackupFile` / `pruneOldBackups`；新增 `canSaveToDevice` / `saveBackupToDevice` / `META_SAF_DIR`（`backup.safDir`，**本机偏好档**：不进备份包、恢复出厂清掉） |
+| `src/lib/backup/policy.ts` | 新增纯函数 `safDirLabel`（树形 URI → 人看的文件夹名）—— 抽出来才测得到 |
+| `src/app/(tabs)/mine.tsx` | `runBackup` 改成「生成 → 记时间 → 清理 → **刷新** → 问去向」；新增 `runSaveToPhone` / `runShareOut`；忙碌态从只认 `'backup'` 拓宽到 `'backup' \| 'save' \| 'share'`（否则保存那几秒界面像什么都没发生） |
+| `tests/policy.test.mjs` | +6 条：`Download` / 中文百分号编码 / 多级路径取最后一段 / `/document/` 重复段 / `raw:` 形态 / 五种烂输入一律退化不抛 |
+
+★ 测试当场抓出一个实现缺陷：最初 `afterTree.split('/')[0]` 只取 documentId 的第一段，
+`primary:备份/格物` 会解析成「备份」——**用户挑的是「格物」**。改成剥掉 `/document/` 之后整段取尾。
+
+### 14.5 校验
+
+`npm run verify` 全绿：lint ✅ · `tsc --noEmit` ✅ · 颜色审计 ✅ · **556 条测试全过**（550 → 556）。
+
+★ **不需要 prebuild**：`pickDirectoryAsync` / `File.copy` 都是 `expo-file-system` **已有**的原生能力，
+没引新模块、没加权限。但 **JS 改了就必须重出 APK**（不是 OTA）。
