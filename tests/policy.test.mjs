@@ -15,6 +15,7 @@ import {
   AUTO_BACKUP_INTERVAL_DAYS,
   decideAutoBackup,
   planBackupRetention,
+  safDirLabel,
   summarizeBackups,
 } from '../src/lib/backup/policy.ts';
 
@@ -174,4 +175,57 @@ test('保留策略：入参顺序不影响结果（名字本身就是时间序�
 test('备份合计：份数与字节都算对', () => {
   assert.deepEqual(summarizeBackups([]), { count: 0, bytes: 0 });
   assert.deepEqual(summarizeBackups(backups([3, 4])), { count: 2, bytes: 7 * MB });
+});
+
+/* ------------------------------------------------------------ SAF 目录名 */
+
+test('SAF 目录名：从树形 URI 里取出文件夹名', () => {
+  assert.equal(
+    safDirLabel('content://com.android.externalstorage.documents/tree/primary%3ADownload'),
+    'Download',
+  );
+});
+
+test('SAF 目录名：中文文件夹要解出百分号编码', () => {
+  // `格物` 的 UTF-8 百分号编码；直接用会给用户看一串 %E6%A0%BC%E7%89%A9
+  assert.equal(
+    safDirLabel('content://com.android.externalstorage.documents/tree/primary%3A%E6%A0%BC%E7%89%A9'),
+    '格物',
+  );
+});
+
+test('SAF 目录名：多级路径只取最后一段', () => {
+  // primary:备份/格物 → 用户挑的是「格物」，不是父目录「备份」
+  assert.equal(
+    safDirLabel('content://com.android.externalstorage.documents/tree/primary%3A%E5%A4%87%E4%BB%BD%2F%E6%A0%BC%E7%89%A9'),
+    '格物',
+  );
+});
+
+test('SAF 目录名：document 形态的 URI（树后面又挂了一段同样的 id）也取对', () => {
+  assert.equal(
+    safDirLabel(
+      'content://com.android.externalstorage.documents/tree/primary%3ADownload%2F%E6%A0%BC%E7%89%A9/document/primary%3ADownload%2F%E6%A0%BC%E7%89%A9',
+    ),
+    '格物',
+  );
+});
+
+test('SAF 目录名：raw: 形态的 documentId 也认', () => {
+  assert.equal(
+    safDirLabel('content://com.android.externalstorage.documents/tree/raw%3A%2Fstorage%2Femulated%2F0%2FDownload'),
+    'Download',
+  );
+});
+
+test('SAF 目录名：解不出来就退化成笼统说法，绝不抛', () => {
+  // 不是树形 URI、裸 % 让 decodeURIComponent 抛 URIError、冒号后为空 —— 三种都要兜住。
+  // 这个值只出现在一句「已保存到 XX」里，不值得为它中断掉一次已经成功的保存。
+  for (const bad of ['', 'content://whatever', 'not a uri at all', 'tree/primary%', 'x/tree/primary%3A']) {
+    assert.doesNotThrow(() => safDirLabel(bad));
+    assert.equal(typeof safDirLabel(bad), 'string');
+    assert.ok(safDirLabel(bad).length > 0);
+  }
+  assert.equal(safDirLabel(''), '所选文件夹');
+  assert.equal(safDirLabel('content://whatever'), '所选文件夹');
 });

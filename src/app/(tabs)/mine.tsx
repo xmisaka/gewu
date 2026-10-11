@@ -32,15 +32,21 @@ import { updateStatusText } from '@/lib/update/policy';
 import {
   AUTO_BACKUP_INTERVAL_DAYS,
   backupCacheInfo,
+  canSaveToDevice,
   cleanBackupFiles,
+  createBackupFile,
   exportItemsCsv,
+  markManualBackup,
   previewBackup,
   applyBackup,
-  shareBackup,
+  pruneOldBackups,
+  saveBackupToDevice,
+  shareBackupFile,
   daysSinceLastBackup,
   daysSinceAutoBackup,
   BACKUP_FORMAT_VERSION,
   type BackupPreview,
+  type BackupResult,
   type ImportStrategy,
   type PreviewOutcome,
 } from '@/lib/backup/backup';
@@ -85,7 +91,7 @@ export default function MineScreen() {
   const [themeOpen, setThemeOpen] = useState(false);
   /** 自定义「提前几天提醒」的输入弹层 */
   const [leadOpen, setLeadOpen] = useState(false);
-  /** 本机备份包被清理后 +1，只用来让上面的 metaState 重取一次 */
+  /** 本机备份包发生变化（清理掉几份、或刚新生成一份）后 +1，用来让上面的 metaState 重取一次 */
   const [cacheTick, setCacheTick] = useState(0);
   /** 被挡下的功能（null = 不显示门控浮层）。目前只有皮肤会走到这里 */
   const [gateFeature, setGateFeature] = useState<SupporterFeature | null>(null);
@@ -122,16 +128,88 @@ export default function MineScreen() {
     null,
   );
 
+  /**
+   * 生成备份包，然后问用户「存到手机里，还是发出去」。
+   *
+   * 这两条以前是一条路（生成完直接弹分享面板），结果是：
+   * ① 包其实落在 App 私有 cache 里，文件管理器进不去，用户在手机上**找不到任何东西**；
+   *    「保存到文件」有没有还得看 ROM 脸色。
+   * ② 生成完不刷新页面 —— 详见下面 setCacheTick 那段。
+   */
   const runBackup = async () => {
     setBusy('backup');
+    let result: BackupResult;
     try {
-      const result = await shareBackup();
-      Alert.alert(
-        '备份包已生成',
-        `${result.fileName}\n${formatBytes(result.bytes)}\n含 ${result.manifest.counts.items} 件物品、${result.manifest.counts.photos} 张照片。\n\n建议发到微信文件传输助手或存进网盘，别只留在手机里。`,
-      );
+      result = await createBackupFile();
+      // 时间戳立刻记：包已经真实存在了，不等用户挑去向
+      await markManualBackup();
     } catch (err) {
       Alert.alert('备份失败', err instanceof Error ? err.message : '未知错误');
+      return;
+    } finally {
+      setBusy(null);
+    }
+
+    /* 清理放在「挑去向」之前：这一份名字最新，永远不会被删到；
+       放到后面的话，用户在面板里挑去向的那段时间里，cache 里还多堆着一份全量包。 */
+    pruneOldBackups();
+
+    /* ★★ 生成完**必须**让 metaState 重读一次，否则界面在骗人。
+       它的依赖只有 [dataVersion, cacheTick]，而 tab 页切走再切回来**不会重新挂载** ——
+       少了这一下，用户存完 / 发完回到这一页，那张卡还写着「还没有备份过 / 这 N 件物品还没有任何副本」，
+       于是以为备份没成功、再点一次，白打一份全量包（一份就是整个照片库）。
+       ★ 别改用 bump()：那是「业务数据变了」的信号，备份一个字节都没碰业务数据。 */
+    setCacheTick((t) => t + 1);
+
+    const summary = [
+      result.fileName,
+      formatBytes(result.bytes),
+      `含 ${result.manifest.counts.items} 件物品、${result.manifest.counts.photos} 张照片。`,
+    ].join('\n');
+
+    Alert.alert('备份包已生成', `${summary}\n\n接下来怎么处理？`, [
+      { text: '取消', style: 'cancel' },
+      ...(canSaveToDevice()
+        ? [{ text: '保存到手机', onPress: () => void runSaveToPhone(result) }]
+        : []),
+      { text: '发送出去', onPress: () => void runShareOut(result) },
+    ]);
+  };
+
+  /** 存进用户自己挑的文件夹（Android SAF）。第一次会弹「选择文件夹」，之后就一路直存。 */
+  const runSaveToPhone = async (result: BackupResult) => {
+    setBusy('save');
+    try {
+      const outcome = await saveBackupToDevice(result);
+      if (outcome.kind === 'canceled') return;
+      if (outcome.kind === 'error') {
+        Alert.alert('保存失败', outcome.error);
+        return;
+      }
+      Alert.alert(
+        '已保存到手机',
+        [
+          result.fileName,
+          `位置：${outcome.dirLabel}`,
+          '',
+          '★ 它还在这一台手机上 —— 手机丢了照样打不开。',
+          '要真防丢，再发一份到微信文件传输助手或网盘。',
+        ].join('\n'),
+      );
+    } catch (err) {
+      Alert.alert('保存失败', err instanceof Error ? err.message : '未知错误');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** 走系统分享面板把包发出去（微信 / 网盘 / 邮件） */
+  const runShareOut = async (result: BackupResult) => {
+    setBusy('share');
+    try {
+      await shareBackupFile(result);
+    } catch (err) {
+      Alert.alert('分享失败', err instanceof Error ? err.message : '未知错误');
     } finally {
       setBusy(null);
     }
@@ -306,6 +384,19 @@ export default function MineScreen() {
 
   const backupFiles = meta?.backupFiles ?? { count: 0, bytes: 0 };
 
+  /* 备份这一条链路上有三段忙碌态：打包 → 挑去向（保存到手机 / 发送出去）。
+     卡片上的按钮与数据通道那一行的文案都要跟着它走，不能只认 'backup' ——
+     否则保存到手机的那几秒里，界面会显示成什么都没发生。 */
+  const backupBusy = busy === 'backup' || busy === 'save' || busy === 'share';
+  const backupBtnLabel =
+    busy === 'backup'
+      ? '正在打包…'
+      : busy === 'save'
+        ? '正在保存…'
+        : busy === 'share'
+          ? '正在打开…'
+          : '立即备份';
+
   /* 「AI 助手」那一行右侧的状态。四种情形对用户的含义完全不同，
      所以不能笼统写成「可用 / 不可用」：
      ★ 「未配置」与「已关闭」必须分开 —— 前者要去填 Key，后者只要把开关打开，
@@ -377,7 +468,7 @@ export default function MineScreen() {
             <Card padded={false}>
               <SettingRow
                 label="生成备份包"
-                value={busy === 'backup' ? '处理中…' : backupWhen}
+                value={backupBusy ? '处理中…' : backupWhen}
                 valueTone={backupStale ? 'brand' : 'ink3'}
                 onPress={runBackup}
               />
@@ -425,7 +516,7 @@ export default function MineScreen() {
                 android_ripple={{ color: Palette.rippleOnAccent }}
                 style={({ pressed }) => [styles.backupBtn, pressed && styles.backupBtnPressed]}>
                 <Label color={Palette.onAccent} style={styles.backupBtnText}>
-                  {busy === 'backup' ? '正在打包…' : '立即备份'}
+                  {backupBtnLabel}
                 </Label>
               </Pressable>
             </View>

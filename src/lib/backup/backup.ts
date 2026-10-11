@@ -8,6 +8,12 @@
  * 纯本地单机存储是单点故障，所以备份必须做到「低成本、随手就能做」：
  * 一键生成 + 直接调系统分享面板（发到微信文件传输助手 / 存网盘都行）。
  *
+ * ★ 包的去向有两条，别混为一谈（2026-10-11 补）：
+ *   分享出去 —— 走系统面板交给别的 App，包**离开了这台手机**，这才叫防丢；
+ *   存到手机 —— 写进用户自己挑的文件夹（Android SAF），文件管理器里看得见、
+ *               能拷进电脑，但**它还在同一台手机上**，手机丢了照样没有。
+ *   两条都算「备份过」（时间戳一起记），但卡片文案不能把后者说成前者。
+ *
  * ★ 还有一条 PRD 写死了两次的结论（§10 风险清单）：
  *   「需要手动触发的备份最终会被弃用，**必须定时自动执行**」。
  *   所以除了一键分享，还有一个**静默的自动备份**：启动时若距上次备份满 7 天
@@ -25,6 +31,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
+import { Platform } from 'react-native';
 
 import { formatDateCN } from '../date';
 import { listAllCategories, insertRawCategory } from '../db/categories';
@@ -49,6 +56,7 @@ import {
   BACKUP_KEEP_MAX,
   decideAutoBackup,
   planBackupRetention,
+  safDirLabel,
   summarizeBackups,
   type BackupFileEntry,
 } from './policy';
@@ -252,10 +260,19 @@ export async function createBackupFile(): Promise<BackupResult> {
   };
 }
 
-/** 生成备份并立即调起系统分享面板 */
-export async function shareBackup(): Promise<BackupResult> {
-  const result = await createBackupFile();
+/**
+ * 记一笔「这台设备上手动备份过」。
+ *
+ * 生成完包**立刻**记，不等分享/保存的结果：
+ * 包已经躺在 cache 里了，用户就算在面板里按返回，这一份也是真实存在的 ——
+ * 而且下一句就要问他「存哪儿」，界面上的时间必须已经是新的。
+ */
+export async function markManualBackup(): Promise<void> {
   await markBackupDone(META_LAST_BACKUP);
+}
+
+/** 调起系统分享面板，把已生成的包发出去（微信 / 网盘 / 邮件都走这一条） */
+export async function shareBackupFile(result: BackupResult): Promise<void> {
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(result.uri, {
       mimeType: 'application/zip',
@@ -263,10 +280,101 @@ export async function shareBackup(): Promise<BackupResult> {
       UTI: 'public.zip-archive',
     });
   }
-  // 清理放在分享之后：分享面板还开着的时候去删文件是另一类风险，
-  // 而这一份是刚生成的、名字最新，本来也不会被删到
-  cleanBackupFiles(BACKUP_KEEP_MAX);
-  return result;
+}
+
+/** 生成完包顺手清一次本机副本。这一份名字最新，永远不会被删到。 */
+export function pruneOldBackups(): number {
+  return cleanBackupFiles(BACKUP_KEEP_MAX).removed;
+}
+
+/* ------------------------------------------------------------ 保存到手机文件夹 */
+
+/**
+ * 记住用户上次挑的那个文件夹。
+ *
+ * ★ 属**本机偏好档**：不进备份包、恢复出厂清掉（与 ui.* / stock.* / update.* 同一条约定）。
+ *   里面是一个 SAF 授权 URI，换台手机毫无意义。
+ */
+const META_SAF_DIR = 'backup.safDir';
+
+export type SaveToDeviceOutcome =
+  | { kind: 'ok'; uri: string; dirLabel: string }
+  | { kind: 'canceled' }
+  | { kind: 'error'; error: string };
+
+/**
+ * 「保存到手机文件夹」在哪些平台可用。
+ *
+ * 只有 Android。scoped storage 下应用无权自己往 `/storage/emulated/0/Download` 写，
+ * 必须由用户亲手授权一个目录（SAF，`ACTION_OPEN_DOCUMENT_TREE`）。
+ * iOS 那边对应的是「存储到『文件』」，实现路径完全不同 —— 等适配 iOS 时再单独做，
+ * 现在**先藏起来**，别给 iOS 用户一个按下去只会报错的按钮。
+ */
+export function canSaveToDevice(): boolean {
+  return Platform.OS === 'android';
+}
+
+/** 从文件夹选择器抛出的错误里认出「用户自己按了返回」 */
+function isPickerCanceled(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /cancel/i.test(message);
+}
+
+/**
+ * 把已生成的备份包写进手机上一个**用户看得见**的文件夹。
+ *
+ * ── 为什么不用 shareAsync 顺带存 ────────────────────────────
+ * 分享面板里有没有「保存到文件」全看 ROM，国产 ROM 上常年没有；
+ * 而包又落在 App 私有 cache 里（`/data/user/0/<pkg>/cache/`），
+ * 文件管理器根本进不去 —— 于是用户「点了备份、也分享了」，却在手机上找不到任何东西。
+ *
+ * ── 为什么是 File.copy 而不是 write(bytes) ──────────────────
+ * native 侧走 `DestinationSink.SAF` 的流式通道（`copyFileWithChannelFallback`），
+ * 一份上百 MB 的包不会在 JS 堆里再多出一份；
+ * 换成 `new File(...).bytesSync()` 再 write，峰值就是两份全量包，低端机直接 OOM。
+ *
+ * ── 关于授权 ────────────────────────────────────────────────
+ * picker 内部调了 `takePersistableUriPermission`，授权是**持久**的 ——
+ * 第一次选过之后，以后都是点一下就落盘，不再弹选择器。
+ * 一旦失效（用户撤销 / 文件夹被删 / 换了存储卡），自动忘掉它并**再请用户选一次**，
+ * 不把一次失败直接甩给用户。
+ */
+export async function saveBackupToDevice(result: BackupResult): Promise<SaveToDeviceOutcome> {
+  if (!canSaveToDevice()) {
+    return { kind: 'error', error: '当前系统暂不支持直接保存到文件夹，请改用「发送出去」' };
+  }
+
+  const db = await getDatabase();
+  let dirUri = (await readMeta(db, META_SAF_DIR)) || null;
+
+  // 最多两轮：第一轮用记住的目录；它失败就忘掉、请用户重新挑一次
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (!dirUri) {
+      let picked: string;
+      try {
+        picked = (await Directory.pickDirectoryAsync()).uri;
+      } catch (err) {
+        return isPickerCanceled(err)
+          ? { kind: 'canceled' }
+          : { kind: 'error', error: '打不开文件夹选择器' };
+      }
+      await writeMeta(db, META_SAF_DIR, picked).catch(() => {
+        // 记不住就下次再选一次，不影响这次保存
+      });
+      dirUri = picked;
+    }
+
+    try {
+      await new File(result.uri).copy(new Directory(dirUri), { overwrite: true });
+      return { kind: 'ok', uri: dirUri, dirLabel: safDirLabel(dirUri) };
+    } catch {
+      // 记下的那个目录多半是没授权了 —— 清掉，下一轮重新请用户选
+      dirUri = null;
+      await writeMeta(db, META_SAF_DIR, '').catch(() => {});
+    }
+  }
+
+  return { kind: 'error', error: '写入失败，请重试或改用「发送出去」' };
 }
 
 /* ------------------------------------------------------------ 本机备份包（cache） */

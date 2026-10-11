@@ -120,3 +120,44 @@ export function summarizeBackups(files: BackupFileEntry[]): { count: number; byt
     bytes: files.reduce((sum, file) => sum + file.bytes, 0),
   };
 }
+
+/* ------------------------------------------------------------ SAF 目录名 */
+
+/**
+ * 把 Android SAF 的目录 URI 解成人看得懂的名字。
+ *
+ * `Directory.pickDirectoryAsync()` 交回来的是一棵树形 URI：
+ *   content://com.android.externalstorage.documents/tree/primary%3ADownload
+ *   content://com.android.externalstorage.documents/tree/primary%3A%E6%A0%BC%E7%89%A9
+ * 直接甩给用户就是一长串百分号编码。
+ *
+ * 三条边界都是「宁可退化成一句笼统的话，也不能抛」：
+ *   - 解不出来（不是树形 URI）、`decodeURIComponent` 抛 URIError（URI 里带了裸 `%`）、
+ *     冒号后面是空的 —— 一律退回「所选文件夹」。
+ *   这个值只出现在一句提示里，不值得为它中断掉一次已经成功的保存。
+ */
+export function safDirLabel(treeUri: string): string {
+  const fallback = '所选文件夹';
+
+  let decoded = treeUri;
+  try {
+    decoded = decodeURIComponent(treeUri);
+  } catch {
+    // URI 里有不合法的 % 转义，照原样用
+  }
+
+  const afterTree = decoded.split('/tree/')[1];
+  if (!afterTree) return fallback;
+
+  /* document 形态的 URI 会在树后面再挂一段 `/document/<同一个 id>`（两段一模一样），
+     不去掉的话最后一段虽然也能取对，但多级目录时会取成第二份的尾巴 —— 别赌它。 */
+  const treeId = afterTree.split('/document/')[0];
+
+  /* id 形如 `primary:Download/格物`，也可能是 `raw:/storage/emulated/0/Download`：
+     冒号前是卷标（primary / raw / 各 SD 卡），冒号后才是路径。 */
+  const colon = treeId.indexOf(':');
+  const path = colon >= 0 ? treeId.slice(colon + 1) : treeId;
+  const last = path.split('/').filter(Boolean).pop();
+
+  return last || fallback;
+}
