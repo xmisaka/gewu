@@ -17,10 +17,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
-import { Button, IconButton } from '@/components/ui/controls';
+import { Button, IconButton, SettingRow } from '@/components/ui/controls';
 import { ContactSection } from '@/components/domain/ContactSection';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
-import { Body, Label, Meta, Title } from '@/components/ui/typography';
+import { Body, Label, Meta } from '@/components/ui/typography';
 import { GUTTER, LIGHT_THEME_KEYS, Palette, Radius, Space, Type, type ThemeKey } from '@/constants/theme';
 import { AFDIAN_URL, LICENSE_RECOVER } from '@/constants/site';
 import { formatDateCN } from '@/lib/date';
@@ -196,22 +196,24 @@ export default function SupporterScreen() {
 
                 <SectionCard title="还没买？">
                   <Gutter>
-                    <Card>
-                      <Title style={styles.buyTitle}>支持者档 · ¥36</Title>
-                      <Meta tone="ink3" style={styles.buyLine}>
-                        一次买断，含 v2 内全部支持者功能：六套浅色主题、统计洞察、AI 功能（识物 / 问一问 / 语音录入）、新功能优先体验。
-                      </Meta>
-                      <Meta tone="ink4" style={styles.buyLine}>
-                        免费档不受影响 —— 收纳、到期提醒、库存、照片、备份恢复全部照旧。
-                      </Meta>
+                    <Card padded={false}>
+                      {/* 权益全貌不在这儿讲 —— 这一页管「贴码」，讲权益的是 /pro。
+                          以前这里塞了三行枚举，读完还是不知道该不该买（没有对比、
+                          没有价格结构），而且它、门控浮层、「我的」页各说一遍，
+                          三处迟早会不一致。现在一句入口收口。 */}
+                      <SettingRow
+                        label="支持者权益"
+                        value="¥36 一次买断"
+                        last={AFDIAN_URL.length === 0}
+                        onPress={() => router.push('/pro')}
+                      />
                       {AFDIAN_URL.length > 0 ? (
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel="去爱发电支持"
-                          style={styles.buyLink}
-                          onPress={() => void Linking.openURL(AFDIAN_URL).catch(() => undefined)}>
-                          <Meta color={Palette.brand}>去爱发电支持 →</Meta>
-                        </Pressable>
+                        <SettingRow
+                          label="去爱发电支持"
+                          value="打开商品页"
+                          last
+                          onPress={() => void Linking.openURL(AFDIAN_URL).catch(() => undefined)}
+                        />
                       ) : null}
                     </Card>
                   </Gutter>
@@ -276,19 +278,16 @@ export default function SupporterScreen() {
             <SectionCard title="权益">
               <Gutter>
                 <Card padded={false}>
-                  <View style={styles.row}>
-                    <Meta tone="ink3" style={styles.rowKey}>
-                      有效期
-                    </Meta>
-                    <Body style={styles.rowValue}>永久</Body>
-                    <Meta tone="ink4">不订阅、不续费</Meta>
-                  </View>
-                  <View style={[styles.row, styles.rowLast]}>
-                    <Meta tone="ink3" style={styles.rowKey}>
-                      包含
-                    </Meta>
-                    <Body style={styles.rowValue}>皮肤 / 统计洞察 / AI / 语音 / 优先体验</Body>
-                  </View>
+                  {/* 权益清单搬去了 /pro（那一页两态共用：未激活是「值不值」，
+                      已激活是「我有什么 + 换机怎么办」）。这里只留入口 ——
+                      付过钱的人要看的是一份能回看的清单，而不是被压成一行的
+                      「包含：皮肤 / 统计洞察 / AI」 */}
+                  <SettingRow
+                    label="我的权益"
+                    value="皮肤 / AI / 统计洞察"
+                    last
+                    onPress={() => router.push('/pro')}
+                  />
                 </Card>
               </Gutter>
             </SectionCard>
@@ -413,10 +412,6 @@ const useStyles = makeStyles((Palette) => ({
   errorText: { flex: 1, lineHeight: 19 },
 
   afterNote: { marginTop: Space.md, lineHeight: 20 },
-
-  buyTitle: { fontSize: 17 },
-  buyLine: { marginTop: Space.xs, lineHeight: 20 },
-  buyLink: { marginTop: Space.md },
 
   fullCodeCard: { marginTop: Space.md, padding: Space.md },
   fullCode: { marginTop: Space.xs, fontSize: 13, lineHeight: 21 },

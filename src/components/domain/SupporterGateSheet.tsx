@@ -63,6 +63,18 @@ export function SupporterGateSheet({ visible, feature, themeIntent, onClose }: S
     }
   };
 
+  /**
+   * 去看完整的权益说明。
+   *
+   * ★ 这是整件事里最关键的一步：浮层是「你被挡住了」的语境，
+   *   用户在这里接收到的全是限制。给一个「先看看全部权益」的正向出口，
+   *   把这个负面瞬间接到那一页上 —— 否则权益永远只以「不许」的样子出现。
+   */
+  const goBenefits = () => {
+    onClose();
+    router.push('/pro');
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
@@ -97,6 +109,17 @@ export function SupporterGateSheet({ visible, feature, themeIntent, onClose }: S
         </View>
 
         <View style={styles.foot}>
+          {/* 摆主按钮之前先给一个「先看看」的出口。被挡下的这一刻用户是带着情绪的，
+              硬要他当场付款只会触发那套「你是不是在逼我付费」的警觉；
+              让他去看完整的对比，反而是更有效的说服 */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="查看支持者的全部权益"
+            onPress={goBenefits}
+            style={styles.benefits}>
+            <Meta color={Palette.brand}>看全部权益（免费档 vs 支持者档）→</Meta>
+          </Pressable>
+
           {/* ★ 商品页还没上架时不摆「去支持」按钮，但**必须给出去哪拿码** ——
               否则浮层说了「¥36 一次买断」，用户却找不到任何能付钱的地方，
               比没有这个浮层更让人恼火。二维码在主按钮原来的位置上说清楚。
@@ -165,7 +188,15 @@ const useStyles = makeStyles((Palette) => ({
   disclosureText: { flex: 1, lineHeight: 21 },
   disclosureTitle: { fontWeight: '600' },
 
-  foot: { paddingHorizontal: GUTTER, paddingTop: Space.xl },
+  foot: { paddingHorizontal: GUTTER, paddingTop: Space.lg },
+  /* 它排在主按钮之上，是个「了解更多」而不是「立刻买」，
+     所以做成文字链、居中，不抢主按钮的分量 */
+  benefits: {
+    alignSelf: 'center',
+    paddingVertical: Space.xs,
+    paddingHorizontal: Space.sm,
+    marginBottom: Space.md,
+  },
   storeNote: { lineHeight: 20 },
   secondary: { marginTop: Space.sm },
   later: { alignSelf: 'center', marginTop: Space.md, padding: Space.xs },

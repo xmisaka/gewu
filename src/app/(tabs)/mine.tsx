@@ -633,6 +633,15 @@ export default function MineScreen() {
         <SectionCard title="支持格物">
           <Gutter>
             <Card padded={false}>
+              {/* 权益说明的入口。★ 恒显示、文案两态 —— 未激活的人想知道「值不值」，
+                  已激活的人想回看「我有什么」，是同一页的两态，所以入口只有一个。
+                  排「去爱发电支持」之前：先了解再掏钱，比先撞上价格顺得多 */}
+              <SettingRow
+                label={entitled ? '我的权益' : '支持者权益'}
+                value={entitled ? '皮肤 · AI · 统计洞察' : '免费档 vs 支持者档'}
+                valueTone="ink3"
+                onPress={() => router.push('/pro')}
+              />
               {/* ★ 已激活就不再摆这一行。它的全部含义是「还没买 → 去买」，
                   对一个已经付过钱的人，这是设置页里的一句多余广告 ——
                   他该看的是下面那行「支持者状态」。

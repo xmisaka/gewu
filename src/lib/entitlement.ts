@@ -110,29 +110,75 @@ export function checkActivation(code: string, publicKeyB64Url?: string): Activat
 export type SupporterFeature = 'theme' | 'ai' | 'stats';
 
 /** 门控浮层的标题与正文用得到；文案放在这儿，三处入口才不会各说各话 */
-export const SUPPORTER_FEATURES: Record<
-  SupporterFeature,
-  { name: string; sheetTitle: string; sheetBody: string }
-> = {
+export interface SupporterFeatureCopy {
+  /** 短名。门控浮层的标题与说明页的卡片标题共用同一个 —— 两处叫不同的名字，
+   *  用户会以为是两样东西 */
+  name: string;
+  /** 说明页卡片副标题：一句话说清这一项换来了什么 */
+  tagline: string;
+  /** 说明页「免费档」一侧：不买这边是什么体验 */
+  freeSide: string;
+  /** 说明页「支持者档」一侧：多出来的具体是什么 */
+  proSide: string;
+  /** 门控浮层的标题 */
+  sheetTitle: string;
+  /**
+   * 门控浮层的正文。
+   *
+   * 与 `tagline` 是**两种场合的同一件事**，不是重复：浮层是「你刚被挡住」的语境，
+   * 需要立刻交代边界（你不会失去什么）；说明页是「我在看值不值」的语境，
+   * 只需要一句话讲清收益。两份语气都有存在的理由，但**事实只有一个** ——
+   * 改任何一处都得同时看另一处。
+   */
+  sheetBody: string;
+}
+
+export const SUPPORTER_FEATURES: Record<SupporterFeature, SupporterFeatureCopy> = {
   theme: {
     name: '主题皮肤',
+    tagline: '六套浅色，换一种纸的质地',
+    freeSide: '素笺、靛青、青瓷三套免费，日常记录够用',
+    proSide: '再解锁朱砂、藕荷、胭脂',
     sheetTitle: '支持者功能',
     sheetBody:
       '六套浅色主题全部解锁，含后续新增。免费档保留「素笺」「靛青」「青瓷」三套，日常记录完全够用；系统深色时的「玄夜」照旧，不受影响。',
   },
   ai: {
     name: 'AI 功能',
+    tagline: '少打字 —— 拍一张、说一句就能入库',
+    freeSide: '逐条手工录入照旧，字段一个不少',
+    proSide: '拍照识物、问一问、语音录入三个入口',
     sheetTitle: '支持者功能',
     sheetBody:
       '识物入库、问一问与语音录入：拍一张、说一句就能带出名称、分类和规格，省掉手工敲字。免费档不受影响，逐条手工录入照旧，功能一个不少；Key 由你自己申请、调用量记在你自己的账号上，格物不代出 Key、也不按量收费。',
   },
   stats: {
     name: '统计洞察',
+    tagline: '看懂家底 —— 钱花在哪、柜子塞到几成',
+    freeSide: '列表、到期提醒、库存照常',
+    proSide: '总价值、日均持有成本、分类分布、柜子占用、入库趋势',
     sheetTitle: '支持者功能',
     sheetBody:
       '总价值、日均持有成本、分类价值分布、柜子占用与近半年入库趋势，一页看完。免费档的录入、到期提醒、库存、照片与备份全部照旧，功能一个不少。',
   },
 };
+
+/**
+ * 免费档的基础能力 —— 说明页两栏对比里的左栏。
+ *
+ * ★ 刻意**正面列出**，而不是写成「支持者档有这些、免费档没有」的反面清单。
+ *   这一版要修的问题就是「权益看不见」，但修法不能是把免费档说残 ——
+ *   它是完整版，只是没有那三样锦上添花的东西。少写这一栏，用户会默认
+ *   「免费=试用版」，那比现在更糟。
+ */
+export const FREE_BASELINE: readonly string[] = [
+  '物品录入 · 编辑 · 搜索',
+  '分类与标签',
+  '到期提醒',
+  '库存与数量',
+  '照片与备份恢复',
+  '回收站与批量整理',
+] as const;
 
 /**
  * 需要支持者档才能选的浅色主题。

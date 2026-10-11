@@ -11,6 +11,7 @@
  *   ├─ category          分类管理
  *   ├─ trash             回收站
  *   ├─ supporter         支持者（未激活＝贴码页；已激活＝状态页）
+ *   ├─ pro               支持者权益说明（未激活＝值不值；已激活＝我的权益）
  *   ├─ voice             语音录入（说一句话 → 结构化预览 → 待确认）
  *   ├─ batch             批量识图（一次选多张 → 逐张识别 → 清单核对 → 一次入库）
  *   ├─ ai                AI 助手设置（总开关 / Key / 模型 / 用量；我的 → 整理）
@@ -149,6 +150,10 @@ function AppShell() {
         <Stack.Screen name="category/index" />
         <Stack.Screen name="trash" />
         <Stack.Screen name="supporter" />
+        {/* 权益说明页。与 supporter 分家：那一页管「码」，这一页管「权益」。
+            门控浮层、「我的」页、激活页三处入口都汇聚到这里 ——
+            此前权益只在「你被挡住」的语境里露一角，用户拼不出全貌。 */}
+        <Stack.Screen name="pro" />
         <Stack.Screen name="voice" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         {/* AI 设置与问一问都走普通压栈：它们是从某个页面进去、
             办完事就返回的独立语境，不像 voice 那样需要压在列表上临时进行 */}
