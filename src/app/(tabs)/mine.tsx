@@ -337,9 +337,11 @@ export default function MineScreen() {
         ? '系统里没给通知权限：到系统「设置 → 应用 → 格物 → 通知」里打开'
         : !notify.active
           ? '关闭后不会有任何通知；数据仍在这台手机里'
-          : notify.scheduledCount > 0
-            ? `已排 ${notify.scheduledCount} 条${notifyNextText}`
-            : '暂时没有要提醒的 —— 有物品快到期时会自动排上';
+          : notify.channelMuted
+            ? '系统里把「到期提醒」这个通知类别关掉了：到系统「设置 → 应用 → 格物 → 通知」里把它打开'
+            : notify.scheduledCount > 0
+              ? `已排 ${notify.scheduledCount} 条${notifyNextText}`
+              : '暂时没有要提醒的 —— 有物品快到期时会自动排上';
 
   return (
     <Screen>
@@ -556,6 +558,19 @@ export default function MineScreen() {
                     onChange={(next) => void notify.setLeadDays(clampLeadDays(next))}
                   />
                 </View>
+              ) : null}
+
+              {/* 试发。★ 它不只是给用户试的，也是**唯一不用插线就能做的诊断**：
+                  立刻那一条走通知通道（不经过闹钟），二十秒后那一条走系统闹钟。
+                  两条到没到，就把「闹钟被系统按住」与「通知本身被挡」一刀切开。 */}
+              {notify.active ? (
+                <SettingRow
+                  label="试发一条"
+                  value={notify.busy ? '正在发…' : '看看通不通'}
+                  valueTone="ink3"
+                  onPress={() => void notify.sendTest()}
+                  last
+                />
               ) : null}
             </Card>
           </Gutter>

@@ -39,9 +39,11 @@ import {
   applyPlan,
   cancelAllManaged,
   installForegroundHandler,
+  isChannelMuted,
   listManagedScheduled,
   readPermission,
   requestPermission,
+  sendTestNotifications,
   useOpenedFromNotification,
   type PermissionState,
 } from '@/lib/notify/schedule';
@@ -66,11 +68,19 @@ interface NotifyValue {
   nextAt: number | null;
   /** 「提醒」标签上的待办角标数字要不要显示 */
   badge: boolean;
-  /** 正在要权限 —— 期间开关要挡住连点 */
+  /**
+   * 系统里把「到期提醒」这个通知**类别**关掉了。
+   * ★ 与 `permission` 是两件事：权限给了照样可能被挡在这一层 ——
+   *   界面必须分开说，否则用户会在 App 里拨来拨去，而问题不在 App 里。
+   */
+  channelMuted: boolean;
+  /** 正在要权限 / 正在试发 —— 期间相关控件要挡住连点 */
   busy: boolean;
   setEnabled: (next: boolean) => Promise<void>;
   setLeadDays: (next: LeadDays) => Promise<void>;
   setBadge: (next: boolean) => Promise<void>;
+  /** 试发两条（立刻一条 + 二十秒后一条），用来分辨「闹钟被系统按住」还是「通知被挡」 */
+  sendTest: () => Promise<void>;
 }
 
 const NotifyContext = createContext<NotifyValue | null>(null);
@@ -86,6 +96,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
   const [scheduledCount, setScheduledCount] = useState(0);
   const [nextAt, setNextAt] = useState<number | null>(null);
   const [badge, setBadgeState] = useState(true);
+  const [channelMuted, setChannelMuted] = useState(false);
   const [busy, setBusy] = useState(false);
 
   /* 重排要读「当下的值」，而 useCallback 的闭包只会捕获它创建那一刻的 state。
@@ -125,6 +136,11 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
       setNextAt(null);
       return;
     }
+
+    /* ★ 权限给了不等于发得出来：用户在系统里把「到期提醒」这个**类别**关掉之后，
+       应用级权限仍然是 granted —— 排期照旧、开关照旧显示开着，而每一条都会被静默丢掉。
+       所以这一步必须单独查一次，把「静默失败」变成界面上看得见的一句话。 */
+    setChannelMuted(await isChannelMuted());
 
     const [items, existing] = await Promise.all([listExpiryCandidates(), listManagedScheduled()]);
     const plan = planExpiryNotifications({
@@ -268,6 +284,22 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  /**
+   * 试发一条（其实是两条）。
+   * ★ 复用 `busy`：它本来就是「通知这条链路上正忙着」的意思，
+   *   挡的是同一个连点问题，不值得再多一个状态位。
+   */
+  const sendTest = useCallback(async () => {
+    setBusy(true);
+    try {
+      await sendTestNotifications();
+    } catch {
+      // 静默：试发失败本身就是「链路不通」的一种表现，不必再弹一次
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const value = useMemo<NotifyValue>(
     () => ({
       ready,
@@ -278,10 +310,12 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
       scheduledCount,
       nextAt,
       badge,
+      channelMuted,
       busy,
       setEnabled: changeEnabled,
       setLeadDays: changeLeadDays,
       setBadge: changeBadge,
+      sendTest,
     }),
     [
       ready,
@@ -291,10 +325,12 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
       scheduledCount,
       nextAt,
       badge,
+      channelMuted,
       busy,
       changeEnabled,
       changeLeadDays,
       changeBadge,
+      sendTest,
     ],
   );
 

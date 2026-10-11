@@ -49,6 +49,26 @@ export async function ensureChannel(): Promise<void> {
   });
 }
 
+/**
+ * 系统里这个通知**类别**被关掉了吗？
+ *
+ * ★ 为什么必须单独查一次：用户在系统里把「到期提醒」这个类别关掉之后，
+ *   **应用级权限仍然是 `granted`** —— 于是 App 里开关照样显示开着、系统里也照样排着通知，
+ *   而发出来的每一条都会被**静默丢掉**。这是唯一能从 App 里看见这件事的地方。
+ *
+ * ★ 只在**确证**被关时才返回 true。渠道读不到、读报错一律返回 false ——
+ *   查不了不等于被关了，把「查不了」说成「被关了」，用户会去系统里翻半天找不到东西。
+ */
+export async function isChannelMuted(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+  try {
+    const channel = await Notifications.getNotificationChannelAsync(NOTIFY_CHANNEL_ID);
+    return channel != null && channel.importance <= Notifications.AndroidImportance.NONE;
+  } catch {
+    return false;
+  }
+}
+
 export async function readPermission(): Promise<PermissionState> {
   const { granted, status } = await Notifications.getPermissionsAsync();
   if (granted) return 'granted';
@@ -112,6 +132,46 @@ export async function applyPlan(plan: NotifyPlan): Promise<void> {
   for (const item of plan.schedule) {
     await scheduleOne(item);
   }
+}
+
+/**
+ * 试发两条用的标识。
+ * ★ **刻意不取 `gewu-exp-` 前缀** —— 那一路是 plan 的账，`cancelAllManaged()` 按前缀清它们。
+ *   这两条是一次性的，落在 plan 的视野之外，就不会出现「点一下试发、把真排期撤了」这种事。
+ */
+export const TEST_NOW_ID = 'gewu-test-now';
+export const TEST_ALARM_ID = 'gewu-test-alarm';
+
+/**
+ * 试发两条：**一条立刻**（走通知通道，完全不经过系统闹钟），**一条二十秒后**（走闹钟）。
+ *
+ * ★ 这一个动作能把三种情况一刀切开，省掉插线看 dumpsys：
+ *   · 两条都到   → 整条链路是通的，之前没响就是「时刻没到」或系统把闹钟延后了；
+ *   · 只到「立刻」→ 通知能发得出来，但**闹钟被系统按住了**（国产 ROM 的省电策略/后台冻结）；
+ *   · 一条都没到  → 通知本身被挡住：类别被关，或系统整个不允许格物发通知。
+ */
+export async function sendTestNotifications(): Promise<void> {
+  await ensureChannel();
+  await Notifications.scheduleNotificationAsync({
+    identifier: TEST_NOW_ID,
+    content: {
+      title: '通知是通的',
+      body: '这条是立刻发出来的，没有经过系统闹钟。',
+    },
+    trigger: null,
+  });
+  await Notifications.scheduleNotificationAsync({
+    identifier: TEST_ALARM_ID,
+    content: {
+      title: '闹钟也是通的',
+      body: '这条是二十秒前排给系统闹钟的，到点由系统叫醒。',
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: Date.now() + 20_000,
+      channelId: NOTIFY_CHANNEL_ID,
+    },
+  });
 }
 
 /**
