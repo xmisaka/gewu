@@ -308,7 +308,7 @@ export default function SupporterScreen() {
                     <View style={styles.rowValue}>
                       <Body>微信上找我重发一份</Body>
                       {/* ★ 原来这里只写「爱发电『我的订单』里可重看」——
-                          但码多半是**微信上**发的（爱发电那条路还没走通），
+                          但码多半是**微信上**发的，而 `AFDIAN_URL` 为空时爱发电那条路点不到，
                           让他去一个根本没有订单的地方翻，等于没有这条说明 */}
                       <Meta tone="ink4">{AFDIAN_URL.length > 0 ? '爱发电订单页里也能重看' : '「我的」页最下面有我的二维码'}</Meta>
                     </View>
