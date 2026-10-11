@@ -75,6 +75,17 @@ const BACKUP_FILE_PREFIX = '格物-备份-';
 /** 手动清理时保留几份（只留最新的一份，是用户主动要腾空间） */
 const MANUAL_CLEAN_KEEP = 1;
 
+/**
+ * 存进「手机文件夹」时用的**固定**文件名。
+ *
+ * ★ 与 cache 里那份故意不同名，两者服务的不是一件事：
+ *   cache 那份带 `YYYYMMDD-HHmm` —— 保留策略靠它排时间序，用户也能分辨哪份是哪天的；
+ *   手机文件夹里那份的语义是「我的最新备份」。而它一旦成为**默认**路径就会被反复触发，
+ *   带时间戳等于往用户的下载目录里按次堆全量包（一份 ≈ 整个照片库），
+ *   而 App 的保留策略**管不到** App 私有目录之外的地方。固定名 + 覆盖，那里永远只有一份。
+ */
+const DEVICE_BACKUP_NAME = '格物-备份.zip';
+
 export { AUTO_BACKUP_INTERVAL_DAYS };
 
 /* ------------------------------------------------------------ 类型 */
@@ -298,7 +309,7 @@ export function pruneOldBackups(): number {
 const META_SAF_DIR = 'backup.safDir';
 
 export type SaveToDeviceOutcome =
-  | { kind: 'ok'; uri: string; dirLabel: string }
+  | { kind: 'ok'; uri: string; dirLabel: string; fileName: string }
   | { kind: 'canceled' }
   | { kind: 'error'; error: string };
 
@@ -318,6 +329,37 @@ export function canSaveToDevice(): boolean {
 function isPickerCanceled(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return /cancel/i.test(message);
+}
+
+/**
+ * 把 cache 里那份包写进一个 SAF 目录，用**固定名**，返回写到的那份的文件名。
+ *
+ * ★ 不能直接 `copy(dir, { overwrite: true })` 了事 —— 那条路拿**源文件名**当目标名
+ *   （`DestinationSink.SAF` 里取的是 `source.fileName`），于是又会把一串时间戳带进去。
+ *   这里显式建目标文件：先按名删掉旧的，再建一个同名的，然后把字节拷进去。
+ *   （SAF 的 createFile 碰到重名**不会覆盖**，会悄悄改成「格物-备份 (1).zip」—— 所以必须先删。）
+ *
+ * ★ 拷贝本身仍是流式的（见 saveBackupToDevice 的说明），只是目标从「目录」换成了「文件」。
+ */
+async function copyIntoDir(sourceUri: string, dirUri: string): Promise<string> {
+  const dir = new Directory(dirUri);
+
+  try {
+    for (const entry of dir.list()) {
+      if (entry.name !== DEVICE_BACKUP_NAME) continue;
+      try {
+        entry.delete();
+      } catch {
+        // 删不掉就交给下面那次 copy 去覆盖；实在不行会抛出来，由调用方走「重选目录」
+      }
+    }
+  } catch {
+    // 列不出目录（例如授权只剩写权限）也不该拦着写，接着往下走
+  }
+
+  const target = dir.createFile(DEVICE_BACKUP_NAME, 'application/zip');
+  await new File(sourceUri).copy(target, { overwrite: true });
+  return DEVICE_BACKUP_NAME;
 }
 
 /**
@@ -365,8 +407,8 @@ export async function saveBackupToDevice(result: BackupResult): Promise<SaveToDe
     }
 
     try {
-      await new File(result.uri).copy(new Directory(dirUri), { overwrite: true });
-      return { kind: 'ok', uri: dirUri, dirLabel: safDirLabel(dirUri) };
+      const fileName = await copyIntoDir(result.uri, dirUri);
+      return { kind: 'ok', uri: dirUri, dirLabel: safDirLabel(dirUri), fileName };
     } catch {
       // 记下的那个目录多半是没授权了 —— 清掉，下一轮重新请用户选
       dirUri = null;

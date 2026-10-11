@@ -129,29 +129,27 @@ export default function MineScreen() {
   );
 
   /**
-   * 生成备份包，然后问用户「存到手机里，还是发出去」。
+   * 打包 → 记时间 → 清 cache → 刷新界面。失败返回 null（提示已经弹过了）。
    *
-   * 这两条以前是一条路（生成完直接弹分享面板），结果是：
-   * ① 包其实落在 App 私有 cache 里，文件管理器进不去，用户在手机上**找不到任何东西**；
-   *    「保存到文件」有没有还得看 ROM 脸色。
-   * ② 生成完不刷新页面 —— 详见下面 setCacheTick 那段。
+   * 主路径（存到手机）与备选路径（发送出去）共用这一段 ——
+   * 它们的差别只在最后一步去哪，生成这件事一模一样，不该各写一遍。
    */
-  const runBackup = async () => {
+  const generateBackup = async (): Promise<BackupResult | null> => {
     setBusy('backup');
     let result: BackupResult;
     try {
       result = await createBackupFile();
-      // 时间戳立刻记：包已经真实存在了，不等用户挑去向
+      /* 时间戳**立刻**记：包已经真实存在了，不等用户挑去向 ——
+         他在系统选择器里按返回，这一份也是真的，下一句提示里的时间也必须已经是新的。 */
       await markManualBackup();
     } catch (err) {
       Alert.alert('备份失败', err instanceof Error ? err.message : '未知错误');
-      return;
+      return null;
     } finally {
       setBusy(null);
     }
 
-    /* 清理放在「挑去向」之前：这一份名字最新，永远不会被删到；
-       放到后面的话，用户在面板里挑去向的那段时间里，cache 里还多堆着一份全量包。 */
+    // 这一份名字最新，永远不会被它删到
     pruneOldBackups();
 
     /* ★★ 生成完**必须**让 metaState 重读一次，否则界面在骗人。
@@ -161,23 +159,28 @@ export default function MineScreen() {
        ★ 别改用 bump()：那是「业务数据变了」的信号，备份一个字节都没碰业务数据。 */
     setCacheTick((t) => t + 1);
 
-    const summary = [
-      result.fileName,
-      formatBytes(result.bytes),
-      `含 ${result.manifest.counts.items} 件物品、${result.manifest.counts.photos} 张照片。`,
-    ].join('\n');
-
-    Alert.alert('备份包已生成', `${summary}\n\n接下来怎么处理？`, [
-      { text: '取消', style: 'cancel' },
-      ...(canSaveToDevice()
-        ? [{ text: '保存到手机', onPress: () => void runSaveToPhone(result) }]
-        : []),
-      { text: '发送出去', onPress: () => void runShareOut(result) },
-    ]);
+    return result;
   };
 
-  /** 存进用户自己挑的文件夹（Android SAF）。第一次会弹「选择文件夹」，之后就一路直存。 */
-  const runSaveToPhone = async (result: BackupResult) => {
+  /**
+   * 主路径：打包并**直接**存进手机文件夹。
+   *
+   * 以前这里弹一个「保存到手机 / 发送出去」让用户选 —— 但用户点「立即备份」时想的就是
+   * 「给我存一份」，多问一句只是多一次决策。现在直接存，发送降为下面那一行独立入口。
+   *
+   * 第一次会弹系统「选择文件夹」（之后一路直存）；用户在那一刻按返回，就静默结束 ——
+   * 别报错，他本来就只是反悔了。
+   */
+  const runBackup = async () => {
+    const result = await generateBackup();
+    if (!result) return;
+
+    // iOS 没有 SAF，退回分享面板（见 canSaveToDevice 的说明）
+    if (!canSaveToDevice()) {
+      await sendOut(result);
+      return;
+    }
+
     setBusy('save');
     try {
       const outcome = await saveBackupToDevice(result);
@@ -189,11 +192,13 @@ export default function MineScreen() {
       Alert.alert(
         '已保存到手机',
         [
-          result.fileName,
+          outcome.fileName,
           `位置：${outcome.dirLabel}`,
+          // 同一份包反复存会撞名，覆盖是刻意的：那里是「我的最新备份」，不是历史归档
+          '（同名的旧包会被这一份覆盖，那个文件夹里始终只有最新的一份）',
           '',
           '★ 它还在这一台手机上 —— 手机丢了照样打不开。',
-          '要真防丢，再发一份到微信文件传输助手或网盘。',
+          '要真防丢，用上面那行「发送备份包」再发一份到微信或网盘。',
         ].join('\n'),
       );
     } catch (err) {
@@ -203,8 +208,14 @@ export default function MineScreen() {
     }
   };
 
-  /** 走系统分享面板把包发出去（微信 / 网盘 / 邮件） */
-  const runShareOut = async (result: BackupResult) => {
+  /** 备选路径：只打包 + 走系统分享面板发出去（微信 / 网盘 / 邮件） */
+  const runSendBackup = async () => {
+    const result = await generateBackup();
+    if (!result) return;
+    await sendOut(result);
+  };
+
+  const sendOut = async (result: BackupResult) => {
     setBusy('share');
     try {
       await shareBackupFile(result);
@@ -395,7 +406,11 @@ export default function MineScreen() {
         ? '正在保存…'
         : busy === 'share'
           ? '正在打开…'
-          : '立即备份';
+          : canSaveToDevice()
+            ? '立即备份到手机'
+            : '立即生成备份包';
+  /** 「我的」页两处入口共用的无障碍名，跟着按钮文案走，别再手写一份 */
+  const backupA11yLabel = canSaveToDevice() ? '立即备份到手机文件夹' : '立即生成备份包';
 
   /* 「AI 助手」那一行右侧的状态。四种情形对用户的含义完全不同，
      所以不能笼统写成「可用 / 不可用」：
@@ -466,11 +481,20 @@ export default function MineScreen() {
               边距由外层 Gutter 给，卡片就不再自己扛 marginHorizontal —— 否则两处叠加 */}
           <Gutter>
             <Card padded={false}>
+              {/* 主路径与备选路径各占一行：主路径存到手机，备选路径只发出去、不在本机留副本。
+                  ★ 不把「发送」藏进弹窗 —— 那是备份这件事里唯一真正防丢的动作，
+                  排成一行反而更好找；藏起来等于把它做成「找不到的第二选项」。 */}
               <SettingRow
-                label="生成备份包"
+                label={canSaveToDevice() ? '备份到手机文件夹' : '生成备份包'}
                 value={backupBusy ? '处理中…' : backupWhen}
                 valueTone={backupStale ? 'brand' : 'ink3'}
                 onPress={runBackup}
+              />
+              <SettingRow
+                label="发送备份包"
+                value={backupBusy ? '处理中…' : undefined}
+                valueTone="ink3"
+                onPress={runSendBackup}
               />
               <SettingRow
                 label="导出物品清单"
@@ -511,7 +535,7 @@ export default function MineScreen() {
               </Meta>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="立即生成备份包"
+                accessibilityLabel={backupA11yLabel}
                 onPress={busy ? undefined : runBackup}
                 android_ripple={{ color: Palette.rippleOnAccent }}
                 style={({ pressed }) => [styles.backupBtn, pressed && styles.backupBtnPressed]}>
