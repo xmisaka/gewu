@@ -633,7 +633,12 @@ export default function MineScreen() {
         <SectionCard title="支持格物">
           <Gutter>
             <Card padded={false}>
-              {AFDIAN_URL.length > 0 ? (
+              {/* ★ 已激活就不再摆这一行。它的全部含义是「还没买 → 去买」，
+                  对一个已经付过钱的人，这是设置页里的一句多余广告 ——
+                  他该看的是下面那行「支持者状态」。
+                  （唯一没承接的是「买一份送人」：爱发电那边下单即自动发码给买家本人，
+                    要做转赠得另设一套机制，不在这一版。） */}
+              {AFDIAN_URL.length > 0 && !entitled ? (
                 <SettingRow
                   label="去爱发电支持"
                   value="¥36 一次买断"
