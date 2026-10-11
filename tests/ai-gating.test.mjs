@@ -23,7 +23,7 @@ const read = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8');
 /** 必须自己挡总开关的文件 */
 const GATED_FILES = [
   ['../src/app/(tabs)/index.tsx', '首页搜索框右侧的麦克风与星标'],
-  ['../src/app/(tabs)/compose.tsx', '录入页右上的语音 / 批量识图，以及照片条的识物'],
+  ['../src/app/compose.tsx', '录入页右上的语音 / 批量识图，以及照片条的识物'],
   ['../src/app/ask.tsx', '问一问页（深链兜底）'],
   ['../src/app/voice.tsx', '语音录入页（深链兜底）'],
   ['../src/app/batch.tsx', '批量识图页（深链兜底）'],
@@ -121,7 +121,7 @@ test('识物入口的判据只有一个来源：ItemForm 不自己读 AI store',
 });
 
 test('录入页传识物回调时同时看总开关与看图能力', () => {
-  const src = read('../src/app/(tabs)/compose.tsx');
+  const src = read('../src/app/compose.tsx');
   assert.match(
     src,
     /onAiRecognize=\{[^}]*aiEnabled[^}]*canRecognize[^}]*\}/,

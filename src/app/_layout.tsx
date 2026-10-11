@@ -3,6 +3,7 @@
  *
  * 结构：Stack
  *   ├─ (tabs)            五个底部标签页
+ *   ├─ compose           录入（底部中央按钮压栈打开，**不再是 tab** —— 见下）
  *   ├─ item/[id]         物品详情
  *   ├─ item/[id]/edit    编辑（复用录入表单）
  *   ├─ item/[id]/duplicate  复制为新物品（同一张表单，落的是新记录）
@@ -18,6 +19,11 @@
  * 分类与位置**选择器**刻意不做成路由，而是录入页内的 Modal ——
  * 它们不承载独立语境，做成路由会让返回栈与表单状态纠缠。
  * 但「分类管理」是一条独立语境（改完才回去），所以它是路由。
+ *
+ * ★ 录入页（`compose`）曾经是 `(tabs)` 里的第五格，2026-10-11 挪到这里。
+ *   原因是 **tab 不压栈**：从柜子详情 push 进去等于切 tab，返回键会落到第一格
+ *   （我的物品），回不到那个柜子；来源柜子也没处可带。
+ *   挪成 Stack 路由后两件事都自然成立 —— 详情见 `app/compose.tsx` 文件头。
  *
  * 启动时预热数据库（建表 + seed 内置分类），失败不阻塞界面，
  * 各页面自行展示空态或错误，比白屏更可诊断。
@@ -41,6 +47,7 @@ import { hydrateApiKey } from '@/lib/photos/stock';
 import { AiProvider } from '@/lib/store/ai';
 import { AppStateProvider, useAppState } from '@/lib/store/app-state';
 import { EntitlementProvider } from '@/lib/store/entitlement';
+import { NotifyProvider } from '@/lib/store/notify';
 import { UpdateProvider, useUpdate } from '@/lib/store/update';
 import { ThemeProvider, useTheme } from '@/lib/theme';
 
@@ -67,11 +74,15 @@ export default function RootLayout() {
         <EntitlementProvider>
           <ThemeProvider>
             <AppStateProvider>
-              <AiProvider>
-                <UpdateProvider>
-                  <AppShell />
-                </UpdateProvider>
-              </AiProvider>
+              {/* 到期提醒的运行时：要读 `dataVersion` 才知道「数据变了、该重排通知了」，
+                  所以必须在 AppStateProvider 内层。它不依赖主题与权益。 */}
+              <NotifyProvider>
+                <AiProvider>
+                  <UpdateProvider>
+                    <AppShell />
+                  </UpdateProvider>
+                </AiProvider>
+              </NotifyProvider>
             </AppStateProvider>
           </ThemeProvider>
         </EntitlementProvider>
@@ -121,6 +132,9 @@ function AppShell() {
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack screenOptions={screenOptions}>
         <Stack.Screen name="(tabs)" />
+        {/* 录入页。走普通压栈（不是 modal）：它是「记一件东西」的主场，
+            压在来处那一屏之上，返回即回到来处 */}
+        <Stack.Screen name="compose" />
         <Stack.Screen name="item/[id]/index" />
         <Stack.Screen name="item/[id]/edit" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen

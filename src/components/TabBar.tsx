@@ -2,6 +2,10 @@
  * 格物 · 底部标签栏
  *
  * 五格：物品 / 相册 / 录入（中央突起）/ 提醒 / 我的。
+ * ★ 其中只有四格是真正的 Tabs.Screen：**录入已挪到根 Stack**（`app/compose.tsx`），
+ *   中央这枚改成 `push('/compose')`。原因是 tab 不压栈 —— 从柜子详情进来录完一件，
+ *   返回会落到第一格（我的物品）而不是那个柜子（2026-10-11 真机反馈）。
+ *   底部视觉不变（本组件完全自绘，五格照画）。
  *
  * 决策记录（见视觉稿说明）：位置视图不占底部 Tab，改挂在「物品」页右上角
  * 的「列表 / 位置」切换器上 —— 否则低频入口会挤掉高频入口。
@@ -13,6 +17,7 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -48,6 +53,7 @@ export interface TabBarProps {
 export default function TabBar({ state, navigation, badgeCount = 0 }: TabBarProps) {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, Space.sm) }]}>
@@ -67,7 +73,11 @@ export default function TabBar({ state, navigation, badgeCount = 0 }: TabBarProp
               key={tab.name}
               accessibilityRole="button"
               accessibilityLabel="录入新物品"
-              onPress={onPress}
+              /* ★ 压栈打开，不切 tab —— 录入页已不在 `(tabs)` 里（`state.routes` 里
+                 根本找不到它，上面那个 `routeIndex >= 0` 的判断对它恒为 false）。
+                 压栈之后返回键才回得到来处（比如某个柜子详情）。
+                 它不在 `(tabs)` 里时这一屏根本不渲染 —— 所以不必防重入。 */
+              onPress={() => router.push('/compose')}
               style={styles.cell}>
               <View style={styles.centerButton}>
                 <Ionicons name="add" size={26} color={Palette.onAccent} />

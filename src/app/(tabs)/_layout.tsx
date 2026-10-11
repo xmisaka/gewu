@@ -23,9 +23,12 @@ export default function TabsLayout() {
       tabBar={(props) => <TabBar {...props} badgeCount={stats.attentionCount} />}>
       <Tabs.Screen name="index" />
       <Tabs.Screen name="album" />
-      <Tabs.Screen name="compose" />
       <Tabs.Screen name="alerts" />
       <Tabs.Screen name="mine" />
+      {/* ★ 录入页不在这里 —— 2026-10-11 挪到了根 Stack（`app/compose.tsx`）。
+          tab 不压栈，从柜子详情进来录完一件后返回会落到第一格（我的物品）
+          而不是那个柜子；位置默认值也带不过来来源柜子。
+          它仍然占着底部中央那一格，只是由 TabBar 用 push 打开 —— 见 components/TabBar.tsx。 */}
     </Tabs>
   );
 }

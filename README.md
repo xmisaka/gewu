@@ -275,9 +275,10 @@ gradlew.bat assembleRelease --no-daemon --console=plain --no-parallel
 src/
   app/                     页面（expo-router 文件路由）
     _layout.tsx            根 Stack + 数据库预热
-    (tabs)/                五个底部标签页
+    (tabs)/                四个底部标签页（物品 / 相册 / 提醒 / 我的）
       index.tsx            物品（列表 / 位置双视图）
-      album.tsx  compose.tsx  alerts.tsx  mine.tsx
+      album.tsx  alerts.tsx  mine.tsx
+    compose.tsx            录入（底部中央那枚压栈打开；**不在 (tabs) 里**）
     item/[id]/             详情、编辑、复制为新物品
     cabinet/               柜子管理、柜内格位
     category/index.tsx     分类管理（新建 / 改名 / 排序 / 删除）

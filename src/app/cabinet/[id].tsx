@@ -115,10 +115,17 @@ export default function CabinetDetailScreen() {
         </View>
 
         <Gutter>
+          {/* ★ 把柜子**带上**：录入页拿它当位置默认值。
+              以前只是 `push('/compose')`，于是位置只能取「上次用过的那个」，
+              从别的柜子进来时那个值是错的（2026-10-11 真机反馈）。
+              同一个 push 也把这一页压进了返回栈 —— 录完返回键回到这个柜子。
+
+              参数走路由参数而不是全局变量：绑在这一次的录入页实例上，
+              从别处（底部中央按钮）再进去时自然就没有了，不会串味。 */}
           <Button
             label={`在「${cabinet.name}」里录一件`}
             icon="add"
-            onPress={() => router.push('/compose')}
+            onPress={() => router.push({ pathname: '/compose', params: { locationId: cabinet.id } })}
             style={styles.primaryAction}
           />
         </Gutter>

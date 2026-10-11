@@ -14,7 +14,7 @@ import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, View } from 
 
 import { ContactSection } from '@/components/domain/ContactSection';
 import { ThemePickerModal } from '@/components/domain/ThemePickerModal';
-import { SettingRow } from '@/components/ui/controls';
+import { Segmented, SettingRow } from '@/components/ui/controls';
 import { StockKeyModal, stockKeyStatus } from '@/components/domain/StockKeyModal';
 import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { Loading, MetricStrip, PlainTag } from '@/components/ui/feedback';
@@ -23,6 +23,8 @@ import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { DARK_THEME_KEY, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES, type ThemeKey } from '@/constants/theme';
 import { AFDIAN_URL, SITE_URL, siteUrlWithSkin } from '@/constants/site';
 import { isThemeLocked, type SupporterFeature } from '@/lib/entitlement';
+import { clampLeadDays, describeNextNotification } from '@/lib/notify/plan';
+import { useNotify } from '@/lib/store/notify';
 import { useEntitlement } from '@/lib/store/entitlement';
 import { useUpdate } from '@/lib/store/update';
 import { updateStatusText } from '@/lib/update/policy';
@@ -75,6 +77,7 @@ export default function MineScreen() {
   const { entitled } = useEntitlement();
   const { active: aiActive, hasKey: aiHasKey } = useAi();
   const { status, local, checkNow, autoCheck, setAutoCheck } = useUpdate();
+  const notify = useNotify();
   const activeTheme = THEMES[activeKey];
   const [busy, setBusy] = useState<string | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
@@ -313,6 +316,28 @@ export default function MineScreen() {
         : '未配置';
   const aiRowTone = aiActive ? 'brand' : 'ink3';
 
+  /**
+   * 「到期提醒」那一行下面的说明。**四种状态说四件不同的事**：
+   *
+   * ★「系统里没给权限」与「自己关掉了」必须分开 —— 前者要去系统设置里开，
+   *   后者只要在这儿拨一下。写成同一句话，用户会在 App 里拨来拨去，而问题不在 App 里。
+   * ★ 开着时如实报「已排 N 条」：这个数会随数据变，用户看得见它在动，
+   *   就不会怀疑「开了到底有没有用」。
+   */
+  const notifyNextText =
+    notify.nextAt != null ? ` · 最近一条 ${describeNextNotification(notify.nextAt)}` : '';
+  const notifyHint = notify.busy
+    ? '正在等待系统授权…'
+    : !notify.ready
+      ? '正在检查系统通知权限…'
+      : notify.enabled && notify.permission !== 'granted'
+        ? '系统里没给通知权限：到系统「设置 → 应用 → 格物 → 通知」里打开'
+        : !notify.active
+          ? '关闭后不会有任何通知；数据仍在这台手机里'
+          : notify.scheduledCount > 0
+            ? `已排 ${notify.scheduledCount} 条${notifyNextText}`
+            : '暂时没有要提醒的 —— 有物品快到期时会自动排上';
+
   return (
     <Screen>
       <PageHeader title="我的" subtitle="数据都在这台手机里，请留意备份" />
@@ -447,6 +472,53 @@ export default function MineScreen() {
                 onPress={() => router.push('/trash')}
                 last
               />
+            </Card>
+          </Gutter>
+        </SectionCard>
+
+        {/* 到期提醒。单独一张卡，不塞进「整理」——
+            它是同一件事的两个旋钮（要不要提醒、提前几天），混进「整理」
+            会让那张卡变成「什么都有一点」的抽屉。
+            ★ 默认关：打开它要弹系统的通知权限框，那是用户的决定，不替他做。 */}
+        <SectionCard title="提醒">
+          <Gutter>
+            <Card padded={false}>
+              <View style={[styles.switchRow, !notify.active && styles.rowLast]}>
+                <View style={styles.switchText}>
+                  <Body tone="ink2">到期提醒</Body>
+                  <Meta tone="ink4" style={styles.switchDesc}>
+                    {notifyHint}
+                  </Meta>
+                </View>
+                <Switch
+                  value={notify.active}
+                  /* 偏好还没读出来、或正在等系统授权时挡住 ——
+                     否则用户会连点两下，等于连弹两次权限框 */
+                  disabled={!notify.ready || notify.busy}
+                  onValueChange={(next) => void notify.setEnabled(next)}
+                  trackColor={{ false: Palette.line, true: Palette.brandBg }}
+                  thumbColor={notify.active ? Palette.brand : Palette.surface}
+                  accessibilityLabel="到期提醒"
+                />
+              </View>
+
+              {/* 「提前几天」只在**真的会响**时才给。关着（或没权限）的时候
+                  摆一排按钮，用户会以为点了就生效 —— 那是假的 */}
+              {notify.active ? (
+                <View style={styles.notifyLeadRow}>
+                  <Body tone="ink2">提前几天提醒</Body>
+                  <Segmented
+                    value={String(notify.leadDays)}
+                    options={[
+                      { value: '0', label: '当天' },
+                      { value: '1', label: '1 天' },
+                      { value: '3', label: '3 天' },
+                      { value: '7', label: '7 天' },
+                    ]}
+                    onChange={(next) => void notify.setLeadDays(clampLeadDays(next))}
+                  />
+                </View>
+              ) : null}
             </Card>
           </Gutter>
         </SectionCard>
@@ -743,6 +815,17 @@ const useStyles = makeStyles((Palette) => ({
   },
   switchText: { flex: 1 },
   switchDesc: { marginTop: 2, lineHeight: 18, fontSize: 12.5 },
+
+  /* 提醒卡的第二行：标签在上、档位在下。
+     ★ 刻意不把它挤进 switchRow —— 「提前几天」+ 四个档位在 320dp 屏或系统放大字体下
+       会顶出卡片，而 Card 是 overflow:'hidden'，挤出去**不报错**，只是看不见。 */
+  notifyLeadRow: {
+    paddingHorizontal: Space.lg,
+    paddingVertical: Space.md,
+    gap: Space.sm,
+  },
+  /* 条件行消失时，别在卡片底部留一条悬空的线 */
+  rowLast: { borderBottomWidth: 0 },
 
   supportNote: { marginTop: Space.sm, paddingHorizontal: Space.lg, lineHeight: 19 },
 

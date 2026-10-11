@@ -94,6 +94,15 @@ export interface PageHeaderProps {
   title: string;
   /** 标题下方的一行小字 */
   subtitle?: string;
+  /**
+   * 左侧动作区（通常是一个返回箭头）。
+   *
+   * ★ 只有**压栈进来的全屏页**需要它 —— `cabinet/[id]`、`item/[id]` 那两页
+   *   自建了一条 topBar 放过它，录入页没有那条栏，所以给它一个插槽。
+   *   注意：给了 left 之后标题会往右让出一枚按钮的宽度，这是故意的 ——
+   *   不给的话它就得和左边那枚返回键叠在一起。
+   */
+  left?: ReactNode;
   /** 右侧动作区 */
   right?: ReactNode;
 }
@@ -101,11 +110,12 @@ export interface PageHeaderProps {
 /**
  * 衬线大标题 + 可选副标题。所有主页面共用，保证标题基线一致。
  */
-export function PageHeader({ title, subtitle, right }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, left, right }: PageHeaderProps) {
   const styles = useStyles();
   return (
     <View style={styles.header}>
       <View style={styles.headerRow}>
+        {left ? <View style={styles.headerLeft}>{left}</View> : null}
         <Display style={styles.headerTitle}>{title}</Display>
         {right ? <View style={styles.headerRight}>{right}</View> : null}
       </View>
@@ -174,6 +184,8 @@ const useStyles = makeStyles((Palette) => ({
   gutter: { paddingHorizontal: GUTTER },
   header: { paddingHorizontal: GUTTER, paddingTop: Space.md, paddingBottom: Space.md },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Space.md },
+  /* 左侧动作与右侧同一个道理：跟标题的衬线大字的基线对齐要靠这点上内距 */
+  headerLeft: { paddingTop: Space.xs },
   headerTitle: { flex: 1 },
   headerRight: { paddingTop: Space.xs },
   headerSub: { marginTop: Space.xs },

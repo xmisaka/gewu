@@ -22,6 +22,7 @@ import { adjustQuantity, listExpiring, listLowStock, setQuantity } from '@/lib/d
 import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { stockLabel } from '@/lib/stock';
 import { useAppState } from '@/lib/store/app-state';
+import { useNotify } from '@/lib/store/notify';
 import type { ExpiringGroup } from '@/lib/types';
 import { makeStyles } from '@/lib/theme';
 
@@ -35,6 +36,7 @@ export default function AlertsScreen() {
   const styles = useStyles();
   const router = useRouter();
   const { dataVersion, bump } = useAppState();
+  const notify = useNotify();
   const [undo, setUndo] = useState<UndoAction | null>(null);
 
   const state = useAsyncData(
@@ -109,7 +111,16 @@ export default function AlertsScreen() {
               这一页分两件事盯着：快过期的，和快用完该补货的。
             </Meta>
             <Meta tone="ink4" style={styles.noticeText}>
-              V1 不会主动推送通知，打开这一页即可查看。系统级提醒计划在后续版本加入。
+              {/* 这句是**对用户的承诺**，功能上了就必须跟着改 ——
+                  还写着「计划在后续版本加入」就是骗人。
+                  ★「没给权限」与「自己关着」分开说：前者要去系统设置里开 */}
+              {notify.active
+                ? notify.leadDays === 0
+                  ? '已开启到期提醒：到期当天在系统通知栏提醒你。'
+                  : `已开启到期提醒：提前 ${notify.leadDays} 天在系统通知栏提醒你。`
+                : notify.enabled
+                  ? '系统里没给通知权限，所以现在不会主动提醒 —— 到系统设置里打开，或者就在这里看。'
+                  : '不会主动推送通知，打开这一页即可查看。想让它提醒你，去「我的」页打开「到期提醒」。'}
             </Meta>
           </Card>
         </Gutter>

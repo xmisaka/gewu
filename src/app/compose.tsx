@@ -5,6 +5,17 @@
  * 因此主按钮是「保存并录下一件」而不是「完成」—— 界面要推着用户往前走，
  * 而不是引导他退出。保存后自动沿用刚才的位置与分类。
  *
+ * ── 2026-10-11：从 `(tabs)/` 挪到根 Stack ────────────────────────
+ * 起因是两条真机反馈：① 从柜子详情进来录完一件，返回落到「我的物品」而不是那个柜子；
+ * ② 位置默认值只取上次用过的，不会取「我是从哪个柜子进来的」。
+ * 根子是 **tab 不压栈**：`router.push('/compose')` 在 tab 导航里等于切 tab，
+ * 上面两件事都无处安放。挪成 root Stack 路由之后 ——
+ *   · 压栈 → 返回键天然回到来处（柜子详情 / 原来那个 tab）；
+ *   · 参数绑在这一份实例上（`?locationId=`），不会串到下一次进入。
+ * 底部中央那枚按钮改为 `router.push('/compose')`（见 components/TabBar.tsx）。
+ *
+ * ★ 默认位置优先级：**本次会话刚录过的 > 来源柜子（路由参数）> 上次用过的位置**。
+ *
  * ── 识物预填接在这一页 ──────────────────────────────────────────
  * 表单本身不知道「支持者档」「有没有配 Key」，那是这一页的判断：
  * 需要时把 `onAiRecognize` 传下去，识物入口才出现。
@@ -13,7 +24,7 @@
  * 照片照旧留着（否则一次网络抖动会让用户白拍一张）。
  */
 
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 
 import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
@@ -46,6 +57,16 @@ import { useTheme } from '@/lib/theme';
 
 export default function ComposeScreen() {
   const router = useRouter();
+  /**
+   * 来源柜子：从柜子详情的「在「X」里录一件」压栈进来时会带上它。
+   *
+   * ★ 走路由参数而不是「记一个模块级变量」：参数绑在这一份实例上，
+   *   下一次从别处进来自然就没有了，不会串味（后者在返回栈被折叠时
+   *   会留下一个永远不该生效的「上次从哪来」）。
+   */
+  const { locationId: originParam } = useLocalSearchParams<{ locationId?: string }>();
+  const originLocationId =
+    typeof originParam === 'string' && originParam.length > 0 ? originParam : null;
   const { bump, dataVersion } = useAppState();
   // 本页没有样式表，但底下那行提示用的是内联取色 ——
   // 取 tokens 这个动作同时建立主题订阅，否则换肤时它不会更新
@@ -55,7 +76,16 @@ export default function ComposeScreen() {
   const [formKey, setFormKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
-  const [defaultLocationId, setDefaultLocationId] = useState<string | null>(null);
+  /**
+   * 本次会话里刚录那件的位置（连续录入沿用）。
+   *
+   * ★ 三态，`undefined` 与 `null` **不是一回事**：
+   *   `undefined` ＝ 本次还没保存过 → 才允许回落到来源柜子 / 上次用过的位置；
+   *   `null`      ＝ 用户就是把位置留空了 → 下一件也该是空的。
+   *   拿 `null` 当「没保存过」，用户手动清掉位置之后又会被来源柜子填回去 ——
+   *   那是把用户的动作吃掉了，而且不报错。
+   */
+  const [sessionLocationId, setSessionLocationId] = useState<string | null | undefined>(undefined);
   /** 免费档点识物或语音时弹的门控浮层 */
   const [gateOpen, setGateOpen] = useState(false);
 
@@ -71,9 +101,14 @@ export default function ComposeScreen() {
   const categoryState = useAsyncData(() => listCategories(), [dataVersion], []);
   const cabinetState = useAsyncData(() => listCabinetViews(), [dataVersion], []);
 
-  // 首次进入时，沿用上次用过位置；之后沿用本次会话中刚录的位置
+  /* ★ 读 lastUsedLocationId 这一条也必须算进下面的 loading 闸门：它同样是异步的，
+     不等它的话表单会先拿 null 挂载，而 ItemForm 的 `defaults` 只被 useState 取一次初值
+     —— 数据后到也补不上，表现就是「上次的位置偶发不生效」：不报错，只在慢机上出现。 */
   const lastLocationState = useAsyncData(() => lastUsedLocationId(), [], null as string | null);
-  const effectiveLocation = defaultLocationId ?? lastLocationState.data;
+  const effectiveLocation =
+    sessionLocationId !== undefined
+      ? sessionLocationId
+      : (originLocationId ?? lastLocationState.data);
 
   const categoryNames = categoryState.data.map((c) => c.name);
 
@@ -159,6 +194,19 @@ export default function ComposeScreen() {
     [entitled, aiActive, aiEnabled, record, categoryNames],
   );
 
+  /**
+   * 收工走人。
+   *
+   * ★ 用 `router.back()` 而不是 `replace('/')`：这一页是压栈进来的，
+   *   下面压着的就是用户想回去的那一屏（柜子详情，或原来那个 tab）。
+   *   写成 `replace('/')` 会把「从柜子进来」的人硬拖回物品页 ——
+   *   那正是这条反馈要修的毛病。无栈可退（冷启动深链直达）才回物品页。
+   */
+  const leave = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  }, [router]);
+
   const handleSubmit = async (payload: FormPayload, action: 'primary' | 'secondary') => {
     setSubmitting(true);
     try {
@@ -170,26 +218,29 @@ export default function ComposeScreen() {
       if (payload.coverPath) await promotePhoto(itemId, payload.coverPath);
 
       setLastSaved(payload.draft.name);
-      setDefaultLocationId(payload.draft.locationId ?? null);
+      setSessionLocationId(payload.draft.locationId ?? null);
       bump();
 
       if (action === 'primary') {
         // 继续录下一件：清空表单，但保留位置默认值
         setFormKey((k) => k + 1);
       } else {
-        router.replace('/');
+        leave();
       }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const loading = categoryState.loading || cabinetState.loading;
+  const loading = categoryState.loading || cabinetState.loading || lastLocationState.loading;
 
   return (
     <Screen>
       <PageHeader
         title="录入"
+        /* 这一页现在是压栈来的（见文件头），左上一个返回是它该有的样子。
+           它和系统返回键是同一个动作：都回到压着这一页的那一屏。 */
+        left={<IconButton icon="chevron-back" accessibilityLabel="返回" onPress={leave} />}
         subtitle={lastSaved ? `刚记下「${lastSaved}」，继续下一件` : '每件东西只敲一个名字就能存'}
         /* 语音入口这里留一个，首页搜索框右侧还有一个（那一格与星标并排，
            是设计稿 01 屏的画法）。两处不是重复，分工不同：

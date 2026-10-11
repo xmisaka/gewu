@@ -53,6 +53,12 @@
 > **★ 三条不变量：① 开关只关「自动」，手动入口永不挡（挡了＝把唯一更新通路堵死）；**
 > **② 默认开、读不到当开；③ 重新打开时清 `update.lastCheckAt`，否则刚拨开要等满 24h 才查得到。**
 > **见「四之三 · App 侧「检查更新」现在的行为（四态 + 一个开关）」。**
+>
+> **更新：2026-10-11 ③—— 录入页从 `(tabs)` 挪到根 Stack（新增「九、真机反馈：录入页的两条」）。**
+> **起因：用户报两条 —— ① 每次新增，位置都取上一次的位置，从某个柜子进去新增也一样；**
+> **② 从柜子下新增录完一件，返回总是回到「我的物品」而不是那个柜子的详情页。**
+> **★ 根子是**同一个**：tab 不压栈。`router.push('/compose')` 在 tab 导航里等于切 tab，**
+> **所以既回不到来处，也没处安放「我是从哪个柜子进来的」。挪成根 Stack 路由后两条一起好。**
 
 ---
 
@@ -64,7 +70,7 @@ V1 的功能闭环是完整的：录入 → 组织 → 找回 → 到期 → 备
 
 | 排序 | 编号 | 事项 | 为什么值得 | 量级 | 状态 |
 |---|---|---|---|---|---|
-| 1 | A11 | 到期提醒（本地通知） | 产品自己承诺的 V2 项，是「到期」模块的闭环 | 中 | 待办 |
+| 1 | A11 | 到期提醒（本地通知） | 产品自己承诺的 V2 项，是「到期」模块的闭环 | 中 | **方案已定（见第十章）** |
 | 2 | A6 | ~~统计 / 洞察页~~ | 数据全在库里，兑现「知道它们值不值」 | 中 | ✅ **已落地（v2.1）** |
 | 3 | A8 | ~~照片全屏查看 + 设为封面~~ | 盘点、理赔、出手时要看清型号，现在看不清 | 小 | ✅ **已落地（v2.1）** |
 | 4 | A4 | ~~数量 / 库存~~ | 食品药品只能记「有」，不能记「还有 3 瓶」 | 中 | ✅ **已落地（v3 迁移 · v1.5.0）** |
@@ -283,8 +289,10 @@ V1 的功能闭环是完整的：录入 → 组织 → 找回 → 到期 → 备
 - ★ **绝不 prebuild**（与语音同一条禁令）。
 - ★ 通知只是「提醒」而非「催办」：失败或没权限时**一律静默降级**回「App 内可见」，不打断主流程。
 
-**做法（待细化）**：本地定时通知（不涉推送服务、不需要服务器），按 `expire_date` 提前触发；
-开关与提前天数放「我的」页，**建议默认关**（不打扰老用户）。
+**做法**：本地定时通知（不涉推送服务、不需要服务器），按 `expire_date` 提前触发；
+开关与提前天数放「我的」页，**默认关**（不打扰老用户）。
+→ **方案已定，见「十、系统级到期提醒（本地通知）」**（含逐条从 `expo-notifications@57.0.22`
+包里核实过的事实：**不需要 prebuild、不需要手改权限**，库自带的清单会经 Gradle 合并进来）。
 
 **量级**：中
 
@@ -1255,3 +1263,262 @@ Android 实现 = 现有验签。iOS 接入时**只新增一个实现**，不碰�
   项目里已经踩过「键盘盖住输入框 + 弹层可见性随 ROM 而异」。原生 modal presentation 没有这个问题。
 
 **校验**：`npm run verify` 全绿；测试 504 → **510**。
+
+## 九、真机反馈：录入页的两条（2026-10-11）
+
+用户报的两条：
+
+1. **位置默认值不对** ——「每次新增，位置都会取上一次的位置。就算是从某个位置下新增物品，
+   取的还是上次的位置，不是这个柜子。」
+2. **返回去错地方** ——「录入界面返回总是回到我的物品页。就算我是从柜子下新增录入进的新增页面，
+   返回也是物品列表页，而不是这个柜子的详情页。」
+
+### 9.1 根因：只有一条 —— tab 不压栈
+
+录入页原本是 `app/(tabs)/compose.tsx`，是底部五格里的**一格**。
+从柜子详情按「在「X」里录一件」时走的是 `router.push('/compose')`，而在 tab 导航里
+这等于**切 tab**，不是压栈：
+
+- 根 Stack 上压在 `(tabs)` 上面的 `cabinet/[id]` 因此**不在返回路径上** ——
+  安卓返回键落到 tabs 的第一格（物品页）。这就是第 2 条。
+- 既然是「切 tab」，就没有地方能带上「我是从哪个柜子进来的」——
+  录入页的位置默认值只能问「上次用过哪个位置」（`lastUsedLocationId()`），
+  于是从 A 柜进去、录的却是 B 柜的位置。这就是第 1 条。
+
+★ 两条反馈看着是两件事，修法却是同一处。
+
+### 9.2 改法
+
+| 落点 | 内容 |
+|---|---|
+| `src/app/compose.tsx`（`git mv` 自 `(tabs)/`） | 挪到**根 Stack**。压栈 → 返回键天然回到来处；来源柜子走 `useLocalSearchParams` 读 `?locationId=` |
+| `src/app/_layout.tsx` | 注册 `<Stack.Screen name="compose" />`，普通压栈（不是 modal） |
+| `src/app/(tabs)/_layout.tsx` | 去掉 `Tabs.Screen name="compose"` |
+| `src/components/TabBar.tsx` | 中央那枚改为 `router.push('/compose')`（**不再是** `navigation.navigate`）。底部五格视觉不变 —— 这组件完全自绘，`TAB_ORDER` 照画 |
+| `src/components/ui/layout.tsx` | `PageHeader` 补 `left?: ReactNode`（压栈进来的全屏页要一枚返回） |
+| `src/app/cabinet/[id].tsx` | 「录一件」带上 `params: { locationId: cabinet.id }` |
+| `tests/routing.test.mjs`（新） | 4 条静态断言，把上面这套钉住 |
+
+**位置默认值的三级回落**：`本次会话刚录过的 > 来源柜子（路由参数）> 上次用过的位置`。
+
+### 9.3 几条落地时才定下来的
+
+- ★★ **来源走路由参数，不走模块级变量**。参数绑在这一份录入页实例上，
+  从底部中央按钮再进来时自然就没有了；而「记一个 `lastOrigin` 全局变量」会在
+  返回栈被折叠时留下一个永远不该生效的「上次从哪来」——**那是不报错的串味**。
+- ★★ **`undefined` 与 `null` 在这里不是一回事**。会话默认位置用**三态**：
+  `undefined`＝本次还没保存过（才允许回落到来源柜子 / 上次用过的位置）；
+  `null`＝用户**就是**把位置留空了（下一件也该是空的）。
+  拿 `null` 当「没保存过」，用户手动清掉位置之后又会被来源柜子填回去 —— 又是把用户的动作吃掉。
+- ★★ **顺手修掉一个既有的静默 bug**：`lastUsedLocationId()` 是异步的，但它**没算进页面的
+  loading 闸门** —— 表单会先拿 `null` 挂载，而 `ItemForm` 的 `defaults` 只被 `useState`
+  取一次初值，数据后到也补不上。表现是「上次的位置偶发不生效」，不报错、只在慢机上出现。
+  这一条与第 1 条同源：位置默认值这条链上任何一处「先渲染后补数据」都会让它悄悄失效。
+- ★ **收工不再 `router.replace('/')`**：改成 `leave()` ＝ `canGoBack() ? back() : replace('/')`。
+  无栈可退只出现在冷启动深链直达那一种情况。
+- ★ **`PageHeader` 给了 `left` 之后标题会往右让出一枚按钮的宽度** —— 这是故意的：
+  不让的话它得和返回键叠在一起。`cabinet/[id]`、`item/[id]` 那两页自建 topBar，不受影响。
+- ★ **录入页不再有底部 Tab 栏**（根 Stack 路由会盖住 `(tabs)`）。这是这次唯一可见的形态变化：
+  它是「记一件东西」的主场，全屏更专注；代价是从这一页去别的 tab 要先返回。
+  左上那枚返回就是为此加的 —— 它和系统返回键是同一个动作。
+
+**校验**：`npm run verify` 全绿（lint / typecheck / 颜色审计 / 测试）；测试 510 → **514**；
+`.expo/types/router.d.ts` 起一次 `expo start` 重新生成（旧文件里还留着 `(tabs)/compose`）；
+打包级冒烟：`.expo/.virtual-metro-entry.bundle` 200、bundle 内已无 `tabs)/compose`。
+
+## 十、系统级到期提醒（本地通知）（2026-10-11 方案）
+
+> 起因：用户「先梳理下系统提醒的方案，等它做完一起打包」。
+> 这一章是**方案**（不是落地记录）—— 落地后在这一章末尾追加「落地记录」小节，别另开一章。
+
+### 10.0 一句话
+
+**不引服务器、不申请精确定时权限**：App 每次启动/数据变动时，把「接下来的到期日」
+重新排成一批本地通知（系统 AlarmManager 落盘、开机自恢复）；关掉开关即全部撤销。
+
+### 10.1 前置事实（逐条从 `expo-notifications@57.0.22` 包里读出来的）
+
+> ★ 这一节不是查文档得来的结论 —— 是 `npm pack expo-notifications@57.0.22` 解开后
+> 读插件源码与库自带清单得出的。**这类「能不能做」的判断必须落到包上。**
+
+1. ★★★ **不需要 prebuild、不需要手改权限。** 库自带 `android/src/main/AndroidManifest.xml`：
+   - `uses-permission`：`RECEIVE_BOOT_COMPLETED`、`POST_NOTIFICATIONS`
+   - `receiver .service.NotificationsService`：监听 `BOOT_COMPLETED` / `REBOOT` /
+     `QUICKBOOT_POWERON` / `MY_PACKAGE_REPLACED` → **关机重启后自动重排**（这是「真能提醒到」的关键）
+   - `activity .service.NotificationForwarderActivity`（点通知跳回 App 用）
+   这些由 **Gradle 的 manifest 合并**并进最终 APK —— 与 prebuild 无关。
+   ★★ 而**配置插件（config plugin）一条权限都不加**，它只做「通知栏图标 / 颜色 / 默认渠道」
+   三件事 + 往 `<application>` 塞两条 meta-data。→ **「绝不 prebuild」这条禁令不用打破。**
+2. **定时走 AlarmManager**（`service/delegates/ExpoSchedulingDelegate.kt`）：
+   `SDK < S || canScheduleExactAlarms()` 为真才用 `setExactAndAllowWhileIdle`，否则退化为
+   `setAndAllowWhileIdle`。库**没有**声明 `SCHEDULE_EXACT_ALARM`，而本项目 targetSdk = 36
+   （`expo-modules-core` 的默认值）→ `canScheduleExactAlarms()` 恒为 false → **一定非精确**：
+   可能晚几分钟到几十分钟（Doze 下更久）。
+   ★ **这是刻意的，不补权限**：「到期前 3 天提醒」不需要分钟级精度，换来**零新权限弹窗**。
+   （`SCHEDULE_EXACT_ALARM` 是给闹钟/日历类应用的。）
+3. **本地通知在 Expo Go 里仍然可用**（SDK 53 起被移出 Expo Go 的只是**远程推送**）
+   → 开发期真机自测不必切 dev build，现有工作流不变。
+4. **会拖进 `com.google.firebase:firebase-messaging:25.0.1`**（模块 `build.gradle` 里的
+   `implementation`）。无 `google-services.json` 时**冷启动不会崩**：`FirebaseMessaging.getInstance()`
+   只在推送相关的 `getDevicePushTokenAsync` 里被调用，且外面包了 `try/catch`；
+   `NotificationsPackage` 只注册了一个 lifecycle listener，本地通知路径根本不碰 Firebase。
+   ★ 但 **APK 会变大**、firebase 的清单会多合并进来几个 receiver/service
+   → 打包后必须按既有规矩做**双版本差分**（权限计数差 + 体积差）。
+5. 已排队的通知**存在 SharedPreferences**，App 进程不常驻也照样按时触发。
+
+### 10.2 口径：只做「到期」，不做「补货」
+
+- 到期有**日期** → 可以提前排；
+- 补货只有一个数量、**没有时间轴**。唯一能发的那一刻是「刚用完」，而那一下用户正拿着手机看 App
+  —— 通知没有意义。
+- 所以通知只覆盖 `expire_date`；「该补货了」继续留在 App 内（提醒页 + 标签栏角标）。
+- ★ 与既有的「两个口径别混」一致：`attentionCount` 是**页面**的口径，
+  通知**不是它的投影** —— 别为了「数字对上」把补货也塞进通知。
+
+### 10.3 偏好与标识
+
+新增 meta 键（**不进备份包、恢复出厂清掉** —— 沿用既有约定）：
+
+| 键 | 值 | 缺省 |
+|---|---|---|
+| `notify.expiry` | `'1' \| '0'` | **只有 '1' 才算开、读不到当关** |
+| `notify.leadDays` | `'0' \| '1' \| '3' \| '7'` | 3 |
+| （触发时刻） | 固定**本地 9 点**，不做设置项 | — |
+
+★★ `notify.expiry` 的缺省与 `update.autoCheck` **正好反着**，两条都要记牢：
+- `update.autoCheck`：读不到当**开** —— 写成 `=== '1'` 会让老用户**静默**失去更新提示；
+- `notify.expiry`：读不到当**关** —— 通知要**主动弹系统权限框**，不能替用户做主。
+
+**通知标识**：`gewu-exp-<itemId>-<expireDate>-<leadDays>`。
+★ 把**到期日与提前天数都编进 id**，于是「改了到期日」或「改了提前天数」自然产生新 id、
+旧 id 落到取消集合里 —— 幂等判据不用另写一套内容比对。
+
+**渠道**：`gewu-expiry`，`AndroidImportance.LOW`。
+★★ 这一条落地时**改过一次**，值得记：方案稿原写的是 `DEFAULT`，并注「不抢横幅/响铃」——
+**写错了**。Android 的重要度语义是 `DEFAULT`＝**会响一声**、`LOW`＝不响但照常出现在通知栏与状态栏。
+到期提醒要的就是「安静地落进通知栏」，所以取 `LOW`：不响铃、不横幅。
+★ Android 8+ **没有渠道就发不出通知**（而且是不报错地发不出），所以建渠道必须发生在
+**打开开关**那一刻（也必须在要权限之前 —— Android 13 的权限框要有渠道才弹得出来）。
+
+### 10.4 架构：薄壳在外、纯逻辑在内
+
+```
+src/lib/notify/plan.ts     纯函数，进 tests/ —— 不 import expo / react-native / db
+  planExpiryNotifications({ items, leadDays, hour, now, existing, maxCount })
+    → { cancel: string[], schedule: {identifier,title,body,itemId,at}[] }
+src/lib/notify/schedule.ts 薄封装：ensureChannel / readPermission / askPermission / sync(plan)
+src/lib/store/notify.tsx   Provider：开关 + 权限态 + 上次同步结果（供「我的」页显示）
+```
+
+- **同步钩子**：`AppStateProvider` 里那个 `dataVersion` effect（与 `refreshStats` 并排）——
+  任何写操作 `bump()` 之后**去抖 800ms** 再同步一次。
+  ★ 不采用「每个写操作各调一次」：批量加 20 件会排 20 次；也不采用「只在启动同步」：
+  用户改完到期日当天就该生效。
+- **上限 K = 30 条**，判据是**时间最近的 30 条**（不是「30 天内」）：
+  Android 对每应用的 Alarm/PendingIntent 有数量上限，而「排到三年后的那瓶酱油」既没用又占额度。
+- **触发时刻已过的不补排**（例如提前 3 天但明天就到期）。理由：那一刻用户就在 App 里，
+  提醒页自己会显示；补排只会变成「一开开关就弹一堆」。改用**如实回报**：
+  开完开关在「我的」页那一行显示「已排 N 条 · 最近一条 10-14」。
+- 任何一步抛错**一律静默**：只让通知这一路停摆，绝不影响录入/保存（与 AI 降级同一条规矩）。
+
+### 10.5 界面（三处）
+
+1. 「我的」页新增一张 `SectionCard title="提醒"`（放在「整理」与「外观」之间）：
+   一行 Switch「到期提醒」+ 一行「提前几天」（Segmented：当天 / 1 天 / 3 天 / 7 天），
+   下面一行小字说明「关闭后不会有任何通知；数据仍在这台手机里」。
+   开关写法沿用「支持格物」那张卡里的 Switch（`mine.tsx:534`）。
+2. **只在用户打开开关时才弹系统权限框**（`requestPermissionsAsync`）；被拒 → 开关**自动回落**、
+   就地给一行「系统里没给通知权限，去设置里打开」。★ **绝不在冷启动弹**。
+3. `alerts.tsx` 顶部那两行诚实话（107–114 行「V1 不会主动推送通知……」）要跟着状态改：
+   开着写「已开启到期提醒，提前 N 天通知」，关着保留原文案。
+4. 点通知 → `content.data = { itemId }` → 回到 `/item/[id]`；
+   **冷启动也要能处理**（`useLastNotificationResponse`），否则从通知进 App 会停在首页。
+
+### 10.6 落地清单
+
+| # | 动作 | 判据 |
+|---|---|---|
+| 1 | `npx expo install expo-notifications`（SDK 57 → **57.0.22**） | package.json 与 `sdk-57` dist-tag 一致 |
+| 2 | 通知栏图标：96×96 **纯白+透明** PNG（由 `assets/images/android-icon-monochrome.png` 派生），落 `android/app/src/main/res/drawable-*/notification_icon.png` | 通知栏里不是白方块 |
+| 3 | 手写两条 meta-data 进 `android/app/src/main/AndroidManifest.xml`（`expo.modules.notifications.default_notification_icon` / `..._color`）+ `res/values/colors.xml` 加 `notification_icon_color` | 与 10.1 里插件源码会做的事逐条对齐 |
+| 4 | `app.json` 的 `plugins` 加 `["expo-notifications", {icon,color,defaultChannel}]` | ★ 只为**将来**真 prebuild 时不丢配置；当前构建不读它 |
+| 5 | `lib/notify/plan.ts` + `tests/notify.test.mjs` | 纯函数：去抖/上限/过期不排/改期换 id |
+| 6 | `lib/notify/schedule.ts` + `lib/store/notify.tsx` | — |
+| 7 | `AppStateProvider` 挂去抖同步 | 写操作后 800ms 内重排 |
+| 8 | 「我的」页 UI + `alerts.tsx` 文案 | — |
+| 9 | 真机验证：Expo Go 自测（本地通知可用）→ 出 release 包验权限弹窗与**关机重启后仍在** | 重启后通知仍能到 |
+| 10 | 发版：**单独一版**（versionCode 22 → 23） | 与「新依赖 + 新权限单独发版」的既有规矩一致 |
+
+数据来源直接用 `listExpiring()`（已有函数：全部带 `expire_date` 的物品、按到期日升序；
+展开成 overdue→soon→later 恰好仍是日期升序）。**不新写查询**，也不用担心 `SELECT *`。
+
+### 10.7 风险与对策
+
+| 风险 | 对策 |
+|---|---|
+| firebase-messaging 拖大 APK、多合并进来几个组件 | 打包后双版本差分：权限计数、APK 体积、bundle 差异各记一条 |
+| 无 `google-services.json` 时 FCM 初始化 | 已核实本地路径不碰它（10.1 第 4 条）；仍需**真机冷启动实测**（Expo Go 测不出来） |
+| 非精确 Alarm 在 Doze 下延迟 | 接受。到期提醒的语义是「这几天内」，不是「9:00:00 整」。不申请精确定时权限 |
+| 系统里关了通知权限、App 里开关还开着 | 每次同步前 `getPermissionsAsync()` 复核；不一致时把开关显示回落并说明 |
+| 用户把「已排 30 条」当成「只会提醒 30 次」 | 界面只说「提前 N 天提醒」与「已排 N 条」，不暴露上限的存在 |
+
+### 10.8 明确不做
+
+- 不做远程推送（无服务器；PRD 第 111 行白纸黑字「提醒走系统本地推送，无需服务器」）
+- 不做「每天固定时间汇总提醒」（那是待办清单，不是这个 App）
+- 不做补货提醒（见 10.2）
+- 不申请 `SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM`
+- 不 prebuild；不为这一件事动 `android/` 里已有的手工改动（`tools:node="remove"` 那几条）
+
+### 10.9 落地记录（2026-10-11）
+
+| 落点 | 内容 |
+|---|---|
+| `src/lib/notify/plan.ts`（新） | **纯函数**：通知标识约定、要排/要撤的差量、上限 30、已越时刻不补排、标题正文、`readNotifyEnabled` / `clampLeadDays` 两个收敛判据 |
+| `src/lib/notify/schedule.ts`（新） | 薄壳：`ensureChannel` / `readPermission` / `requestPermission` / `listManagedScheduled` / `cancelAllManaged` / `applyPlan` / `installForegroundHandler` / `useOpenedFromNotification` |
+| `src/lib/store/notify.tsx`（新） | 运行时：偏好 + 权限态 + 已排条数；**唯一同步入口**是那个去抖 effect（启动 / 改数据 / 拨开关 / 改提前天数 / 回前台五条路都汇到 `sync()`）；点通知跳回物品 |
+| `src/lib/db/notify.ts`（新） | `notify.expiry` / `notify.leadDays` 的读写（meta 表，不进备份包）；`listExpiryCandidates()` **复用 `listExpiring()`**，不新写查询 |
+| `src/app/_layout.tsx` | 挂 `<NotifyProvider>`（在 `AppStateProvider` 内层 —— 它要读 `dataVersion`） |
+| `src/app/(tabs)/mine.tsx` | 新增 `SectionCard title="提醒"`（开关 + 提前几天 + 状态行） |
+| `src/app/(tabs)/alerts.tsx` | 顶部那句「V1 不会主动推送通知……」按开关/权限三态改写 |
+| `tests/notify.test.mjs`（新） | 25 条：标识、档位收敛、触发时刻（跨月/跨年）、位置短语、上限、差量、边界、`kept` |
+| `android/app/src/main/AndroidManifest.xml` | 手写两条 meta-data（默认通知图标 / 图标颜色）—— 配置插件本来会做的事 |
+| `android/app/src/main/res/values/colors.xml` | `notification_icon_color = #8C5A34` |
+| `android/app/src/main/res/drawable-*/notification_icon.png` | 96/72/48/36/24 五档，**纯白 + 透明**（Alpha 当蒙版） |
+| `assets/images/notification-icon.png` | 96×96 源图（将来真 prebuild 时给配置插件用） |
+| `app.json` | `plugins` 补 `["expo-notifications", { icon, color }]` |
+
+**几条落地时才定下来的**：
+
+- ★★ **重要度 `DEFAULT` → `LOW`**：方案稿把 `DEFAULT` 当成「不响」写错了（Android 的语义里 `DEFAULT`＝响一声）。
+  见 10.3 的补记。
+- ★★ **`clampLeadDays('')` 差点变成「0」**：`Number('')` 是 `0`，而 `0` 恰好是个合法档位
+  （提前 0 天＝到期当天）—— 库里那个空值会**静默**变成「当天提醒」。所以先挡空串再 `Number()`。
+- ★★ **`triggerAt` 加了回环校验**：`2026-13-40` 这种越界日期能过 `parseDate` 的正则，
+  `new Date(2026, 12, 40)` 也不变 `NaN`，而是**悄悄进位**成 2027-02-09 —— 于是通知会在一个
+  莫名其妙的日期响。把解析结果再写回字符串比一遍是最省事的判据。
+- ★★ **开关的缺省反着写**：`readNotifyEnabled(raw) => raw === '1'`（读不到当**关**），
+  与 `update.autoCheck` 的 `value !== '0'`（读不到当**开**）正好相反。两条都有单测钉住。
+- ★ **关开关不是「什么都不做」**：要把已排的全部撤掉（`cancelAllManaged()`）。
+  「关了还照响」比不提醒更伤信任；顺带也自愈了「偏好是关的、系统里却还排着」的脏状态。
+- ★ **`plan` 多返回一个 `kept`**（这一轮跑完系统里应当排着的那批，含已经在排的）：
+  「我的」页那句「已排 N 条 · 最近一条 10-14」直接读它，
+  既不必回系统再查一遍，也不必去解析标识里编着的日期（那是另一种会分叉的真相来源）。
+- ★ **「提前几天」不塞进开关那一行**：四个档位 + 标签在 320dp 或系统放大字体下会顶出卡片，
+  而 `Card` 是 `overflow:'hidden'` —— 挤出去**不报错**，只是看不见。改成标签在上、档位在下。
+- ★ **`useOpenedFromNotification` 必须 memo**：不 memo 的话每次渲染都是新对象，
+  调用方把它放进 effect 依赖就是死循环。
+- ★ **不写 `content.sound`**：Android 的声音由渠道重要度决定；再写一遍会让用户
+  在系统里调的那个旋钮失效。
+
+**校验**：`npm run verify` 全绿（lint / typecheck / 颜色审计 / 测试）；测试 514 → **539**；
+打包级冒烟：`.expo/.virtual-metro-entry.bundle` 200、bundle 11.37 → 11.55 MB、
+`expo-notifications` 已在包内。
+
+**还没做的（必须真机做，代码里验不了）**：
+
+1. 出 release 包，验「无 `google-services.json` 时冷启动不崩」（Expo Go 测不出来）。
+2. 真机开开关 → 系统权限框 → 排上通知 → 点通知回到物品详情。
+3. **关机重启**后通知仍能按时到（靠库自带 receiver 重排）。
+4. 打包后**双版本差分**：权限计数（应只多 `POST_NOTIFICATIONS` 与 `RECEIVE_BOOT_COMPLETED`）、
+   APK 体积（会因 firebase-messaging 变大）。

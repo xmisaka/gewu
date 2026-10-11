@@ -3,4 +3,8 @@
   <color name="iconBackground">#F7F4EF</color>
   <color name="colorPrimary">#023c69</color>
   <color name="activityBackground">#FBF9F6</color>
+  <!-- 通知栏小图标的着色（系统在图标圆底上用它）。
+       ★ 与 expo-notifications 配置插件的 color 参数同源：app.json 里那个 color 一旦改，这里要一起改，
+         否则「将来真 prebuild」与「现在这份手写清单」会分叉，而且不会报错。 -->
+  <color name="notification_icon_color">#8C5A34</color>
 </resources>

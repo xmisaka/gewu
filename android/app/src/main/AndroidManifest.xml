@@ -17,6 +17,16 @@
     <meta-data android:name="expo.modules.updates.ENABLE_BSDIFF_PATCH_SUPPORT" android:value="true"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
+    <!-- 到期提醒的通知栏图标。
+         ★ 这两条本来是 expo-notifications 的配置插件在 prebuild 时写的；
+           本项目**不跑 prebuild**（android/ 里有手工改动：tools:node="remove" 那几条、
+           enableOnBackInvokedCallback、launchMode 等），所以按插件源码逐条手写在这里。
+           图标是 96×96 的**纯白 + 透明** PNG（Alpha 当蒙版，系统会用下面的颜色着色），
+           五档密度在 res/drawable-*/notification_icon.png。
+           ★ 只加图标与颜色，**不加任何权限** —— POST_NOTIFICATIONS 与开机自恢复的 receiver
+             由 expo-notifications 库自带的清单经 Gradle 合并进来，不需要在这里写。 -->
+    <meta-data android:name="expo.modules.notifications.default_notification_icon" android:resource="@drawable/notification_icon"/>
+    <meta-data android:name="expo.modules.notifications.default_notification_color" android:resource="@color/notification_icon_color"/>
     <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|smallestScreenSize|assetsPaths" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="portrait">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
