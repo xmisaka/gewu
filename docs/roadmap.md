@@ -1522,3 +1522,37 @@ src/lib/store/notify.tsx   Provider：开关 + 权限态 + 上次同步结果（
 3. **关机重启**后通知仍能按时到（靠库自带 receiver 重排）。
 4. 打包后**双版本差分**：权限计数（应只多 `POST_NOTIFICATIONS` 与 `RECEIVE_BOOT_COMPLETED`）、
    APK 体积（会因 firebase-messaging 变大）。
+
+### 10.10 打包记录（2026-10-11 · v2.2.0 / versionCode 22 · **仅本机测试，未上官网**）
+
+| 项 | 值 |
+|---|---|
+| 包 | `格物-v2.2.0-arm64.apk`（工作区根）· 50,064,376 B（47.75 MB，比 v2.1.4 大 1.30 MB） |
+| SHA256 | `0604c3bf0daf09b7b701e2c8c2debdedaf30990e974534d1b6d7989905a914a8` |
+| 基线 | `_build/baseline-gewu-v2.1.4-arm64.apk`（与交付的 `gewu-v2.1.4-arm64.apk` md5 一致） |
+| bundle 差分 | 4,364,368 → 4,496,988 B；sha256 `d5be3cb0…` → `6c9021ba…`；归因 28 个改动源文件 |
+| Metro 模块数 | 1892 → **1961** |
+| 构建 | 首轮 5m40s 成功（`versionName=2.2.0 versionCode=22`），权限收敛后增量重打 1m3s |
+| 签名 | `CN=Gewu App`（非 debug），与历史版本同一把 |
+
+★★ **权限差分逮到一件必须处理的事**（本次最有价值的一条）：
+
+`aapt2 dump badging` 的权限**计数差**：v2.1.4 = 7 条 → 加通知那一版 = **28 条**，
+而按 10.1 的事前分析只该多 2 条（`POST_NOTIFICATIONS` + `RECEIVE_BOOT_COMPLETED`）。
+多出来的 16 条全来自 expo-notifications 的传递依赖 **`me.leolin:ShortcutBadger:1.1.22`**
+（华为 / 三星 / OPPO / 索尼 / HTC / me.everything 等**第三方启动器角标权限**）。
+格物从不写角标，属纯噪声，且与「权限最小」的定位自相矛盾 →
+用既有的 `tools:node="remove"` 逐条剔除，**28 → 12 条**。
+
+★ 只删角标这一族；`WAKE_LOCK` / `c2dm.RECEIVE` / `BIND_GET_INSTALL_REFERRER_SERVICE`
+**保留**（来自 firebase-messaging，删了有弄坏通知链路的风险，且都不弹框、对用户不可见）。
+
+★ 教训：**「读插件源码 + 库自带清单」也不能把权限数算全** —— 传递依赖的 AAR 清单
+同样会合并进来。唯一靠得住的判据还是**两版 APK 的权限计数差**。
+
+**本次仍未做**（见 10.9 末尾四条）：真机冷启动 / 权限框 / 通知到达 / 关机重启；
+双版本差分里的**体积**一项已记账（+1.30 MB），**权限**一项已做并收敛。
+
+**未上官网**：官网与网盘仍是 v2.1.4；`docs/version.json` 也**故意没动** ——
+它是「分发清单」（带 url / size / notes），在 APK 传上去之前改它只会让备用源指向 404。
+真要对外时再按「四之三 · 发版流程」走：升 version.json → 传 downloads/ → 官网 CHANGELOG → deploy.py。
