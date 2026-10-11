@@ -10,17 +10,25 @@ import { Tabs } from 'expo-router';
 
 import TabBar from '@/components/TabBar';
 import { useAppState } from '@/lib/store/app-state';
+import { useNotify } from '@/lib/store/notify';
 
 export default function TabsLayout() {
   const { stats } = useAppState();
+  const { badge } = useNotify();
 
   /* 角标走「待办口径」（attentionCount）而不是「到期口径」（expiringCount）：
      提醒页现在还会列出「该补货了」，角标必须和那一页里的行数对得上，
-     否则点进去会少一件。首页统计卡里的「即将到期」仍用到期口径，标签写的就是这一个。 */
+     否则点进去会少一件。首页统计卡里的「即将到期」仍用到期口径，标签写的就是这一个。
+
+     ★ 关掉角标只是**不显示这个数字**（「我的 → 提醒 → 角标数字」），
+       提醒页本身、以及页头那句「共 N 件需要关注」都照旧 ——
+       这个开关不是「取消提醒」，别把它做成半途而废的静音。 */
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
-      tabBar={(props) => <TabBar {...props} badgeCount={stats.attentionCount} />}>
+      tabBar={(props) => (
+        <TabBar {...props} badgeCount={badge ? stats.attentionCount : 0} />
+      )}>
       <Tabs.Screen name="index" />
       <Tabs.Screen name="album" />
       <Tabs.Screen name="alerts" />

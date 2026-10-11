@@ -30,10 +30,11 @@ import { AppState } from 'react-native';
 import {
   listExpiryCandidates,
   readNotifyPrefs,
+  writeNotifyBadge,
   writeNotifyEnabled,
   writeNotifyLeadDays,
 } from '@/lib/db/notify';
-import { DEFAULT_LEAD_DAYS, planExpiryNotifications, type LeadDays } from '@/lib/notify/plan';
+import { DEFAULT_LEAD_DAYS, clampLeadDays, planExpiryNotifications, type LeadDays } from '@/lib/notify/plan';
 import {
   applyPlan,
   cancelAllManaged,
@@ -63,10 +64,13 @@ interface NotifyValue {
   scheduledCount: number;
   /** 最近一条的触发时刻（毫秒），「已排 N 条 · 最近一条 10-14」用 */
   nextAt: number | null;
+  /** 「提醒」标签上的待办角标数字要不要显示 */
+  badge: boolean;
   /** 正在要权限 —— 期间开关要挡住连点 */
   busy: boolean;
   setEnabled: (next: boolean) => Promise<void>;
   setLeadDays: (next: LeadDays) => Promise<void>;
+  setBadge: (next: boolean) => Promise<void>;
 }
 
 const NotifyContext = createContext<NotifyValue | null>(null);
@@ -81,6 +85,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
   const [permission, setPermission] = useState<PermissionState>('undetermined');
   const [scheduledCount, setScheduledCount] = useState(0);
   const [nextAt, setNextAt] = useState<number | null>(null);
+  const [badge, setBadgeState] = useState(true);
   const [busy, setBusy] = useState(false);
 
   /* 重排要读「当下的值」，而 useCallback 的闭包只会捕获它创建那一刻的 state。
@@ -152,6 +157,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
         if (!alive) return;
         commitEnabled(prefs.enabled);
         commitLeadDays(prefs.leadDays);
+        setBadgeState(prefs.badge);
         const perm = await readPermission();
         if (alive) setPermission(perm);
       } catch {
@@ -235,15 +241,32 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
 
   const changeLeadDays = useCallback(
     async (next: LeadDays) => {
-      commitLeadDays(next);
+      /* ★ 收敛放在这里，不放在界面里：输入框、快捷 chip、将来的别处入口
+         都走同一个函数，就不会出现「某一条路漏了校验」那种不报错的错。 */
+      const days = clampLeadDays(next);
+      commitLeadDays(days);
       try {
-        await writeNotifyLeadDays(next);
+        await writeNotifyLeadDays(days);
       } catch {
         // 同上
       }
     },
     [commitLeadDays],
   );
+
+  /**
+   * 角标开关。
+   * ★ 它**不碰通知**：角标是「有几件事要去看」，与「到点提醒」是两件事 ——
+   *   关掉通知的人照样可能想看角标，反过来也一样。所以这一路只写偏好。
+   */
+  const changeBadge = useCallback(async (next: boolean) => {
+    setBadgeState(next);
+    try {
+      await writeNotifyBadge(next);
+    } catch {
+      // 静默：写不进去只是下次启动回到默认（开）
+    }
+  }, []);
 
   const value = useMemo<NotifyValue>(
     () => ({
@@ -254,9 +277,11 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
       leadDays,
       scheduledCount,
       nextAt,
+      badge,
       busy,
       setEnabled: changeEnabled,
       setLeadDays: changeLeadDays,
+      setBadge: changeBadge,
     }),
     [
       ready,
@@ -265,9 +290,11 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
       leadDays,
       scheduledCount,
       nextAt,
+      badge,
       busy,
       changeEnabled,
       changeLeadDays,
+      changeBadge,
     ],
   );
 

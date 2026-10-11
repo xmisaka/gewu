@@ -30,17 +30,58 @@ export const MAX_SCHEDULED = 30;
 /** 提醒时刻固定本地 9 点。不做设置项 —— 少一个旋钮，少一类「为什么没响」的疑问。 */
 export const NOTIFY_HOUR = 9;
 
-/** 提前几天。0 ＝ 到期当天。 */
+/**
+ * 提前几天。0 ＝ 到期当天。
+ *
+ * ★ 刻意**不是**「四个档位的联合类型」—— 用户能自己填天数。
+ *   所以它是 0~`MAX_LEAD_DAYS` 的整数，而**唯一的合法来源是 `clampLeadDays`**：
+ *   读库那条路与界面那条路都要过它。
+ */
+export type LeadDays = number;
+
+/** 界面上那四个快捷档。**只是快捷方式**，不是取值范围 */
 export const LEAD_DAY_OPTIONS = [0, 1, 3, 7] as const;
-export type LeadDays = (typeof LEAD_DAY_OPTIONS)[number];
+
+export const MIN_LEAD_DAYS = 0;
+/** 上限一年：再长就不是「到期提醒」而是别的东西了 */
+export const MAX_LEAD_DAYS = 365;
 
 export const DEFAULT_LEAD_DAYS: LeadDays = 3;
+
+/** 是不是那四个快捷档。**只有界面用它高亮 chip**，判断逻辑一律不用它 */
+export function isPresetLeadDays(value: number): boolean {
+  return (LEAD_DAY_OPTIONS as readonly number[]).includes(value);
+}
+
+/** 是不是一个能用的提前天数：整数，落在 [0, 365] */
+export function isValidLeadDays(value: number): boolean {
+  return (
+    Number.isInteger(value) &&
+    !Number.isNaN(value) &&
+    value >= MIN_LEAD_DAYS &&
+    value <= MAX_LEAD_DAYS
+  );
+}
+
+/** 「当天」/「5 天」——界面那一行与通知标题都用它，两处必须一致 */
+export function describeLeadDays(days: LeadDays): string {
+  return days <= 0 ? '当天' : `${days} 天`;
+}
 
 /** 通知渠道 id。Android 8+ 没有渠道就发不出通知，而且是不报错地发不出。 */
 export const NOTIFY_CHANNEL_ID = 'gewu-expiry';
 
-export function isLeadDays(value: unknown): value is LeadDays {
-  return typeof value === 'number' && (LEAD_DAY_OPTIONS as readonly number[]).includes(value);
+/**
+ * 角标开关缺省：**只有明确写了 '0' 才算关，其余（含读不到）一律当开**。
+ *
+ * ★★ 与 `notify.expiry`（读不到当**关**）方向**相反**，两条都要记牢：
+ *    · 通知开关读不到当关 —— 打开它要弹系统权限框，不能替用户做主；
+ *    · 角标开关读不到当开 —— 它只是个显示偏好，缺省维持原样；
+ *      写成 `=== '1'` 会让老用户在升级后**静默**失去角标。
+ *   与 `update.autoCheck`（`value !== '0'`）同一个方向、同一条理由。
+ */
+export function readNotifyBadge(raw: string | null | undefined): boolean {
+  return raw !== '0';
 }
 
 /**
@@ -56,17 +97,23 @@ export function readNotifyEnabled(raw: string | null | undefined): boolean {
 }
 
 /**
- * 把从库里读出来的字符串收敛成一个合法档位。
- * 读不到、读到脏值一律回落到默认 —— **不报错**，只是用默认值。
+ * 把从库里 / 从输入框里读出来的东西收敛成一个合法的提前天数。
+ *
+ * 读不到、读到脏值一律回落到默认；**超范围钳到边界**（不是回落到默认）——
+ * 用户自己填的 500，给他 365 比给他 3 更接近他的意思，而且界面会立刻显示收敛后的值。
  */
-export function clampLeadDays(raw: string | null | undefined): LeadDays {
+export function clampLeadDays(raw: string | number | null | undefined): LeadDays {
   if (raw == null) return DEFAULT_LEAD_DAYS;
-  const text = String(raw).trim();
-  /* ★ 空串要当「没存」而不是「0」—— `Number('')` 是 0，而 0 恰好是个合法档位
+  const text = typeof raw === 'number' ? String(raw) : String(raw).trim();
+  /* ★ 空串要当「没存」而不是「0」—— `Number('')` 是 0，而 0 恰好是个合法值
      （提前 0 天＝到期当天）。不先挡这一下，库里那个空值会**静默**变成「当天提醒」。 */
   if (text === '') return DEFAULT_LEAD_DAYS;
   const n = Number(text);
-  return isLeadDays(n) ? n : DEFAULT_LEAD_DAYS;
+  if (!Number.isFinite(n)) return DEFAULT_LEAD_DAYS;
+  const days = Math.trunc(n);
+  if (days < MIN_LEAD_DAYS) return MIN_LEAD_DAYS;
+  if (days > MAX_LEAD_DAYS) return MAX_LEAD_DAYS;
+  return days;
 }
 
 /** 排期用得到的那几个字段。刻意不用 `ItemView` —— 纯逻辑层不依赖视图模型 */
@@ -185,7 +232,10 @@ export function planExpiryNotifications(input: {
   existing: string[];
   maxCount?: number;
 }): NotifyPlan {
-  const { items, leadDays, now, existing, maxCount = MAX_SCHEDULED } = input;
+  const { items, existing, now, maxCount = MAX_SCHEDULED } = input;
+  /* ★ 入口先收敛一次：这个函数是**全函数**，脏的 leadDays 进来也只是变成合法值，
+     不会让整批物品被跳过 —— 静默跳过比用错档位更难查。 */
+  const leadDays = clampLeadDays(input.leadDays);
 
   const desired: PlannedNotification[] = [];
   for (const item of items) {

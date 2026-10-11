@@ -8,25 +8,39 @@
  * 「读不到算开还是算关」那个判断放在 `notify/plan.ts` 里（纯函数，能被单测钉住）。
  */
 
-import { clampLeadDays, readNotifyEnabled, type ExpiryCandidate, type LeadDays } from '../notify/plan';
+import {
+  clampLeadDays,
+  readNotifyBadge,
+  readNotifyEnabled,
+  type ExpiryCandidate,
+  type LeadDays,
+} from '../notify/plan';
 import { getDatabase, readMeta, writeMeta } from './index';
 import { listExpiring } from './items';
 
 const KEY_ENABLED = 'notify.expiry';
 const KEY_LEAD_DAYS = 'notify.leadDays';
+const KEY_BADGE = 'notify.badge';
 
 export interface NotifyPrefs {
   enabled: boolean;
   leadDays: LeadDays;
+  /** 「提醒」标签上那个待办角标数字要不要显示 */
+  badge: boolean;
 }
 
 export async function readNotifyPrefs(): Promise<NotifyPrefs> {
   const db = await getDatabase();
-  const [enabled, leadDays] = await Promise.all([
+  const [enabled, leadDays, badge] = await Promise.all([
     readMeta(db, KEY_ENABLED),
     readMeta(db, KEY_LEAD_DAYS),
+    readMeta(db, KEY_BADGE),
   ]);
-  return { enabled: readNotifyEnabled(enabled), leadDays: clampLeadDays(leadDays) };
+  return {
+    enabled: readNotifyEnabled(enabled),
+    leadDays: clampLeadDays(leadDays),
+    badge: readNotifyBadge(badge),
+  };
 }
 
 export async function writeNotifyEnabled(on: boolean): Promise<void> {
@@ -37,6 +51,11 @@ export async function writeNotifyEnabled(on: boolean): Promise<void> {
 export async function writeNotifyLeadDays(days: LeadDays): Promise<void> {
   const db = await getDatabase();
   await writeMeta(db, KEY_LEAD_DAYS, String(days));
+}
+
+export async function writeNotifyBadge(on: boolean): Promise<void> {
+  const db = await getDatabase();
+  await writeMeta(db, KEY_BADGE, on ? '1' : '0');
 }
 
 /**

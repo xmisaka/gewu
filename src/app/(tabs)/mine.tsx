@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { ContactSection } from '@/components/domain/ContactSection';
+import { LeadDaysSheet } from '@/components/domain/LeadDaysSheet';
 import { ThemePickerModal } from '@/components/domain/ThemePickerModal';
 import { Segmented, SettingRow } from '@/components/ui/controls';
 import { StockKeyModal, stockKeyStatus } from '@/components/domain/StockKeyModal';
@@ -23,7 +24,7 @@ import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { DARK_THEME_KEY, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES, type ThemeKey } from '@/constants/theme';
 import { AFDIAN_URL, SITE_URL, siteUrlWithSkin } from '@/constants/site';
 import { isThemeLocked, type SupporterFeature } from '@/lib/entitlement';
-import { clampLeadDays, describeNextNotification } from '@/lib/notify/plan';
+import { clampLeadDays, describeLeadDays, describeNextNotification, isPresetLeadDays } from '@/lib/notify/plan';
 import { useNotify } from '@/lib/store/notify';
 import { useEntitlement } from '@/lib/store/entitlement';
 import { useUpdate } from '@/lib/store/update';
@@ -82,6 +83,8 @@ export default function MineScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
+  /** 自定义「提前几天提醒」的输入弹层 */
+  const [leadOpen, setLeadOpen] = useState(false);
   /** 本机备份包被清理后 +1，只用来让上面的 metaState 重取一次 */
   const [cacheTick, setCacheTick] = useState(0);
   /** 被挡下的功能（null = 不显示门控浮层）。目前只有皮肤会走到这里 */
@@ -477,13 +480,13 @@ export default function MineScreen() {
         </SectionCard>
 
         {/* 到期提醒。单独一张卡，不塞进「整理」——
-            它是同一件事的两个旋钮（要不要提醒、提前几天），混进「整理」
+            它是同一件事的几个旋钮（要不要提醒、提前几天、要不要角标数字），混进「整理」
             会让那张卡变成「什么都有一点」的抽屉。
             ★ 默认关：打开它要弹系统的通知权限框，那是用户的决定，不替他做。 */}
         <SectionCard title="提醒">
           <Gutter>
             <Card padded={false}>
-              <View style={[styles.switchRow, !notify.active && styles.rowLast]}>
+              <View style={styles.switchRow}>
                 <View style={styles.switchText}>
                   <Body tone="ink2">到期提醒</Body>
                   <Meta tone="ink4" style={styles.switchDesc}>
@@ -502,11 +505,46 @@ export default function MineScreen() {
                 />
               </View>
 
+              {/* ★ 角标是**独立**的一个开关，与通知开关不联动：
+                  角标答的是「有几件事要去看」，通知答的是「到点提醒你」。
+                  关掉通知的人照样可能想看角标，反过来也一样。
+                  它也不藏在「到期提醒」开着的前提下 —— 关着通知也该能关角标。 */}
+              <View style={[styles.switchRow, !notify.active && styles.rowLast]}>
+                <View style={styles.switchText}>
+                  <Body tone="ink2">角标数字</Body>
+                  <Meta tone="ink4" style={styles.switchDesc}>
+                    「提醒」标签上显示待办件数；关掉只是不显示数字，点进去照样能看
+                  </Meta>
+                </View>
+                <Switch
+                  value={notify.badge}
+                  onValueChange={(next) => void notify.setBadge(next)}
+                  trackColor={{ false: Palette.line, true: Palette.brandBg }}
+                  thumbColor={notify.badge ? Palette.brand : Palette.surface}
+                  accessibilityLabel="提醒角标数字"
+                />
+              </View>
+
               {/* 「提前几天」只在**真的会响**时才给。关着（或没权限）的时候
                   摆一排按钮，用户会以为点了就生效 —— 那是假的 */}
               {notify.active ? (
                 <View style={styles.notifyLeadRow}>
-                  <Body tone="ink2">提前几天提醒</Body>
+                  <View style={styles.notifyLeadHead}>
+                    <Body tone="ink2">提前几天提醒</Body>
+                    {/* 自己填天数的入口。★ 放在标签这一行的右端，不跟四枚 chip 抢那一行：
+                        五个控件并排会在 320dp 屏或放大字体下顶出卡片，而挤出去不报错 */}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="自定义提前天数"
+                      onPress={() => setLeadOpen(true)}
+                      hitSlop={8}>
+                      <Meta color={Palette.brand}>
+                        {isPresetLeadDays(notify.leadDays)
+                          ? '自定义'
+                          : `自定义 · ${describeLeadDays(notify.leadDays)}`}
+                      </Meta>
+                    </Pressable>
+                  </View>
                   <Segmented
                     value={String(notify.leadDays)}
                     options={[
@@ -627,7 +665,9 @@ export default function MineScreen() {
             <Meta tone="ink4" style={styles.supportNote}>
               {entitled
                 ? '激活码不绑设备、不限台数，换手机再粘一次即可，不需要联网。仅限本人使用，请勿外传。'
-                : '支持者档一次买断，不影响免费档 —— 收纳、到期、库存、照片、备份恢复全部照旧。'}
+                : `支持者档一次买断，不影响免费档 —— 收纳、到期、库存、照片、备份恢复全部照旧。${
+                    AFDIAN_URL.length > 0 ? '' : '现在加我微信就能拿激活码，二维码在下面「联系我」里。'
+                  }`}
             </Meta>
           </Gutter>
         </SectionCard>
@@ -722,6 +762,13 @@ export default function MineScreen() {
         // 关闭时 setKeyOpen 会触发重渲染，状态行自然会去读最新 Key，
         // 所以这里不需要额外的版本号把界面顶一下
         onSaved={() => undefined}
+      />
+
+      <LeadDaysSheet
+        visible={leadOpen}
+        value={notify.leadDays}
+        onClose={() => setLeadOpen(false)}
+        onApply={(days) => void notify.setLeadDays(days)}
       />
     </Screen>
   );
@@ -823,6 +870,14 @@ const useStyles = makeStyles((Palette) => ({
     paddingHorizontal: Space.lg,
     paddingVertical: Space.md,
     gap: Space.sm,
+  },
+  /* 标签那一行的右端放「自定义」入口 —— 那一行本来空着一大片，
+     把入口放这儿就不会跟四枚 chip 抢同一行的宽度 */
+  notifyLeadHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Space.md,
   },
   /* 条件行消失时，别在卡片底部留一条悬空的线 */
   rowLast: { borderBottomWidth: 0 },

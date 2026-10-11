@@ -15,15 +15,20 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_LEAD_DAYS,
   LEAD_DAY_OPTIONS,
+  MAX_LEAD_DAYS,
   MAX_SCHEDULED,
+  MIN_LEAD_DAYS,
   NOTIFY_ID_PREFIX,
   clampLeadDays,
+  describeLeadDays,
   describeNextNotification,
   expiryNotificationId,
-  isLeadDays,
+  isPresetLeadDays,
+  isValidLeadDays,
   isManagedIdentifier,
   locationPhrase,
   planExpiryNotifications,
+  readNotifyBadge,
   readNotifyEnabled,
   triggerAt,
 } from '../src/lib/notify/plan.ts';
@@ -60,21 +65,43 @@ test('只认自己排的标识，别去撤别人的通知', () => {
 
 /* ------------------------------------------------------------ 档位收敛 */
 
-test('提前天数只认四个档，读到脏值一律回落到默认（不报错）', () => {
+test('★ 提前天数：0~365 的整数，四个快捷档只是快捷方式', () => {
   assert.deepEqual([...LEAD_DAY_OPTIONS], [0, 1, 3, 7]);
   assert.equal(DEFAULT_LEAD_DAYS, 3);
+  assert.equal(MIN_LEAD_DAYS, 0);
+  assert.equal(MAX_LEAD_DAYS, 365);
 
+  /* 快捷档 —— 只有界面拿它高亮 chip，判断逻辑一律不用它 */
+  assert.ok(isPresetLeadDays(0) && isPresetLeadDays(3));
+  assert.ok(!isPresetLeadDays(10));
+
+  assert.ok(isValidLeadDays(10) && isValidLeadDays(0) && isValidLeadDays(365));
+  assert.ok(!isValidLeadDays(366) && !isValidLeadDays(-1) && !isValidLeadDays(1.5));
+});
+
+test('★ clampLeadDays：读不到回默认，超范围钳到边界（不是回默认）', () => {
   assert.equal(clampLeadDays('3'), 3);
-  assert.equal(clampLeadDays('0'), 0);
+  assert.equal(clampLeadDays('10'), 10); // ★ 自定义天数
+  assert.equal(clampLeadDays(10), 10);
+  assert.equal(clampLeadDays('365'), 365);
+
+  /* 用户自己填的 500，给他 365 比给他 3 更接近他的意思 */
+  assert.equal(clampLeadDays('500'), 365);
+  assert.equal(clampLeadDays('-3'), 0);
+  assert.equal(clampLeadDays('3.7'), 3); // 小数截断
+
   assert.equal(clampLeadDays(null), 3);
   assert.equal(clampLeadDays(undefined), 3);
-  assert.equal(clampLeadDays(''), 3);
   assert.equal(clampLeadDays('abc'), 3);
-  assert.equal(clampLeadDays('5'), 3); // 5 不是档位 → 回落，不是「就近取整」
-  assert.equal(clampLeadDays('-1'), 3);
+  assert.equal(clampLeadDays(''), 3); // ★ 空串当「没存」，不是「当天」
+  assert.equal(clampLeadDays('   '), 3);
+  assert.equal(clampLeadDays(NaN), 3);
+});
 
-  assert.ok(isLeadDays(7) && isLeadDays(0));
-  assert.ok(!isLeadDays(5) && !isLeadDays('3') && !isLeadDays(NaN));
+test('describeLeadDays：「当天」/「N 天」，界面与通知标题共用一套说法', () => {
+  assert.equal(describeLeadDays(0), '当天');
+  assert.equal(describeLeadDays(1), '1 天');
+  assert.equal(describeLeadDays(30), '30 天');
 });
 
 test('★ 开关缺省：只有 1 才算开 —— 与「检查更新」读不到当开正好反着', () => {
@@ -87,6 +114,17 @@ test('★ 开关缺省：只有 1 才算开 —— 与「检查更新」读不�
   /* 脏值不当开：通知要弹系统权限框，不能替用户做主 */
   assert.equal(readNotifyEnabled('true'), false);
   assert.equal(readNotifyEnabled('yes'), false);
+});
+
+test('★ 角标开关缺省：只有 0 才算关 —— 与通知开关反着，和「检查更新」同向', () => {
+  /* 它只是个显示偏好，缺省必须维持原样；写成 === '1' 会让老用户静默失去角标 */
+  assert.equal(readNotifyBadge(null), true);
+  assert.equal(readNotifyBadge(undefined), true);
+  assert.equal(readNotifyBadge(''), true);
+  assert.equal(readNotifyBadge('1'), true);
+  assert.equal(readNotifyBadge('true'), true);
+
+  assert.equal(readNotifyBadge('0'), false);
 });
 
 /* ------------------------------------------------------------ 触发时刻 */
@@ -295,6 +333,25 @@ test('已排列表里有重复标识也只撤一次', () => {
 test('空库 / 全空输入不炸，返回空计划', () => {
   const plan = planExpiryNotifications({ items: [], leadDays: 3, now: NOW, existing: [] });
   assert.deepEqual(plan, { cancel: [], schedule: [], kept: [] });
+});
+
+test('★ 脏的提前天数不会把整批物品吞掉 —— 入口先收敛，再排', () => {
+  /* 静默跳过整批，比用一个错档位更难查：用户只会看到「一条都没排上」 */
+  const plan = planExpiryNotifications({
+    items: [item()],
+    leadDays: Number.NaN,
+    now: NOW,
+    existing: [],
+  });
+  assert.equal(plan.schedule.length, 1, '脏值应当收敛成默认值，而不是一条都不排');
+  assert.equal(plan.schedule[0].identifier, 'gewu-exp-a-2026-10-14-d3');
+});
+
+test('★ 自定义天数也进标识 —— 10 天与 3 天是两套 id，互不覆盖', () => {
+  const ten = planExpiryNotifications({ items: [item()], leadDays: 10, now: NOW, existing: [] });
+  assert.equal(ten.schedule[0].identifier, 'gewu-exp-a-2026-10-14-d10');
+  assert.equal(ten.schedule[0].at, at2016(2026, 10, 4, 9));
+  assert.equal(ten.schedule[0].title, '还有 10 天到期 · 鱼油');
 });
 
 test('★ kept 是「跑完之后系统里应当排着的那批」—— 界面读它，不再回系统查', () => {

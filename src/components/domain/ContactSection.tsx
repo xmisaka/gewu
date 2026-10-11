@@ -27,7 +27,18 @@ const QR_SIZE = 200;
 /** 放大态的边长。屏幕最窄的机型也放得下（264 + 两边留白 < 360） */
 const QR_ZOOM_SIZE = 264;
 
-export function ContactSection() {
+/** 默认开场白。「我的」页用它；激活页会换一版更贴合语境的（见 props） */
+const DEFAULT_LEAD =
+  '格物没有账号、没有客服后台，也没有商店评论区。遇到问题、想提建议，或者只是想聊聊，都可以加我微信。支持者档的激活码也是从这儿找我拿。';
+
+export interface ContactSectionProps {
+  /** 卡片标题，默认「联系我」 */
+  title?: string;
+  /** 开场白。激活页那边要讲的是「怎么拿到码」，不是「有事找我」 */
+  lead?: string;
+}
+
+export function ContactSection({ title = '联系我', lead = DEFAULT_LEAD }: ContactSectionProps = {}) {
   const styles = useStyles();
   const [zoomed, setZoomed] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -55,11 +66,11 @@ export function ContactSection() {
 
   return (
     <>
-      <SectionCard title="联系我">
+      <SectionCard title={title}>
         <Gutter>
           <Card>
             <Body tone="ink2" style={styles.lead}>
-              格物没有账号、没有客服后台，也没有商店评论区。遇到问题、想提建议，或者只是想聊聊，都可以加我微信。
+              {lead}
             </Body>
 
             <Pressable

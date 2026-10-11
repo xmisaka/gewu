@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router';
 import { Modal, Pressable, View } from 'react-native';
 
 import { GUTTER, Palette, Radius, Space, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_URL } from '@/constants/site';
+import { AFDIAN_URL, WECHAT_LICENSE_SHORT } from '@/constants/site';
 import { SUPPORTER_FEATURES, type SupporterFeature } from '@/lib/entitlement';
 import { makeStyles } from '@/lib/theme';
 import { Button } from '../ui/controls';
@@ -35,10 +35,13 @@ export interface SupporterGateSheetProps {
   onClose: () => void;
 }
 
-/** 两项说明：价格与「已有码怎么办」。两者都是「不用问我」就能回答的问题 */
+/** 两项说明：价格与「码从哪来」。两者都是「不用问我」就能回答的问题 */
 const DISCLOSURES: readonly { title: string; body: string }[] = [
   { title: '一次买断 ¥36', body: '含 v2 内全部支持者功能，不订阅、不自动续费。' },
-  { title: '已有激活码？', body: '直接粘贴，本机校验即可解锁 —— 不联网、不绑设备。' },
+  {
+    title: '激活码怎么来？',
+    body: '爱发电渠道还没走通，现在加我微信直接拿码；已经拿到码的，直接粘贴即可解锁 —— 不联网、不绑设备。',
+  },
 ];
 
 export function SupporterGateSheet({ visible, feature, themeIntent, onClose }: SupporterGateSheetProps) {
@@ -94,7 +97,16 @@ export function SupporterGateSheet({ visible, feature, themeIntent, onClose }: S
         </View>
 
         <View style={styles.foot}>
-          {hasStore ? <Button label="去爱发电支持" onPress={goActivate} /> : null}
+          {/* ★ 商品页还没上架时不摆「去支持」按钮，但**必须给出去哪拿码** ——
+              否则浮层说了「¥36 一次买断」，用户却找不到任何能付钱的地方，
+              比没有这个浮层更让人恼火。二维码在主按钮原来的位置上说清楚。 */}
+          {hasStore ? (
+            <Button label="去爱发电支持" onPress={goActivate} />
+          ) : (
+            <Meta tone="ink3" style={styles.storeNote}>
+              {WECHAT_LICENSE_SHORT}
+            </Meta>
+          )}
           <Button label="我已有激活码" tone="secondary" style={styles.secondary} onPress={goActivate} />
           <Pressable accessibilityRole="button" onPress={onClose} style={styles.later}>
             <Meta tone="ink3">稍后再说</Meta>
@@ -149,6 +161,7 @@ const useStyles = makeStyles((Palette) => ({
   disclosureTitle: { fontWeight: '600' },
 
   foot: { paddingHorizontal: GUTTER, paddingTop: Space.xl },
+  storeNote: { lineHeight: 20 },
   secondary: { marginTop: Space.sm },
   later: { alignSelf: 'center', marginTop: Space.md, padding: Space.xs },
 }));
