@@ -45,16 +45,17 @@ export function siteUrlWithSkin(skin: string, anchor = ''): string {
 }
 
 /**
- * 爱发电地址。
+ * 爱发电**商品页**（支持者档 ¥36）。
  *
- * ★★ 语义是**商品页**（`afdian.com/item/xxx`）—— 界面用它决定两件事：
+ * ★★ 语义就是商品页（`afdian.com/item/xxx`）—— 界面用它决定两件事：
  *    要不要摆「去爱发电支持」这个入口，以及点它跳到哪。
- * ★ 2026-10-11：暂时填的是**创作者主页**（`afdian.com/a/gewuapp`），
- *    因为支持者档的商品页还在审核中。商品页通过后换成 `/item/xxx` 那个地址 ——
- *    区别是：主页只是"看到人"，商品页能直接下单并自动发码。
+ * ★ 2026-10-11 已上架，买了会自动收到激活码。
+ *    （上架之前这里临时填过一次创作者主页 `afdian.com/a/gewuapp`。）
+ * ★ 刻意不带爱发电「复制链接」带出来的 `utm_source=copylink` ——
+ *    那是它自己分享用的标记，不是渠道统计；真要统计该用 `?utm_source=app` 这种有意义的。
  * ★ 留空 = 不摆爱发电入口（只留微信那条路），不会出现点了没反应的按钮。
  */
-export const AFDIAN_URL = 'https://afdian.com/a/gewuapp';
+export const AFDIAN_URL = 'https://afdian.com/item/2d7ef3cac3a711f1ae8952540025c377';
 
 /**
  * 二维码上写谁的名字。
