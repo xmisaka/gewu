@@ -2165,3 +2165,48 @@ bundle 4,510,840 → 4,510,868 B；Metro 模块 1962 未变。构建一轮 5m19s
 
 把加好友链接发到微信文件传输助手，**点开确认真的跳到「添加到通讯录」**。
 这条链路的失效是静默的 —— 不报错，只是每个点了按钮的人都加不上。
+
+
+---
+
+## 十六、发版记录：v2.3.0 已对外（2026-10-12）
+
+| 项 | 值 |
+|---|---|
+| 版本 | **2.3.0 / versionCode 27** |
+| 包 | `gewu-v2.3.0-arm64.apk` · 50,101,992 字节（47.78 MB）· 仅 `arm64-v8a` |
+| sha256 | `24d0c63cf77ac55b7be852075cc6c049ecf49980919fb8508b25e6885ca0a965` |
+| md5 | `f5ee82ee5cdc5043942ced53d73f7a03`（本地 == 线上） |
+| 权限 | 12 条，与 v2.2.0 完全相同（**无新增**） |
+| 依赖 | **无新增** |
+| 数据库 | schema v3（本版未动结构） |
+
+发版动线（10-10 裁决后唯一一条）：功能代码提交推送 → 升版本号 → 打包 → 传 `downloads/`
+→ 改 `docs/version.json` 与 `shared.py` 的 `CHANGELOG` → 重新生成 `index.html` + `changelog.html`
+→ `deploy.py` → 审计。GitHub 只托管代码，**不发 Release**。
+
+### 打包与校验
+
+- `BUILD SUCCESSFUL in 8m 31s`（535 个任务、49 executed）；日志里 `versionName=2.3.0  versionCode=27`
+- **Metro 模块数 1963 → 1964**（+1，正好对应本版新增的 `AddWechatSheet.tsx`），该行结尾不带 `UP-TO-DATE`
+- **bundle 差分**（基线＝已发布的 v2.2.0 包，归档在 `_build/baseline-v220.apk`）：
+  sha256 不同、**+10,836 字节**；本版新增标识符 7 项全部 旧 0 → 新 1；
+  删除的 3 项（`AFDIAN_URL` / `去爱发电支持` / `afdian.com/item`）全部 旧 ≥1 → 新 0；
+  对照组 6 项两边相等
+- `aapt2 dump badging`：`com.gewu.app` / 2.3.0 / vc27 / `native-code: 'arm64-v8a'`
+- `apksigner verify --print-certs`：`Verifies`，v2 方案通过，`CN=Gewu App`（非 debug）
+- `check_deploy.py` 九项全过（含本版新增的三条渠道断言）
+- 旧包全部保留（v2.1.0 ~ v2.2.0 六个 + 本版），不退链
+
+### ★★ 顺手修掉一个既有 bug：`changelog.html` 的生成器早就断了
+
+`design_changelog.py` 里写着 `from design_final import CSS`，但 `design_final` 在 10-11 改版时
+变成了薄壳（只剩 `sync_wechat_qr()` + `redesign_a.render()`），`CSS` 已经不在那儿 ——
+于是这一页**一生成就抛 `ImportError`**，而 `deploy.py` 照样把**旧的** `changelog.html` 传上去
+（文件在、md5 也「确认落地」），表现成「官网更新记录里没有刚发的版本」。
+
+CSS 的现居地是 `rc.BASE_CSS`（首页用的就是它），已改过来。
+
+**教训**：10-11 改版把 CSS 搬了个家，而**没有任何地方会告诉你这个 import 断了**。
+每次发版都要**确认生成器真的跑过**（看它自己那行「写出 xxx.html」），
+而不是只看 `deploy.py` 说「已确认落地」—— 后者对「内容是不是新的」一无所知。
