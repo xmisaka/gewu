@@ -7,19 +7,21 @@
  * （见 SupporterGateSheet）。所以这个文件把「面板外壳」和「内容」分开导出。
  *
  * ────────────────────────────────────────────────────────────────
- * ★★ 分享出去的是**链接**，不是二维码图片。
+ * ★★★ 分享出去的是**二维码图片**，不是那条链接 —— 这条踩过坑，别改回去。
  *
- *   那条链接在微信里点一下就跳「添加到通讯录」，而图片要在微信里长按识别 ——
- *   「点一下」比「长按识别」本能得多，这一步就是整个流程里唯一值得优化的地方。
+ *   2026-10-12 实测 + 三条独立来源：**微信没有「点链接加好友」这条路**。
+ *   个人名片码被外部工具解析出来的那串 `u.wechat.com/…` 链接，
+ *   在系统浏览器里 301 跳到微信官网（web 层根本没有落地页），
+ *   在微信里点开**同样打不开** —— 名片码只有「扫一扫」与「图片识别」两条线认。
  *
- *   ★ 但链接**只在微信内部有效**：系统浏览器打开会 301 去微信官网（见 contact.ts 的实测记录）。
- *     所以按钮只能说「分享到微信」，绝不能写成「点击加好友」——
- *     那句话在浏览器里是错的，而错的按钮不报错，只是没人加上你。
+ *   v2.3.0 曾把这里改成「分享链接」，依据是「点一下比长按识别本能」；
+ *   那个依据是错的（当时引的两处网络来源不可靠），结果是每个点了它的人都加不上，
+ *   而且**全程不报错**。现在改回分享图片（`shareWechatQr()`，v2.0.0 起就有）。
  *
- * ★★ 二维码要一直显示着，不能只押那条链接：
- *    · 有第二台设备（电脑 / 平板 / 家人在旁边）的人，扫一扫比分享快一步；
- *    · 你在微信里「重置个人二维码」之后链接会失效，而它已经打进 APK ——
- *      那时候这张码是唯一还活着的入口。
+ * ★★ 面板里三条路并排，谁也不依赖谁：
+ *    · 二维码图片 → 分享进微信，对方**长按这张图**选「识别图中二维码」；
+ *    · 二维码本身 → 有第二台设备（电脑 / 平板 / 家人在旁边）的人直接扫；
+ *    · 微信号      → 前两条都走不通时兜底（也绕开了「二维码被重置」这件事）。
  *
  * ★ 放大态**不是第二个 Modal**，是本组件内的一次视图切换。理由同上：
  *   它可能被渲染在门控浮层的 Modal 里面，再套一层 Dialog 会出问题。
@@ -27,11 +29,11 @@
 
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Pressable, Share, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Palette, Radius, Space } from '@/constants/theme';
 import { WECHAT_ID, WECHAT_NAME } from '@/constants/site';
-import { WECHAT_ADD_URL, WECHAT_QR } from '@/lib/contact';
+import { shareWechatQr, WECHAT_QR } from '@/lib/contact';
 import { makeStyles } from '@/lib/theme';
 import { Button } from '../ui/controls';
 import { Body, Heading, Meta } from '../ui/typography';
@@ -64,16 +66,15 @@ export function AddWechatBody({ onDone, doneLabel = '稍后再说' }: AddWechatB
   const onShare = async () => {
     setSharing(true);
     try {
-      /* ★ 只放 message、不放 url：Android 上 url 字段会被忽略，
-         把链接写进 message 才是两端都通的那一种。 */
-      await Share.share(
-        { message: `加我微信获取格物激活码\n${WECHAT_ADD_URL}` },
-        { dialogTitle: '分享到微信' },
-      );
+      /* ★★ 分享的是**图片**，不是链接（理由见文件头）。
+         交给系统分享面板 → 用户选微信 → 对方在聊天里长按这张图 → 识别图中二维码。 */
+      const ok = await shareWechatQr();
+      /* false ＝ 这台设备没有分享面板（罕见机型）。不打断：
+         二维码就在上面、微信号也在，用户自己会走另外两条路。 */
+      if (!ok) console.warn('[gewu] 这台设备没有分享面板，走二维码/微信号那条路');
     } catch (err) {
-      /* 分享面板报错多半是目标应用崩了或者用户中途取消。
-         不弹 Alert 打断 —— 二维码就在上面，用户自己会走第二条路。 */
-      console.warn('[gewu] 分享加好友链接失败：', err);
+      /* 分享面板报错多半是目标应用崩了或者用户中途取消。同样不弹 Alert 打断。 */
+      console.warn('[gewu] 分享二维码失败：', err);
     } finally {
       setSharing(false);
     }
@@ -138,12 +139,12 @@ export function AddWechatBody({ onDone, doneLabel = '稍后再说' }: AddWechatB
 
       <View style={styles.foot}>
         <Button
-          label={sharing ? '正在打开分享…' : '分享到微信'}
+          label={sharing ? '正在打开分享…' : '分享二维码到微信'}
           loading={sharing}
           onPress={() => void onShare()}
         />
         <Meta tone="ink4" style={styles.shareHint}>
-          分享后点一下那条链接就能加我，不用长按识别
+          分享后在微信里长按这张图，选「识别图中二维码」
         </Meta>
         {onDone ? (
           <Pressable
