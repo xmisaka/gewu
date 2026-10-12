@@ -15,14 +15,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button, IconButton, SettingRow } from '@/components/ui/controls';
+import { AddWechatSheet } from '@/components/domain/AddWechatSheet';
 import { ContactSection } from '@/components/domain/ContactSection';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta } from '@/components/ui/typography';
 import { GUTTER, LIGHT_THEME_KEYS, Palette, Radius, Space, Type, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_URL, LICENSE_RECOVER } from '@/constants/site';
+import { LICENSE_RECOVER } from '@/constants/site';
 import { formatDateCN } from '@/lib/date';
 import { useEntitlement } from '@/lib/store/entitlement';
 import { makeStyles, useTheme } from '@/lib/theme';
@@ -52,6 +53,8 @@ export default function SupporterScreen() {
   const [error, setError] = useState<string | null>(null);
   /** 刚在本页激活成功 —— 先把结果亮给用户看，别立刻跳到状态页把反馈吞掉 */
   const [justActivated, setJustActivated] = useState(false);
+  /** 「加我微信」面板 */
+  const [wechatOpen, setWechatOpen] = useState(false);
 
   const run = async () => {
     if (!draft.trim() || busy) return;
@@ -204,17 +207,17 @@ export default function SupporterScreen() {
                       <SettingRow
                         label="支持者权益"
                         value="¥36 一次买断"
-                        last={AFDIAN_URL.length === 0}
                         onPress={() => router.push('/pro')}
                       />
-                      {AFDIAN_URL.length > 0 ? (
-                        <SettingRow
-                          label="去爱发电支持"
-                          value="打开商品页"
-                          last
-                          onPress={() => void Linking.openURL(AFDIAN_URL).catch(() => undefined)}
-                        />
-                      ) : null}
+                      {/* ★ 这一行原来叫「去爱发电支持」、点开商品页。
+                          换成打开加微信面板后，`last` 也跟着从上一行挪到这一行
+                          —— 忘了挪的话，卡片底部会多出一条横线，且不报错 */}
+                      <SettingRow
+                        label="加我微信"
+                        value="扫码或分享链接"
+                        last
+                        onPress={() => setWechatOpen(true)}
+                      />
                     </Card>
                   </Gutter>
                 </SectionCard>
@@ -307,10 +310,10 @@ export default function SupporterScreen() {
                     </Meta>
                     <View style={styles.rowValue}>
                       <Body>{LICENSE_RECOVER}</Body>
-                      {/* ★ 原来这里只写「爱发电『我的订单』里可重看」——
-                          但码多半是**微信上**发的，让他去一个根本没有订单的地方翻，
-                          等于没有这条说明 */}
-                      <Meta tone="ink4">{AFDIAN_URL.length > 0 ? '爱发电订单页里也能重看' : '「我的」页最下面有我的二维码'}</Meta>
+                      {/* ★ 这行以前在「爱发电订单页里也能重看」和「「我的」页最下面有我的二维码」
+                          之间切。爱发电退场后只剩一种说法 —— 而且它更接近实情：
+                          码是微信上发的，能帮你重看的只有我这边，用户手上那份得靠他自己存。 */}
+                      <Meta tone="ink4">「我的」页最下面有我的二维码</Meta>
                     </View>
                   </View>
                 </Card>
@@ -354,6 +357,8 @@ export default function SupporterScreen() {
           <Button label="返回" tone="secondary" onPress={() => router.back()} />
         )}
       </View>
+
+      <AddWechatSheet visible={wechatOpen} onClose={() => setWechatOpen(false)} />
     </Screen>
   );
 }

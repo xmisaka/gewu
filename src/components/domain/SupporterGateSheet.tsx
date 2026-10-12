@@ -13,14 +13,16 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Linking, Modal, Pressable, View } from 'react-native';
+import { useState } from 'react';
+import { Modal, Pressable, View } from 'react-native';
 
 import { GUTTER, Palette, Radius, Space, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_URL, LICENSE_HOWTO } from '@/constants/site';
+import { LICENSE_HOWTO } from '@/constants/site';
 import { SUPPORTER_FEATURES, type SupporterFeature } from '@/lib/entitlement';
 import { makeStyles } from '@/lib/theme';
 import { Button } from '../ui/controls';
 import { Body, Heading, Meta } from '../ui/typography';
+import { AddWechatBody } from './AddWechatSheet';
 
 export interface SupporterGateSheetProps {
   visible: boolean;
@@ -49,13 +51,26 @@ export function SupporterGateSheet({ visible, feature, themeIntent, onClose }: S
   const router = useRouter();
   const copy = SUPPORTER_FEATURES[feature];
 
-  /* 商品页还没上架时（AFDIAN_URL 为空）不显示主按钮：
-     一个点开是空白的「去支持」比暂时没有入口更伤信任 */
-  const hasStore = AFDIAN_URL.length > 0;
+  /** 「加我微信」是**换掉整个面板内容**，不是叠第二个面板 —— 理由见 render 里那段注释 */
+  const [showWechat, setShowWechat] = useState(false);
+
+  /**
+   * 关掉浮层，顺带把「加我微信」那一屏收回去。
+   *
+   * ★ 不用 `useEffect` 监听 `visible` 来复位：那是在 effect 里同步 setState，
+   *   会触发级联渲染（`react-hooks/set-state-in-effect` 直接报错），
+   *   而且 React 官方给的判据也在这里 —— 复位不是「同步外部系统」。
+   *   这个浮层在多数页面是常显的（`visible` 由外层守卫决定），
+   *   所以复位只能挂在**关闭这一个动作**上：凡是走得掉的出口都从这里过。
+   */
+  const close = () => {
+    setShowWechat(false);
+    onClose();
+  };
 
   /** 去激活页；带意图时用 params 传，激活成功后那边就地生效 */
   const goActivate = () => {
-    onClose();
+    close();
     if (themeIntent) {
       router.push({ pathname: '/supporter', params: { theme: themeIntent } });
     } else {
@@ -71,75 +86,75 @@ export function SupporterGateSheet({ visible, feature, themeIntent, onClose }: S
    *   把这个负面瞬间接到那一页上 —— 否则权益永远只以「不许」的样子出现。
    */
   const goBenefits = () => {
-    onClose();
+    close();
     router.push('/pro');
   };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      <Pressable style={styles.backdrop} onPress={close} />
       <View style={styles.sheet}>
         <View style={styles.handle} />
 
-        <View style={styles.head}>
-          <Heading>{copy.sheetTitle}</Heading>
-          <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} hitSlop={10}>
-            <Ionicons name="close" size={20} color={Palette.ink3} />
-          </Pressable>
-        </View>
-
-        <View style={styles.body}>
-          <Body tone="ink2" style={styles.desc}>
-            {copy.sheetBody}
-          </Body>
-
-          {DISCLOSURES.map((item, index) => (
-            <View key={item.title} style={styles.disclosure}>
-              <View style={styles.badge}>
-                <Meta color={Palette.brand} style={styles.badgeText}>
-                  {index + 1}
-                </Meta>
-              </View>
-              <Body tone="ink2" style={styles.disclosureText}>
-                <Body style={styles.disclosureTitle}>{item.title}</Body>
-                {` ${item.body}`}
-              </Body>
+        {/* ★★ 加微信是**换掉整个面板内容**，不是再叠一个 Modal。
+            这个文件头上已经记着「两个 Modal 叠在一起在安卓上会互相抢返回键」
+            （`mine.tsx` 的 onLockedPick 也是为同一个原因先关选择器再弹门控）——
+            RN 的 Modal 在 Android 上是一个独立的 Dialog 窗口，套两层不可靠，
+            而且它坏起来是「第二个面板根本不出现」，不报错。 */}
+        {showWechat ? (
+          <AddWechatBody doneLabel="返回" onDone={() => setShowWechat(false)} />
+        ) : (
+          <>
+            <View style={styles.head}>
+              <Heading>{copy.sheetTitle}</Heading>
+              <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={close} hitSlop={10}>
+                <Ionicons name="close" size={20} color={Palette.ink3} />
+              </Pressable>
             </View>
-          ))}
-        </View>
 
-        <View style={styles.foot}>
-          {/* 摆主按钮之前先给一个「先看看」的出口。被挡下的这一刻用户是带着情绪的，
-              硬要他当场付款只会触发那套「你是不是在逼我付费」的警觉；
-              让他去看完整的对比，反而是更有效的说服 */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="查看支持者的全部权益"
-            onPress={goBenefits}
-            style={styles.benefits}>
-            <Meta color={Palette.brand}>看全部权益（免费档 vs 支持者档）→</Meta>
-          </Pressable>
+            <View style={styles.body}>
+              <Body tone="ink2" style={styles.desc}>
+                {copy.sheetBody}
+              </Body>
 
-          {/* ★ 商品页还没上架时不摆「去支持」按钮，但**必须给出去哪拿码** ——
-              否则浮层说了「¥36 一次买断」，用户却找不到任何能付钱的地方，
-              比没有这个浮层更让人恼火。二维码在主按钮原来的位置上说清楚。
-              ★ 按钮现在真的打开爱发电了（以前写的是 router.push('/supporter')，
-                而浮层本来就在那一页上，点下去等于把自己再压一遍）。 */}
-          {hasStore ? (
-            <Button
-              label="去爱发电支持"
-              onPress={() => void Linking.openURL(AFDIAN_URL).catch(() => undefined)}
-            />
-          ) : (
-            <Meta tone="ink3" style={styles.storeNote}>
-              {LICENSE_HOWTO}
-            </Meta>
-          )}
-          <Button label="我已有激活码" tone="secondary" style={styles.secondary} onPress={goActivate} />
-          <Pressable accessibilityRole="button" onPress={onClose} style={styles.later}>
-            <Meta tone="ink3">稍后再说</Meta>
-          </Pressable>
-        </View>
+              {DISCLOSURES.map((item, index) => (
+                <View key={item.title} style={styles.disclosure}>
+                  <View style={styles.badge}>
+                    <Meta color={Palette.brand} style={styles.badgeText}>
+                      {index + 1}
+                    </Meta>
+                  </View>
+                  <Body tone="ink2" style={styles.disclosureText}>
+                    <Body style={styles.disclosureTitle}>{item.title}</Body>
+                    {` ${item.body}`}
+                  </Body>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.foot}>
+              {/* 摆主按钮之前先给一个「先看看」的出口。被挡下的这一刻用户是带着情绪的，
+                  硬要他当场付款只会触发那套「你是不是在逼我付费」的警觉；
+                  让他去看完整的对比，反而是更有效的说服 */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="查看支持者的全部权益"
+                onPress={goBenefits}
+                style={styles.benefits}>
+                <Meta color={Palette.brand}>看全部权益（免费档 vs 支持者档）→</Meta>
+              </Pressable>
+
+              {/* ★ 主按钮原来开的是爱发电商品页，现在改成把面板内容换成加微信（见上面那段注释）。
+                  「商品页没上架就退化成一行文案」的判据一并作废 ——
+                  加微信这条路不依赖任何可能为空的地址。 */}
+              <Button label="加我微信" onPress={() => setShowWechat(true)} />
+              <Button label="我已有激活码" tone="secondary" style={styles.secondary} onPress={goActivate} />
+              <Pressable accessibilityRole="button" onPress={close} style={styles.later}>
+                <Meta tone="ink3">稍后再说</Meta>
+              </Pressable>
+            </View>
+          </>
+        )}
       </View>
     </Modal>
   );

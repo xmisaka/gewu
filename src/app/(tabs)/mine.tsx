@@ -17,12 +17,13 @@ import { LeadDaysSheet } from '@/components/domain/LeadDaysSheet';
 import { ThemePickerModal } from '@/components/domain/ThemePickerModal';
 import { Segmented, SettingRow } from '@/components/ui/controls';
 import { StockKeyModal, stockKeyStatus } from '@/components/domain/StockKeyModal';
+import { AddWechatSheet } from '@/components/domain/AddWechatSheet';
 import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { Loading, MetricStrip, PlainTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { DARK_THEME_KEY, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_URL, LICENSE_HOWTO, SITE_URL, siteUrlWithSkin } from '@/constants/site';
+import { SITE_URL, siteUrlWithSkin } from '@/constants/site';
 import { isThemeLocked, type SupporterFeature } from '@/lib/entitlement';
 import { clampLeadDays, describeLeadDays, describeNextNotification, isPresetLeadDays } from '@/lib/notify/plan';
 import { useNotify } from '@/lib/store/notify';
@@ -97,6 +98,8 @@ export default function MineScreen() {
   const [gateFeature, setGateFeature] = useState<SupporterFeature | null>(null);
   /** 用户在选择器里点到的那套皮肤，带进激活页，激活完就地生效 */
   const [gateTheme, setGateTheme] = useState<ThemeKey | null>(null);
+  /** 「加我微信」面板 */
+  const [wechatOpen, setWechatOpen] = useState(false);
 
   const metaState = useAsyncData(
     async () => {
@@ -760,13 +763,13 @@ export default function MineScreen() {
               {/* ★ 已激活就不再摆这一行。它的全部含义是「还没买 → 去买」，
                   对一个已经付过钱的人，这是设置页里的一句多余广告 ——
                   他该看的是下面那行「支持者状态」。
-                  （唯一没承接的是「买一份送人」：爱发电那边下单即自动发码给买家本人，
-                    要做转赠得另设一套机制，不在这一版。） */}
-              {AFDIAN_URL.length > 0 && !entitled ? (
+                  （唯一没承接的是「买一份送人」：码是一次买断、不绑设备，
+                    转赠技术上做得到，但要做成正经的「送一份」得另设一套机制，不在这一版。） */}
+              {!entitled ? (
                 <SettingRow
-                  label="去爱发电支持"
+                  label="加我微信"
                   value="¥36 一次买断"
-                  onPress={() => void Linking.openURL(AFDIAN_URL).catch(() => undefined)}
+                  onPress={() => setWechatOpen(true)}
                 />
               ) : null}
               <SettingRow
@@ -809,11 +812,7 @@ export default function MineScreen() {
             <Meta tone="ink4" style={styles.supportNote}>
               {entitled
                 ? '激活码不绑设备、不限台数，换手机再粘一次即可，不需要联网。仅限本人使用，请勿外传。'
-                : `一次买断，免费档照旧 —— 收纳、到期、库存、照片、备份都不受影响。${
-                    AFDIAN_URL.length > 0
-                      ? ''
-                      : `${LICENSE_HOWTO}，二维码在本页「联系我」里。`
-                  }`}
+                : '一次买断，免费档照旧 —— 收纳、到期、库存、照片、备份都不受影响。'}
             </Meta>
           </Gutter>
         </SectionCard>
@@ -901,6 +900,10 @@ export default function MineScreen() {
           setGateTheme(null);
         }}
       />
+
+      {/* ★ 不跟门控浮层叠着开：安卓上两个 Modal 会互相抢返回键
+          （上面 onLockedPick 那段注释记的就是同一个坑） */}
+      <AddWechatSheet visible={wechatOpen} onClose={() => setWechatOpen(false)} />
 
       <StockKeyModal
         visible={keyOpen}

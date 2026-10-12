@@ -19,13 +19,14 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { AddWechatSheet } from '@/components/domain/AddWechatSheet';
 import { Button, IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Heading, Label, Meta, Title } from '@/components/ui/typography';
 import { GUTTER, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES } from '@/constants/theme';
-import { AFDIAN_URL, LICENSE_HOWTO } from '@/constants/site';
 import {
   FREE_BASELINE,
   isThemeLocked,
@@ -61,7 +62,7 @@ export default function ProScreen() {
   const router = useRouter();
   const { entitled, entitlement } = useEntitlement();
 
-  const hasStore = AFDIAN_URL.length > 0;
+  const [wechatOpen, setWechatOpen] = useState(false);
 
   return (
     <Screen>
@@ -87,18 +88,11 @@ export default function ProScreen() {
           <Button label="返回" tone="secondary" onPress={() => router.back()} />
         ) : (
           <>
-            {/* ★ 商品页没上架时不摆「去支持」按钮，但**必须给出去哪拿码** ——
-                说了一页「¥36」，却找不到能付钱的地方，比没有这一页更让人恼火 */}
-            {hasStore ? (
-              <Button
-                label="去爱发电支持 · ¥36"
-                onPress={() => void Linking.openURL(AFDIAN_URL).catch(() => undefined)}
-              />
-            ) : (
-              <Meta tone="ink3" style={styles.storeNote}>
-                {LICENSE_HOWTO}
-              </Meta>
-            )}
+            {/* ★ 主按钮从「去爱发电支持」换成打开加微信面板 —— 官网上不再引导去爱发电，
+                App 里也不该再把人往外送。
+                ★ 原来那句「商品页没上架时不摆按钮」的判据已经作废：加微信这条路不依赖
+                  任何可能为空的地址，所以按钮恒在，不需要再留一条「去哪拿码」的兜底文案。 */}
+            <Button label="加我微信 · ¥36" onPress={() => setWechatOpen(true)} />
             <Button
               label="我已有激活码"
               tone="secondary"
@@ -108,6 +102,8 @@ export default function ProScreen() {
           </>
         )}
       </View>
+
+      <AddWechatSheet visible={wechatOpen} onClose={() => setWechatOpen(false)} />
     </Screen>
   );
 }

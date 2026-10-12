@@ -13,8 +13,9 @@
  *   现在这份是 segno 从扫码结果重画的 1176×1176（纠错 H、静区 4 模块），
  *   放大到 280dp 仍然逐模块清晰 —— 二维码糊了会直接扫不出。
  *
- * 载荷（换了微信号就用它重画，别去截图）：
- *   https://u.wechat.com/EHVgw7ESh4m95vrk4uZFldA?s=3
+ * 载荷＝下面导出的 `WECHAT_ADD_URL`，两处必须一致：
+ *   · 二维码就是拿它画出来的（换了微信号就用它重画，别去截图）
+ *   · App 里所有「加我微信」入口分享出去的也是它
  * 重画命令（本机托管 venv 里有 segno）：
  *   python -c "import segno; segno.make('https://u.wechat.com/EHVgw7ESh4m95vrk4uZFldA?s=3', \
  *     error='h').save('assets/images/wechat-qr.png', scale=24, border=4, \
@@ -37,6 +38,25 @@ const QR_MODULE = require('../../assets/images/wechat-qr.png') as number;
 
 /** 交给 <Image> 的 source（不要在这里再包一层 uri） */
 export const WECHAT_QR = QR_MODULE;
+
+/**
+ * 加好友链接 —— 与上面那张二维码**同源**。
+ *
+ * ★★ 这两样是同一个东西：二维码扫出来的就是这串 URL。
+ *   刻意写在同一个文件里，是因为换号时**必然两个一起换**；
+ *   分散到两处就会漂，而漂了之后的表现是「二维码能扫、按钮点开是空白」，
+ *   **不报错**，只是有人加不上你。
+ *
+ * ★★★ 这条链接**只在微信内部有效**。
+ *   2026-10-12 在服务器上实测：系统浏览器打开它返回 301 → https://www.wechat.com/
+ *   （微信只认自家域名，个人名片的加密 URL 仅由微信 App 解析）。
+ *   → 所以 App 里**绝不能**拿它去 `Linking.openURL`，官网也不能把它当按钮 href。
+ *   → 唯一可行的用法：把它**分享进微信**，让对方在微信里点开（见 AddWechatSheet）。
+ *
+ * ★ 风险：你在微信里「重置个人二维码」之后它会立即失效，而它已经打进 APK。
+ *   所以面板里二维码要一直显示着，不能只押这条链接。
+ */
+export const WECHAT_ADD_URL = 'https://u.wechat.com/EHVgw7ESh4m95vrk4uZFldA?s=3';
 
 /**
  * 同一张二维码的 base64 内联副本，专供**分享**使用。
