@@ -9,6 +9,8 @@ import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 
+import com.gewu.app.widget.GewuWidgetProvider
+
 import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
@@ -21,6 +23,28 @@ class MainActivity : ReactActivity() {
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
     super.onCreate(null)
+  }
+
+  /**
+   * 离开前台时把桌面小组件刷一遍。
+   *
+   * ★★ 为什么挂在 onStop 上，而不是让 JS 在数据变的时候主动去戳：
+   *   桌面小组件要显示的是「当前的数据」+ 一个**诚实的时间戳**。刷新时机只有两个
+   *   合理的选择 —— 要么每次写数据都去戳一次系统（那需要为一句话接一整套
+   *   原生模块，而模块哪次没接上，表现和「没写快照」一模一样，反而更难查），
+   *   要么挑一个「用户马上就要看到桌面的时刻」。onStop 正是后者：
+   *   用户从格物回到桌面，下一步就是看那枚卡片。
+   *
+   * ★★ 顺序上也安全：JS 侧写快照用的是**同步**文件写入
+   *   （`expo-file-system` 的 File.write，见 lib/widget/publish.ts），
+   *   而 onStop 必然晚于任何一次数据变更，所以这里读到的不会是一份半成品。
+   *
+   * ★ 没有装小组件时这个调用会自己立刻返回（一次 binder 查询），
+   *   所以对绝大多数用户它等于不存在。
+   */
+  override fun onStop() {
+    super.onStop()
+    GewuWidgetProvider.refreshAll(this)
   }
 
   /**

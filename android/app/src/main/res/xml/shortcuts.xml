@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  格物 · 长按图标的静态快捷方式（三条）
+
+  ★ 顺序即重要度：launcher 按声明顺序取前几条，**多数 launcher 只显示 4 条**
+    （静态 + 动态合计，`getMaxShortcutCountPerActivity()` 在部分设备返回 5，
+    但 Pixel 与多数 OEM 都截断在 4）。所以这里放的是「长按之后最想立刻做的事」，
+    不是「功能清单」。
+
+  ★★ 为什么全部走 deep link（`android:data`）而不是原生 extra：
+    格物的 MainActivity 上**已经**注册了 `gewu` scheme 的 VIEW / BROWSABLE
+    intent-filter（见 AndroidManifest），所以 intent 带上 URI 之后由 expo-linking
+    接住、expo-router 路由 —— **不需要写一行 Kotlin 去读 extra**。
+    这是本项目「不跑 prebuild、原生改动越少越好」得到的一次免费收益。
+
+  ★ `android:data` 用完整 URI 字符串，而不是 `<data>` 子元素：`<data>` 只有
+    scheme / host / port / path 这些属性，**表达不了 query**，而「找东西」那条
+    恰恰要靠 `?focus=search`。官方文档写明 intent 的 URI 也可以从 `android:data`
+    属性给（该属性会被同 intent 内的 <data> 子元素覆盖，二者选一即可）。
+
+  ★★ 标签（shortcutShortLabel / LongLabel）**必须是资源引用**，写内联字符串会
+    直接编译失败 —— 这一点反而是好事：它会早早报错，而不是等用户发现菜单里少了东西。
+
+  ★★★ 而它真正咬人的地方在别处：**launcher 的长按菜单优先显示 LongLabel**。
+    2026-10-14 真机踩到 —— 只改了 ShortLabel，菜单里三条仍旧显示旧名，而
+    代码 / 测试 / 编译 / 连「包内字符串池核对」每一环都是绿的：
+    改的那一处根本不是菜单显示的那一处，没有任何 diff 能看出这件事。
+    现在两个标签刻意保持一致（三个名字都只有两三字，没有「更完整的说法」可给），
+    并有测试钉着「成对存在且文案一致」（tests/widget-theme-parity.test.mjs）。
+
+  ★★ 排查入口（这份文件解析不过时 Android 会**静默跳过整份文件**，
+    长按菜单里一条都不出现、不报错也不崩溃）：
+        adb shell cmd shortcut get-shortcuts com.gewu.app
+    改完还要重启 Launcher 才看得到（系统缓存）；别把缓存当成「没生效」。
+
+  ★★★ 但这个命令**证明不了触发路径**：它打印 intent 时会把 path 与 query 一起
+    省略成 `gewu://compose/...`（`dat=` 那一段），所以「找东西」那条的
+    `?focus=search` 在它的输出里根本看不见 —— 看不到**不等于**丢了。
+    实测过一次对照：`gewu://compose/aaa/bbb` 与 `gewu://compose?q=hello`
+    打印出来一模一样。所以 query 有没有被认，**只能在真机上点一次看结果**。
+    （`am start -d "…"` 同理：它也走同一个打印路径。）
+    ★ 另外 Android 16 上已经**没有** `list-shortcuts` / `invoke-shortcut` 这两个子命令了，
+      只有 `get-shortcuts`；用 `cmd shortcut help` 看当前设备支持哪些。
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- ① 录一件 —— 唯一的「写」入口。
+       目标是根 Stack 路由 /compose（不是 tab 里的那一格），
+       所以深链进去是一张干净的空表单，返回键也回得到来处。 -->
+  <shortcut
+      android:shortcutId="compose"
+      android:enabled="true"
+      android:icon="@drawable/ic_shortcut_compose"
+      android:shortcutShortLabel="@string/shortcut_compose_short"
+      android:shortcutLongLabel="@string/shortcut_compose_long">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:data="gewu://compose"
+        android:targetPackage="com.gewu.app"
+        android:targetClass="com.gewu.app.MainActivity"/>
+  </shortcut>
+
+  <!-- ② 待办 —— 与桌面小组件同一个心智：组上看到砖红数字，下一步就是处理它。
+       目标是提醒页（tab /alerts），它的第一组就是「该补货了」，
+       所以站在货架前想看一眼缺什么也走这一条，不必为「补货」单独占格。 -->
+  <shortcut
+      android:shortcutId="alerts"
+      android:enabled="true"
+      android:icon="@drawable/ic_shortcut_alerts"
+      android:shortcutShortLabel="@string/shortcut_alerts_short"
+      android:shortcutLongLabel="@string/shortcut_alerts_long">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:data="gewu://alerts"
+        android:targetPackage="com.gewu.app"
+        android:targetClass="com.gewu.app.MainActivity"/>
+  </shortcut>
+
+  <!-- ③ 找东西 —— 格物对用户唯一的承诺。
+       ★ 必须带 `?focus=search`：不带它就等价于点图标打开首页、还得自己再去点搜索框，
+         这一格的价值就归零了。首页读这个参数并聚焦搜索框（见 (tabs)/index.tsx）。
+       ★ 这条是三条里最需要真机实测的：`gewu://?focus=search` 的 host 为空、
+         只剩 query —— 理论上 expo-router 会把它归一路由到 `/` 并把 focus 解析成参数，
+         但「理论通」不算数，**必须在真机上长按图标实际点一次**。
+       ★★ 没有任何 adb 命令能替代这一次点击：`cmd shortcut get-shortcuts` 打印
+         `dat=` 时会把 **path 和 query 一起省略**（写 `gewu://compose/aaa/bbb` 与
+         `gewu://compose?q=hello` 打出来一模一样），而 Android 16 上已经没有
+         `invoke-shortcut` 子命令了。所以「get-shortcuts 看着对」证明不了 query 还在。 -->
+  <shortcut
+      android:shortcutId="search"
+      android:enabled="true"
+      android:icon="@drawable/ic_shortcut_search"
+      android:shortcutShortLabel="@string/shortcut_search_short"
+      android:shortcutLongLabel="@string/shortcut_search_long">
+    <intent
+        android:action="android.intent.action.VIEW"
+        android:data="gewu://?focus=search"
+        android:targetPackage="com.gewu.app"
+        android:targetClass="com.gewu.app.MainActivity"/>
+  </shortcut>
+
+</shortcuts>

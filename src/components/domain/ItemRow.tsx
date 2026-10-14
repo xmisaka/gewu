@@ -10,7 +10,7 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Palette, Radius, Space } from '@/constants/theme';
-import { describePurchase } from '@/lib/date';
+import { describeExpiryTag, describePurchase } from '@/lib/date';
 import { formatMoney } from '@/lib/format';
 import { stockLabel } from '@/lib/stock';
 import type { ItemView, StockState } from '@/lib/types';
@@ -69,13 +69,6 @@ export interface ItemRowProps {
    * 首页列表上的 −1 是反过来的（误触就少一件，还得去翻撤销）。两者不是一回事。
    */
   onQuickRestock?: (item: ItemView) => void;
-}
-
-function expiryTextOf(item: ItemView): string {
-  if (item.daysToExpiry == null) return '';
-  if (item.daysToExpiry < 0) return `过期 ${Math.abs(item.daysToExpiry)} 天`;
-  if (item.daysToExpiry === 0) return '今天到期';
-  return `${item.daysToExpiry} 天后到期`;
 }
 
 export const ItemRow = memo(function ItemRow({
@@ -153,7 +146,7 @@ export const ItemRow = memo(function ItemRow({
           ) : null}
           {locationText ? <PlainTag text={locationText} icon="location-outline" /> : null}
           {item.expiry !== 'none' ? (
-            <StatusTag state={item.expiry} text={expiryTextOf(item)} compact />
+            <StatusTag state={item.expiry} text={describeExpiryTag(item.daysToExpiry)} compact />
           ) : null}
           {item.photoCount > 1 ? (
             <PlainTag text={`${item.photoCount} 张`} icon="images-outline" />

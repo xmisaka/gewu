@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  格物 · 桌面小组件（方案甲 · 待办看板）—— 正常态，设计尺寸 4×2 = 276 × 220 dp
+
+  结构（自上而下）：
+    页眉    「格物 · 待办」（品牌色）          「共 N 件」（灰）
+    分隔线
+    列表    最多三行（widget_gewu_row.xml 灌进来）
+    分隔线
+    页脚    「还有 N 件 · 截至今天 09:12」      「打开格物」（品牌色）
+
+  ★★★ 圆角怎么做的：整张卡身是**一枚 ImageView + 一张按当前 dp 尺寸现画的
+      纯色圆角位图**，由 ImageView 的 fitXY 拉伸到真实像素。两个「更自然」的做法
+      都被否掉了，理由都值得记住：
+
+  ✗ 第一版设计：卡身铺一块纯色矩形，四角各叠一枚 24dp 的「圆角矩形四分之一」，
+    指望角块把方角盖掉。**盖不掉** —— 角块位图在圆弧之外是**透明**的，
+    透明处露出来的正是它底下那块铺满的方角（同一块卡身）。
+    真机上四角是实心的白，一个像素的圆角都没有。
+    这个错还特别隐蔽：不报错、布局完全合法、构建通过、包里资源齐全，
+    表现只是「看起来没生效」——**它在书面上无懈可击，只在屏幕上是错的。**
+
+  ✗ 第二版设计：按屏幕密度画一张整卡位图。位图要过 Binder（单次事务上限 1MB），
+    276×220dp 在 3 倍屏上是 828×660 像素，ARGB_8888 就是 2.2MB ——
+    **整次更新会被系统静默丢弃**，桌面停在上一帧、只在 logcat 里留一行。
+
+  ✓ 现在：**按 dp 尺寸画，1 像素 = 1 dp**（276×220 的卡就画 276×220 像素 = 243KB），
+    再交给 fitXY 拉伸。因为画的宽高比与卡片**完全一致**，拉伸是等比的 ——
+    圆角不会被拉成椭圆，半径正好是 24dp，且与屏幕密度无关。
+    载荷从 2.2MB 掉到几十 KB，圆角也保住了。
+
+  ★ 尺寸从 `AppWidgetManager.getAppWidgetOptions()` 取（GewuWidgetProvider.cardSizeOf），
+    取不到就退回 maxResizeWidth/Height。宁可比例略偏，也不留方角。
+
+  ★ 这里不写任何颜色，全部由 Kotlin 按主题设上去 —— 理由见 widget_gewu_row.xml。
+
+  ★★★ 两条硬约束，都是 2026-10-14 第一次真机踩出来的：
+
+  ① 容器只能是 RemoteViews 白名单里的那四个
+     （`FrameLayout` / `LinearLayout` / `RelativeLayout` / `GridLayout`），
+     控件只有 `TextView` / `ImageView` / `Button` / `ProgressBar` 等少数几个
+     —— **裸 `<View>` 不在里面**。它的失败方式是这里最坏的一种：
+       构造 RemoteViews 不报错 → 我们自己 inflate 也不报错 →
+       只有 launcher 侧 apply 时炸，桌面显示「载入窗口小部件时出现问题」，
+       不说是哪一行、不说是哪个文件，连 launcher 的堆栈都会被系统吞掉。
+
+  ② **标签一律写全限定名**，即 `<android.widget.ImageView>` 而不是 `<ImageView>`。
+     原因：AppCompat 的 LayoutInflater 工厂会把简单名换成自己的子类
+     （`AppCompatImageView` / `AppCompatTextView` …），而
+     `AppCompatImageView` **覆写了 `setImageBitmap` 且没标 `@RemotableViewMethod`**
+     → `RemoteViews` 直接抛 `ActionException: can't use method with RemoteViews`。
+     写全限定名之后 AppCompat 的 switch 匹配不上，两侧拿到的都是标准控件：
+       · launcher 侧本来多半是标准控件，但没准它也挂了 AppCompat —— 这样就都对了；
+       · 而我们自己的 `selfCheck` 跑在 **Activity 的 context** 上，**一定**会拿到
+         AppCompat 版本，不写全限定名它就会一直报一个 launcher 侧根本不存在的假警 ——
+         而**假警比没有自检更糟，它会训练人忽略这个自检**。
+
+  ★ 两条都有测试钉着（tests/widget-theme-parity.test.mjs 的「布局里只能用
+    RemoteViews 白名单内的视图类」——它同时校验「在白名单内」和「写了全限定名」）。
+
+  ★ 列表区高度不够时（卡片被拉到很矮）靠 `clipChildren` 裁掉最后一行，
+    而不是让它画到卡片外面 —— ViewGroup 的 clipChildren 默认为 true，
+    这里不额外声明，只提醒别把它关掉。
+-->
+<android.widget.FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_card"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+  <!-- 卡身 = 底色 + 圆角，这一张位图全包了。理由见文件顶部。 -->
+  <android.widget.ImageView
+      android:id="@+id/widget_body"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:scaleType="fitXY"
+      android:importantForAccessibility="no" />
+
+  <android.widget.LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="vertical"
+      android:padding="14dp">
+
+    <android.widget.LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+      <android.widget.TextView
+          android:id="@+id/widget_header"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:maxLines="1"
+          android:ellipsize="end"
+          android:letterSpacing="0.06"
+          android:textSize="12sp"
+          android:text="@string/widget_gewu_header" />
+
+      <android.widget.TextView
+          android:id="@+id/widget_count"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="8dp"
+          android:maxLines="1"
+          android:textSize="11sp" />
+    </android.widget.LinearLayout>
+
+    <!-- 1dp 的分隔线。★ 同样不能用裸 View，理由见文件顶部那条 ① -->
+    <android.widget.FrameLayout
+        android:id="@+id/widget_rule_top"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="6dp" />
+
+    <!-- 三行条目。高度吃权重，行的内容是固定 40dp —— 多了多留白，少了裁掉最后一行 -->
+    <android.widget.LinearLayout
+        android:id="@+id/widget_rows"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="7dp"
+        android:orientation="vertical" />
+
+    <android.widget.FrameLayout
+        android:id="@+id/widget_rule_bottom"
+        android:layout_width="match_parent"
+        android:layout_height="1dp" />
+
+    <android.widget.LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="7dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+      <android.widget.TextView
+          android:id="@+id/widget_foot_left"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:maxLines="1"
+          android:ellipsize="end"
+          android:textSize="10.5sp" />
+
+      <android.widget.TextView
+          android:id="@+id/widget_foot_right"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="8dp"
+          android:maxLines="1"
+          android:textSize="11sp"
+          android:text="@string/widget_gewu_open" />
+    </android.widget.LinearLayout>
+  </android.widget.LinearLayout>
+</android.widget.FrameLayout>

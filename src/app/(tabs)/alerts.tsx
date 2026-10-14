@@ -18,7 +18,7 @@ import { EmptyState, Loading, UndoBar, type UndoAction } from '@/components/ui/f
 import { Card, Gutter, PageHeader, Screen } from '@/components/ui/layout';
 import { Label, Meta } from '@/components/ui/typography';
 import { GUTTER, Palette, Space } from '@/constants/theme';
-import { adjustQuantity, listExpiring, listLowStock, setQuantity } from '@/lib/db/items';
+import { adjustQuantity, listAttentionGroups, setQuantity } from '@/lib/db/items';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { stockLabel } from '@/lib/stock';
 import { useAppState } from '@/lib/store/app-state';
@@ -39,18 +39,7 @@ export default function AlertsScreen() {
   const notify = useNotify();
   const [undo, setUndo] = useState<UndoAction | null>(null);
 
-  const state = useAsyncData(
-    async () => {
-      // 两组各查一次再拼起来，而不是把 low 塞进 listExpiring ——
-      // 那个函数的名字与职责是「到期」，混进库存会让它变成一个说不清的东西
-      const [expiring, low] = await Promise.all([listExpiring(), listLowStock()]);
-      return low.length > 0
-        ? [{ key: 'low' as const, title: '该补货了', items: low }, ...expiring]
-        : expiring;
-    },
-    [dataVersion],
-    [] as ExpiringGroup[],
-  );
+  const state = useAsyncData(listAttentionGroups, [dataVersion], [] as ExpiringGroup[]);
 
   const actionable = useMemo(
     () => state.data.filter((g) => g.key !== 'later' && g.items.length > 0),

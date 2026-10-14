@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  快捷方式图标 · 录一件（加号）
+  ★ 24dp / 24 grid，线条风格与 App 内的 Ionicons outline 一致（strokeWidth 1.9 是
+    Ionicons 在 24dp 下的视觉等效值）。
+  ★ 颜色写死为暖深棕而不是留给系统 tint：多数 launcher 会把它放在浅色圆底上、
+    也有不少 launcher 直接画在白色菜单卡上 —— 深色在这两种情形下都看得见。
+  ★ 只用描边不用填充，所以 fillColor 必须显式写成透明，否则默认会填成黑色。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <path
+      android:fillColor="#00000000"
+      android:strokeColor="#5A4A38"
+      android:strokeWidth="1.9"
+      android:strokeLineCap="round"
+      android:pathData="M12,5.2V18.8M5.2,12H18.8"/>
+</vector>

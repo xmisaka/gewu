@@ -105,6 +105,27 @@ export function describeRemaining(days: number | null): string {
   return `还剩 ${days} 天`;
 }
 
+/**
+ * 到期状态在**列表行与桌面小组件**上的短文案：「过期 8 天」「今天到期」「6 天后到期」。
+ *
+ * ★ 与 `describeRemaining` 是**两套措辞、故意不同**，别顺手合并：
+ *   · `describeRemaining` 说「还剩 6 天」—— 给**单独看一件**的场景用，语调是说明性的；
+ *   · 这一个说「6 天后到期」—— 它是个**标签**，挂在这件东西旁边，
+ *     主语是物品本身而不是「剩余量」。
+ *   把两者混用会让同一屏出现两种说法，用户会以为它们指的是不同的东西。
+ *
+ * ★ 2026-10-14 从 `ItemRow` 里搬到这里：桌面小组件要显示同一个胶囊，而 widget
+ *   跑在 launcher 进程、读不到组件层的东西（且以后也不该去读）。搬出来之后
+ *   列表行与桌面用的是**同一个函数** —— 这类「两处各写一遍、看着一样、
+ *   改一处就分叉」的文案，是最典型的静默不一致。
+ */
+export function describeExpiryTag(daysToExpiry: number | null): string {
+  if (daysToExpiry == null) return '';
+  if (daysToExpiry < 0) return `过期 ${Math.abs(daysToExpiry)} 天`;
+  if (daysToExpiry === 0) return '今天到期';
+  return `${daysToExpiry} 天后到期`;
+}
+
 /** 在日期上加减月数，用于按分类模板推算过期时间 */
 export function addMonths(dateStr: DateString, months: number): DateString {
   const d = parseDate(dateStr);
@@ -131,6 +152,21 @@ export function formatDateDot(s: DateString | null): string {
   const d = parseDate(s);
   if (!d) return '未设置';
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
+}
+
+/**
+ * `2026-11-03` → `11 月 3 日`（**不带年份**）。
+ *
+ * 给「期限就在眼前」的场合用：桌面小组件页脚那句「下一件 · 感冒灵颗粒 · 11 月 3 日」、
+ * 以及时间戳退回绝对日期时的「截至 10 月 12 日 09:12」。
+ * ★ 与 `formatDateCN` 分开是**刻意的**：那个带年份（`2026年11月3日`），
+ *   服务的是「存档/凭据」类场合；这里服务的是「一眼看还剩多久」，
+ *   多一个年份只会把行挤满。两者不要互相改写。
+ */
+export function formatDateDayMonthCN(s: DateString | null): string {
+  const d = parseDate(s);
+  if (!d) return '';
+  return `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
 
 /** 相对今天的自然语言描述，用于列表副标题 */

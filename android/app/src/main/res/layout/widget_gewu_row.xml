@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  格物 · 桌面小组件的一行（4×2 版）
+
+  由 Kotlin 侧 `RemoteViews.addView` 灌进 `widget_gewu.xml` 的 `widget_rows`
+  容器里，最多三份（见 src/lib/widget/snapshot.ts 的 WIDGET_MAX_ROWS）。
+
+  ★★ 这份布局里**没有任何颜色**，全部由 Kotlin 在渲染时按当前主题设上去。
+    这是刻意的：widget 要跟随 App 的七套主题，而主题色活在 JS 侧的
+    constants/theme.ts 里，由快照带过来。布局里写死一个色值，
+    换肤时那一处不会跟着变 —— 而且不报错，只是在某个主题下刺眼。
+    同理，这里也不写 android:text —— 文案要么来自快照，要么来自 strings.xml。
+
+  ★★ 状态胶囊为什么是「ImageView 打底 + TextView 压在上面」而不是一个带背景的
+    TextView：胶囊的底色是**运行期才知道的**（随主题与状态变），而 RemoteViews
+    没法给 TextView 设一张「运行期才知道颜色」的圆角背景 ——
+      · setBackgroundColor 只能画直角
+      · setBackgroundResource 要编译期资源，主题色在编译期不存在
+    所以底色只能是一张按当前颜色现画的位图，而位图只能挂在 ImageView 上。
+    → FrameLayout（wrap_content，宽度=TextView 的宽度）+ 铺满的 ImageView。
+      这也是原生侧唯一为「圆角」付出的复杂度。
+
+  ★ 行高 40dp 是照 4×2 = 220dp 反推的：220 − 上下内边距 28 − 页眉/页脚/两条分隔线
+    约 53 ⇒ 三行的余量正好是 3×40 + 2×4(gap) = 128dp。改行高要连页眉页脚一起重算。
+
+  ★★★ 标签全部写成**全限定名**（`<android.widget.ImageView>` 这种），
+    理由见 widget_gewu.xml 顶部那段：简单名会被 AppCompat 的工厂换成子类，
+    而 `AppCompatImageView` 覆写了 `setImageBitmap` 却没标 `@RemotableViewMethod`
+    → RemoteViews 直接抛 `ActionException`。
+    **这份布局是 ImageView 用得最密的一份，最容易踩到。**
+-->
+<android.widget.LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="40dp"
+    android:layout_marginBottom="4dp"
+    android:orientation="horizontal"
+    android:gravity="top">
+
+  <!-- 状态圆点：6dp 实心。砖红=已过期/用完，琥珀=将到期/将见底。
+       尺寸按屏幕密度现画成位图（不写 shape drawable，因为颜色是运行期的）。 -->
+  <android.widget.ImageView
+      android:id="@+id/row_dot"
+      android:layout_width="6dp"
+      android:layout_height="6dp"
+      android:layout_marginTop="6dp"
+      android:layout_marginEnd="8dp"
+      android:importantForAccessibility="no" />
+
+  <!-- 名称 + 位置。两行都单行截断：桌面上折行会把下面的行顶出可视区，
+       而「被截断」比「挤掉一行」更可接受（完整名称点进去看）。 -->
+  <android.widget.LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:orientation="vertical">
+
+    <android.widget.TextView
+        android:id="@+id/row_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="14sp"
+        android:fontFamily="sans-serif-medium" />
+
+    <android.widget.TextView
+        android:id="@+id/row_place"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="11sp" />
+  </android.widget.LinearLayout>
+
+  <!-- 状态胶囊 -->
+  <android.widget.FrameLayout
+      android:id="@+id/row_pill_box"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="8dp">
+
+    <android.widget.ImageView
+        android:id="@+id/row_pill_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:importantForAccessibility="no" />
+
+    <android.widget.TextView
+        android:id="@+id/row_pill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingStart="7dp"
+        android:paddingEnd="7dp"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp"
+        android:maxLines="1"
+        android:textSize="11sp" />
+  </android.widget.FrameLayout>
+</android.widget.LinearLayout>

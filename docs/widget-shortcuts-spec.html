@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>格物 · 落地规格：待办小组件 + 长按快捷方式</title>
+<style>
+:root{
+  --paper:#F7F4EF; --canvas:#FBF9F6; --surface:#FFFFFF; --surface2:#FDFCFA; --inset:#F2EDE5;
+  --ink:#2B241F; --ink2:#6B6055; --ink3:#9A8D80; --ink4:#C9BEB0;
+  --line:#E3DCD1; --line2:#EBE5DB; --line3:#F1ECE4;
+  --brand:#8C5A34; --brand-deep:#6B4224; --brand-bg:#F3E9DE;
+  --sage:#5F7355; --sage-bg:#EDF1E9; --amber:#926521; --amber-bg:#FBF1DF;
+  --clay:#AA523D; --clay-bg:#F9EAE5;
+  --serif:"Noto Serif SC","Songti SC","Source Han Serif SC",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--serif);font-size:16px;line-height:2;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:880px;margin:0 auto;padding:64px 32px 96px}
+.eyebrow{font-family:var(--sans);font-size:12px;letter-spacing:.16em;color:var(--brand);text-transform:uppercase}
+h1{font-size:34px;font-weight:500;letter-spacing:.02em;line-height:1.4;margin:14px 0 0}
+.lede{font-size:18px;color:var(--ink2);margin:16px 0 0;line-height:1.95;max-width:32em}
+.meta{font-family:var(--sans);display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.meta span{font-size:12px;color:var(--ink2);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 13px}
+h2{font-family:var(--serif);font-size:23px;font-weight:500;letter-spacing:.02em;margin:0;line-height:1.5}
+.sec{margin-top:64px;padding-top:26px;border-top:1px solid var(--line)}
+.sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.sec-num{font-family:var(--sans);font-size:12px;color:var(--brand);letter-spacing:.12em}
+.sec-head .note{font-family:var(--sans);font-size:13px;color:var(--ink3);margin-left:auto}
+h3{font-family:var(--serif);font-size:18px;font-weight:500;margin:32px 0 8px}
+p{margin:12px 0}
+p.small{font-size:15px;color:var(--ink2)}
+strong{font-weight:600}
+.hi{color:var(--brand-deep);font-weight:600}
+
+/* ---------- 表格 ---------- */
+table{width:100%;border-collapse:collapse;font-family:var(--sans);margin:18px 0 6px;font-size:13.5px}
+th{text-align:left;font-size:12px;font-weight:500;color:var(--ink3);padding:0 14px 9px 0;border-bottom:1px solid var(--line)}
+td{padding:9px 14px 9px 0;border-bottom:1px solid var(--line3);color:var(--ink2);vertical-align:top;line-height:1.7}
+td.k{color:var(--ink);font-weight:500}
+td.num{white-space:nowrap;font-variant-numeric:tabular-nums}
+.cap{font-family:var(--sans);font-size:12px;color:var(--ink3);margin:8px 0 0}
+
+/* ---------- 提示块 ---------- */
+.box{background:var(--surface);border:1px solid var(--line2);border-radius:12px;padding:20px 22px;margin:20px 0}
+.box.inset{background:var(--inset);border-color:transparent}
+.box.warn{background:var(--amber-bg);border-color:transparent}
+.box.stop{background:var(--clay-bg);border-color:transparent}
+.box.good{background:var(--sage-bg);border-color:transparent}
+.box h4{font-family:var(--sans);font-size:13px;font-weight:600;letter-spacing:.04em;margin:0 0 8px;color:var(--brand-deep)}
+.box.warn h4{color:var(--amber)}
+.box.stop h4{color:var(--clay)}
+.box.good h4{color:var(--sage)}
+.box p{margin:6px 0;font-size:14.5px;line-height:1.85;color:var(--ink2)}
+.box ul{margin:6px 0 0;padding-left:20px}
+.box li{font-size:14.5px;line-height:1.85;color:var(--ink2);margin:3px 0}
+
+/* ---------- 代码 ---------- */
+pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.75;
+  background:var(--inset);border:1px solid var(--line2);border-radius:10px;
+  padding:16px 18px;margin:14px 0;overflow-x:auto;color:#4A4038}
+pre .c{color:#9A8D80}
+pre .a{color:var(--brand-deep)}
+pre .s{color:var(--sage)}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;background:var(--inset);border-radius:4px;padding:1px 5px;color:var(--ink2)}
+
+/* ---------- 否掉项 ---------- */
+.no{list-style:none;padding:0;margin:16px 0}
+.no li{position:relative;padding:11px 0 11px 30px;border-bottom:1px solid var(--line3);
+  font-family:var(--sans);font-size:14px;color:var(--ink2);line-height:1.8}
+.no li::before{content:"✕";position:absolute;left:3px;top:11px;font-size:12px;color:var(--ink4)}
+.no li b{color:var(--ink);font-weight:600}
+
+/* ---------- 徽标 ---------- */
+.chosen{display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);font-size:11px;
+  letter-spacing:.08em;color:var(--sage);background:var(--sage-bg);border-radius:5px;padding:2px 9px;vertical-align:2px}
+.chosen::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--sage)}
+
+/* ---------- widget 画布 ---------- */
+.fig{margin:24px 0 8px}
+.wall{
+  background:linear-gradient(158deg,#EEE8DD 0%,#DFD7C9 100%);
+  border:1px solid var(--line);border-radius:18px;
+  padding:34px 30px 30px;
+  display:flex;gap:34px;align-items:flex-start;justify-content:center;flex-wrap:wrap;
+}
+.wg{
+  background:#fff;border-radius:24px;padding:14px;flex:0 0 auto;
+  box-shadow:0 12px 28px rgba(43,36,31,.20),0 1px 3px rgba(43,36,31,.10);
+  display:flex;flex-direction:column;overflow:hidden;
+  font-family:var(--sans);color:#2B241F;line-height:1.3;zoom:1.25;
+  position:relative;
+}
+.wg.h42{width:276px;height:220px}
+.wg.h22{width:130px;height:220px}
+.wh{display:flex;align-items:baseline;justify-content:space-between;flex:0 0 auto}
+.wt{font-size:12px;color:var(--brand);letter-spacing:.06em}
+.wc{font-size:11px;color:#9A8D80;font-variant-numeric:tabular-nums}
+.hr{height:1px;background:#F1ECE4;flex:0 0 auto}
+.wl{margin-top:7px;display:flex;flex-direction:column;gap:4px;flex:1 1 auto;min-height:0}
+.wr{display:flex;align-items:flex-start;gap:8px;height:40px;flex:0 0 auto}
+.wg.h22 .wr{height:38px}
+.wr .dot{width:6px;height:6px;border-radius:50%;flex:0 0 auto;margin-top:6px}
+.dot.clay{background:#AA523D}.dot.amber{background:#926521}
+.wr .txt{flex:1 1 auto;min-width:0}
+.nm{display:block;font-size:14px;color:#2B241F;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wg.h22 .nm{font-size:13px}
+.lc{display:block;font-size:11px;color:#9A8D80;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.pill{display:inline-flex;align-items:center;align-self:flex-start;border-radius:6px;padding:2px 7px;font-size:11px;white-space:nowrap;flex:0 0 auto}
+.pill.clay{background:#F9EAE5;color:#AA523D}
+.pill.amber{background:#FBF1DF;color:#926521}
+.wf{display:flex;align-items:center;justify-content:space-between;flex:0 0 auto;padding-top:7px}
+.wf .a{font-size:10.5px;color:#C9BEB0;font-variant-numeric:tabular-nums}
+.wf .b{font-size:11px;color:var(--brand)}
+
+/* 空态：那两行由 .lead / .sub 承担，不套 .wr 的固定高度 */
+.wl.empw{align-items:center;justify-content:center;gap:3px;margin-top:0}
+.empw .ring{width:34px;height:34px;border-radius:50%;background:#EDF1E9;display:flex;align-items:center;justify-content:center;margin-bottom:5px}
+.empw .lead{font-size:15px;color:#2B241F;font-weight:500}
+.empw .sub{font-size:11px;color:#9A8D80}
+.ef{display:flex;flex-direction:column;gap:1px;flex:0 0 auto;padding-top:7px}
+.ef .r1{font-size:10.5px;color:#9A8D80}
+.ef .r2{font-size:10.5px;color:#C9BEB0;font-variant-numeric:tabular-nums}
+
+.fig figcaption{font-family:var(--sans);margin-top:16px;font-size:13px;color:var(--ink2);line-height:1.8}
+.fig .ds{font-size:12px;color:var(--ink3);margin-top:4px;line-height:1.75}
+
+/* ---------- 手机主屏 + 长按菜单 ---------- */
+.pw{display:flex;gap:34px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+.phone{
+  width:360px;height:560px;flex:0 0 auto;position:relative;overflow:hidden;
+  border-radius:26px;border:1px solid var(--line);
+  background:radial-gradient(120% 80% at 20% 0%,#F2EADF 0%,#E3D8C7 46%,#CFC0A9 100%);
+  font-family:var(--sans);line-height:1.2;zoom:1.2;
+  box-shadow:0 14px 32px rgba(43,36,31,.18);
+}
+.row{position:absolute;left:24px;right:24px;display:flex;justify-content:space-between}
+.ai{width:48px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.ai .sq{width:48px;height:48px;border-radius:13px;background:rgba(255,255,255,.42);border:1px solid rgba(255,255,255,.55)}
+.ai .nm2{font-size:10.5px;color:rgba(43,36,31,.52);white-space:nowrap;letter-spacing:.02em}
+.ai.gewu .sq{background:#F7F4EF;border-color:rgba(43,36,31,.12);display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 10px rgba(43,36,31,.16)}
+.ai.gewu .nm2{color:#3A3129}
+.ai.gewu .g{font-family:var(--serif);font-size:24px;color:#8C5A34;line-height:1}
+.ai.press .sq{box-shadow:0 4px 14px rgba(43,36,31,.26);transform:translateY(-2px)}
+
+.menu{
+  position:absolute;width:232px;border-radius:20px;
+  background:rgba(253,252,250,.98);border:1px solid rgba(43,36,31,.06);
+  box-shadow:0 18px 40px rgba(43,36,31,.26),0 2px 6px rgba(43,36,31,.12);
+  padding:8px 0;overflow:hidden;backdrop-filter:blur(6px);
+}
+.mi{height:48px;display:flex;align-items:center;gap:12px;padding:0 16px}
+.mi .ib{width:26px;height:26px;border-radius:50%;background:#F0E8DC;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center}
+.mi .ib svg{width:15px;height:15px}
+.mi .lb{font-size:13.5px;color:#2B241F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mi.sys .ib{background:transparent}
+.mi.sys .ib svg{width:19px;height:19px}
+.mi.sys .lb{color:#4A4038}
+.mi .tag{margin-left:auto;font-size:10px;color:#C9BEB0;flex:0 0 auto}
+.sep{height:1px;background:#F0EAE0;margin:6px 16px}
+.fig .hint{font-family:var(--sans);font-size:11px;color:var(--ink3);text-align:center;margin-top:12px}
+
+/* ---------- 三步小卡 ---------- */
+.tri{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:20px 0 0}
+.tri .b{background:var(--surface);border:1px solid var(--line2);border-radius:12px;padding:16px 17px}
+.tri .b .h{font-family:var(--sans);font-size:11px;letter-spacing:.08em;color:var(--ink3);margin-bottom:7px}
+.tri .b .t{font-size:14px;line-height:1.8;color:var(--ink2)}
+.tri .b.a .h{color:var(--sage)}
+.tri .b.b .h{color:var(--amber)}
+.tri .b.c .h{color:var(--brand)}
+
+.tl{display:flex;align-items:stretch;gap:0;margin:20px 0;font-family:var(--sans);font-size:12px}
+.tl .n{flex:1;padding:0 10px;border-left:2px solid var(--line);position:relative}
+.tl .n:first-child{border-left-color:var(--brand)}
+.tl .n .t{color:var(--ink);font-weight:500;font-size:12.5px;margin-bottom:3px}
+.tl .n .d{color:var(--ink3);line-height:1.7}
+.tl .n .st{font-size:10.5px;font-weight:600;letter-spacing:.04em;padding:1px 6px;border-radius:999px;margin-left:2px;white-space:nowrap}
+.tl .n .st.ok{background:var(--sage-bg);color:var(--sage)}
+.tl .n .st.wait{background:var(--amber-bg);color:var(--amber)}
+.tl .n .st.todo{background:var(--line2);color:var(--ink3)}
+
+footer{margin-top:72px;padding-top:22px;border-top:1px solid var(--line);font-family:var(--sans);font-size:12px;color:var(--ink3);line-height:1.9}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">格物 · 落地规格</div>
+  <h1>这一期：桌面待办小组件 + 图标长按快捷方式</h1>
+  <p class="lede">三版方案收敛到甲版。理由不是甲版最好看，是<b>只有它不依赖任何新概念</b> —— 它显示的就是本地通知已经在说的那件事、同一套措辞、同一个计数。另外补上长按图标的三条快捷方式：它和小组件是同一件事的两端，一个负责「看见」，一个负责「立刻去做」。</p>
+  <div class="meta">
+    <span class="chosen">已选定 · 方案甲</span>
+    <span>3 条快捷方式 · 零原生逻辑</span>
+    <span>不改数据库 · 不加权限</span>
+    <span>Android 先做 · iOS 待排</span>
+  </div>
+</header>
+
+<!-- ============================================================ 一 -->
+<section class="sec">
+  <div class="sec-head"><span class="sec-num">一</span><h2>甲版 · 待办看板</h2><span class="note">加厚方向：信息密度</span></div>
+
+  <p>主推 <b>4×2 = 276×220dp</b>。它装得下三行「名称 + 位置 + 状态胶囊」和一行时间戳；<b>2×2 = 130×220dp</b> 保留为降级形态，砍掉胶囊、名称降到 13sp（细节同方案页，此处不再重复）。</p>
+
+  <h3>要一起交的第四态：没有待办的时候</h3>
+  <p>方案页只画了「有三件待办」。但真实使用中<b>多数时间可能是没有待办的</b>，而一块空白卡片在桌面上不会读成「一切正常」，会读成「这东西坏了」。所以空态不是可选项，是甲版的一半。</p>
+
+  <div class="fig">
+    <div class="wall">
+      <!-- 4x2 正常态 -->
+      <div class="wg h42">
+        <div class="wh"><span class="wt">格物 · 待办</span><span class="wc">共 4 件</span></div>
+        <div class="hr" style="margin-top:6px"></div>
+        <div class="wl">
+          <div class="wr">
+            <span class="dot clay"></span>
+            <span class="txt"><span class="nm">布洛芬缓释胶囊</span><span class="lc">药箱</span></span>
+            <span class="pill clay">过期 8 天</span>
+          </div>
+          <div class="wr">
+            <span class="dot clay"></span>
+            <span class="txt"><span class="nm">免洗洗手液</span><span class="lc">镜柜</span></span>
+            <span class="pill clay">过期 4 天</span>
+          </div>
+          <div class="wr">
+            <span class="dot amber"></span>
+            <span class="txt"><span class="nm">深海鱼油软胶囊</span><span class="lc">厨房吊柜 第三层</span></span>
+            <span class="pill amber">剩 1</span>
+          </div>
+        </div>
+        <div class="hr"></div>
+        <div class="wf"><span class="a">还有 1 件 · 截至今天 09:12</span><span class="b">打开格物</span></div>
+      </div>
+
+      <!-- 4x2 空态 -->
+      <div class="wg h42">
+        <div class="wh"><span class="wt">格物 · 待办</span><span class="wc">0 件</span></div>
+        <div class="hr" style="margin-top:6px"></div>
+        <div class="wl empw">
+          <span class="ring">
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#5F7355" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4.5 4.5L19 7"/></svg>
+          </span>
+          <span class="lead">都还好，没有要处理的</span>
+          <span class="sub">在看着 31 件 · 30 天内没有要到期的</span>
+        </div>
+        <div class="hr"></div>
+        <div class="ef">
+          <span class="r1">下一件 · 感冒灵颗粒 · 11 月 3 日</span>
+          <span class="r2">截至今天 09:12</span>
+        </div>
+      </div>
+    </div>
+    <figcaption>甲版两个状态，按真实参数绘制（widget 内 1px = 1dp，外层放大 1.25 倍仅为展示）。左：有待办，三行是上限，第 4 件之后只剩一个数字。右：没有待办 —— 一张空的方格会读成「坏了」，所以它必须自己说话。</figcaption>
+    <div class="ds">空态的三句话各有分工：主句给结论（都还好），副句给依据（为什么说都还好），底部给下一次需要抬头看的日子。没有副句的「都还好」是空话 —— 用户无法判断这是真没事还是没数据。若库里根本没有带保质期的物品，副句换成引导语「录入时填上保质期，这里就有用了」。</div>
+  </div>
+
+  <div class="box warn">
+    <h4>空态要一条新查询，别漏了它的代价</h4>
+    <p>「最近一件还有 20 天」和「库里 12 件有保质期的物品」这两个数字，现有派生里都没有 —— <code>attentionCount</code> 只给条数，不给「最近的下一个」。需要一条 <code>SELECT MIN(expiry)</code> 的新查询。它不大，但要写进工作量里，不能当成「顺手就有」。</p>
+  </div>
+
+  <h3>点哪里，去哪里</h3>
+  <p>widget 的点击是分块的 —— 每一行可以是一个独立的 <code>PendingIntent</code>，所以「点开某一件」和「点开待办页」可以在同一张卡片上共存。<b>这要求快照 JSON 里带上 item id</b>，只存名字不够。</p>
+
+  <table>
+    <thead><tr><th style="width:34%">点哪里</th><th style="width:30%">去哪</th><th>深链</th></tr></thead>
+    <tbody>
+      <tr><td class="k">某一行物品</td><td>那件物品的详情页</td><td><code>gewu://item/&lt;id&gt;</code></td></tr>
+      <tr><td class="k">标题行「格物 · 待办」</td><td>提醒页（到期）</td><td><code>gewu://alerts</code></td></tr>
+      <tr><td class="k">底部「打开格物」</td><td>提醒页（到期）</td><td><code>gewu://alerts</code></td></tr>
+      <tr><td class="k">空态整块</td><td>提醒页（到期）</td><td><code>gewu://alerts</code></td></tr>
+    </tbody>
+  </table>
+  <p class="cap">物品详情路由是 <code>app/item/[id]/index.tsx</code>，已存在，不需要新建页面。</p>
+
+  <h3>数字是什么时候算的</h3>
+  <table>
+    <thead><tr><th style="width:38%">时机</th><th>谁触发</th></tr></thead>
+    <tbody>
+      <tr><td class="k">App 启动后</td><td>写一次快照</td></tr>
+      <tr><td class="k">任何写操作之后</td><td><code>bump()</code> 之后重算并覆写</td></tr>
+      <tr><td class="k">每 30 分钟</td><td>系统（<code>updatePeriodMillis</code> 的下限就是 30 分钟，写更小也会被抬到 30）</td></tr>
+      <tr><td class="k">开机 / 被加到桌面 / 尺寸变化</td><td>系统回调 <code>onUpdate</code>，此时 App 进程可能没起来</td></tr>
+    </tbody>
+  </table>
+  <div class="box stop">
+    <h4>最后一行是这套方案唯一会「说谎」的地方</h4>
+    <p>开机后重建、或用户刚把组件拖上桌面时，App 进程没起，widget 只能读<b>磁盘上那份旧快照</b> —— 那一刻桌面上显示的可能是一天前的数字。这不是 bug，是架构决定的，任何方案都躲不开。</p>
+    <p>应对只有一条：<b>时间戳必须始终可见</b>（「截至今天 09:12」）。它让「旧」这件事自己暴露，而不是让用户把陈旧当实时。这条是硬要求，不是修饰。</p>
+  </div>
+
+  <div class="box good">
+    <h4>动手时改了设计稿的一处措辞 —— 记在案，别以为它一直是这样的</h4>
+    <p>甲版的胶囊原本画的是「已过期 8 天」「已过期 4 天」「剩 1 · 6 天」。写代码时对着现有实现核对，发现<b>列表行上那个胶囊从来不说这些</b>：</p>
+    <ul>
+      <li>它走的是 <code>describeExpiryTag</code>，说出来是「<b>过期 8 天</b>」「今天到期」「6 天后到期」；</li>
+      <li>而「已过期 8 天」来自另一个函数 <code>describeRemaining</code> —— 那个服务的是「单独看一件」的场景，措辞本来就不一样。</li>
+    </ul>
+    <p>所以这里是<b>设计稿写错了</b>，不是 App 里有两种说法。按 App 对齐之后，甲版三个胶囊改成「过期 8 天」「过期 4 天」「剩 1」。同时把那个函数从 <code>ItemRow</code> 搬进 <code>lib/date.ts</code>，让列表行与桌面用的是<b>同一个函数</b>，而不是两份看起来一样的拷贝 —— 这类拷贝在改一处时必然分叉，而且分叉时不报错。</p>
+    <p>「剩 1 · 6 天」那种拼装也一并撤了：它凭空造了一种 App 里没有的说法。一行只放得下一个胶囊，该说余量还是说到期日，由<b>它被分进哪一组</b>决定就够了（「该补货了」那一组说余量，其余两组说到期）。</p>
+  </div>
+</section>
+
+<!-- ============================================================ 二 -->
+<section class="sec">
+  <div class="sec-head"><span class="sec-num">二</span><h2>图标长按 · 三条快捷方式</h2><span class="note">立刻去做，不用先打开 App</span></div>
+
+  <p>长按桌面图标弹出的菜单，是系统给应用的一块<b>免费黄金位</b>：不用申请、不用权限、不占桌面格子。<b>它的格子比小组件更紧 —— 大多数 Launcher 最多显示 4 条</b>（静态 + 动态合计；<code>getMaxShortcutCountPerActivity()</code> 在部分设备返回 5，但 Pixel 与多数 OEM 都截断在 4）。所以这不是「列个愿望单」，是四选四。</p>
+
+  <div class="fig">
+    <div class="pw">
+      <div class="phone">
+        <!-- 上方别的 App -->
+        <div class="row" style="top:66px">
+          <div class="ai"><span class="sq"></span><span class="nm2">时钟</span></div>
+          <div class="ai"><span class="sq"></span><span class="nm2">日历</span></div>
+          <div class="ai"><span class="sq"></span><span class="nm2">相机</span></div>
+          <div class="ai"><span class="sq"></span><span class="nm2">便签</span></div>
+        </div>
+
+        <!-- 长按菜单 -->
+        <div class="menu" style="left:112px;bottom:128px">
+          <div class="mi">
+            <span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="#6B5040" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+            <span class="lb">录一件</span>
+          </div>
+          <div class="mi">
+            <span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="#6B5040" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2.4 2.4 0 0 1-3.4 0"/></svg></span>
+            <span class="lb">待办</span>
+          </div>
+          <div class="mi">
+            <span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="#6B5040" stroke-width="2.1" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.4-4.4"/></svg></span>
+            <span class="lb">找东西</span>
+          </div>
+          <div class="sep"></div>
+          <div class="mi sys">
+            <span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="#6B6055" stroke-width="1.9" stroke-linejoin="round"><rect x="3" y="3" width="7.4" height="7.4" rx="2"/><rect x="13.6" y="3" width="7.4" height="7.4" rx="2"/><rect x="3" y="13.6" width="7.4" height="7.4" rx="2"/><rect x="13.6" y="13.6" width="7.4" height="7.4" rx="2"/></svg></span>
+            <span class="lb">小组件</span>
+          </div>
+          <div class="mi sys">
+            <span class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="#6B6055" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11.2v5.3M12 7.9h.01"/></svg></span>
+            <span class="lb">应用信息</span>
+          </div>
+        </div>
+
+        <!-- 底部图标行，格物被长按 -->
+        <div class="row" style="bottom:40px">
+          <div class="ai"><span class="sq"></span><span class="nm2">备忘</span></div>
+          <div class="ai gewu press">
+            <span class="sq"><span class="g">格</span></span>
+            <span class="nm2">格物</span>
+          </div>
+          <div class="ai"><span class="sq"></span><span class="nm2">听书</span></div>
+          <div class="ai"><span class="sq"></span><span class="nm2">记账</span></div>
+        </div>
+      </div>
+    </div>
+    <figcaption>长按桌面上的格物图标。上半张卡是三条快捷方式（圆形浅底 + 图标），分隔线以下是系统自己加的两项 —— 「小组件」入口不用做任何事，甲版发布后它自己会出现。</figcaption>
+    <div class="hint">顺序即重要度：<code>shortcuts.xml</code> 里先声明的排在前面，第 4 条之后被 Launcher 丢掉</div>
+  </div>
+
+  <h3>三条是什么，为什么是它们</h3>
+  <table>
+    <thead><tr><th style="width:6%">#</th><th style="width:19%">标签</th><th style="width:15%">深链</th><th>为什么占一格</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="num">1</td>
+        <td class="k">录一件</td>
+        <td><code>gewu://compose</code></td>
+        <td><b>唯一的「写」入口，也是唯一会被反复做的事。</b>App 内它已经拿到了最贵的位置 —— 底部中央那枚品牌色突起按钮。快捷方式把这个动作从「打开 App → 点中央」压到「长按 → 点一下」。而且它是个 root Stack 路由，深链进去就是一张干净的空表单，不受任何 tab 状态污染。</td>
+      </tr>
+      <tr>
+        <td class="num">2</td>
+        <td class="k">待办</td>
+        <td><code>gewu://alerts</code></td>
+        <td><b>和甲版小组件是同一个心智。</b>用户在桌面上看到砖红数字，下一步就是想处理它 —— 那一步不能要求他先打开 App 再找底部第四格。另外提醒页的第一组就是「该补货了」，所以站在超市货架前想看一眼缺什么，这一格直接覆盖，不必为「补货」单独占位。</td>
+      </tr>
+      <tr>
+        <td class="num">3</td>
+        <td class="k">找东西</td>
+        <td><code>gewu://?focus=search</code></td>
+        <td><b>格物对用户唯一的承诺就是「以后就找得到了」。</b>搜索框是首页唯一常驻的操作（代码注释原话：「它是这一页唯一需要随手可及的操作」）。但这一格<b>必须带参数</b> —— 不带 <code>focus=search</code> 它就等价于点图标，价值为零。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="box">
+    <h4>第 3 格那条参数，成本在这里</h4>
+    <p>首页要读一个 <code>focus</code> 查询参数并在挂载后聚焦搜索框。两处小改：加 <code>useLocalSearchParams</code>、加一个 <code>useEffect</code> 调 <code>ref.focus()</code>。</p>
+    <p><b>但有个坑要一起处理</b>：首页的「列表 / 位置」是个组件内 state，不归路由管。用户上次停在「位置」视图时从快捷方式进来，会得到「想搜物品、却看到柜子搜索框」的结果。所以 <code>focus=search</code> 这条要**顺手把视图切回列表**，否则它一半的时候是错的。</p>
+  </div>
+
+  <h3>被否掉的，连同理由</h3>
+  <ul class="no">
+    <li>
+      <b>相册</b> —— <b>这一轮被裁决掉的</b>：先只发三条。它本身站得住（是候选里意图唯一不与前三条重叠的一条，「纯看」），技术上也没有任何障碍，所以属于「随时能加回来」的那一类 —— <code>shortcuts.xml</code> 补一条、再加一个图标就够了。记在这里是为了下次不必重新论证一遍。
+    </li>
+    <li>
+      <b>AI 问一问 / 语音录入</b> —— 它们是支持者档功能。静态快捷方式在<b>打包时就定死了</b>，没法按用户档位增删。结果就是免费用户的长按菜单里躺着一个点开弹门控的入口 —— 这比没有入口更伤，因为它把「你没买」摆在了一个用户没主动去碰的位置。
+    </li>
+    <li>
+      <b>统计洞察</b> —— 同上，也是支持者档。而且它是「坐下来看」的事，不是「长按立刻做」的事。
+    </li>
+    <li>
+      <b>补货清单</b> —— 不需要独立一格：<code>gewu://alerts</code> 的第一组就叫「该补货了」。
+    </li>
+    <li>
+      <b>回收站 / 备份</b> —— 低频，且都是长流程或破坏性动作。系统层是「我现在就要做这件事」的位置，不是「半年后我要做那件事」。
+    </li>
+    <li>
+      <b>扫一扫</b> —— 格物没有条码识别能力，只有相机拍实物照。<b>这一条得先有功能，才谈得上入口。</b>
+    </li>
+  </ul>
+
+  <div class="box good">
+    <h4>顺带的收益：快捷方式能被拖到桌面</h4>
+    <p>Android 允许把长按菜单里的快捷方式<b>长按拖到主屏</b>，变成一个独立的小图标。效果等同于「桌面快捷入口」，但<b>零额外代码、不占小组件格子、由用户自己选要哪一个</b> —— 这正是之前那条被否掉的 4×1「快捷入口条」的正确做法：同样的直达能力，不花自己的成本，也不强迫所有人接受。</p>
+  </div>
+</section>
+
+<!-- ============================================================ 三 -->
+<section class="sec">
+  <div class="sec-head"><span class="sec-num">三</span><h2>落地：为什么这次可以零原生逻辑</h2><span class="note">四份声明式文件，不写一行 Kotlin</span></div>
+
+  <p>关键前提是<b>已经存在的</b>：<code>MainActivity</code> 上已注册了 <code>gewu</code> scheme 的 <code>VIEW</code> / <code>BROWSABLE</code> intent-filter。所以快捷方式的 intent 可以直接带一个 deep link，交给 expo-linking 接住、expo-router 路由 —— <b>不需要任何原生代码去读 intent extra</b>。这是这一期成本最低的一块。</p>
+
+  <div class="timeline-wrap">
+    <div class="tl">
+      <div class="n"><div class="t">① res/xml/shortcuts.xml</div><div class="d">新建目录与文件，三条 <code>&lt;shortcut&gt;</code>，每条一个带 deep link 的 <code>&lt;intent&gt;</code></div></div>
+      <div class="n"><div class="t">② AndroidManifest.xml</div><div class="d">MainActivity 里加一行 meta-data 指向上面那个资源</div></div>
+      <div class="n"><div class="t">③ res/values/strings.xml</div><div class="d">四组标签。必须是资源引用，不能写内联字符串</div></div>
+      <div class="n"><div class="t">④ res/drawable/</div><div class="d">四个 24dp 的单色 vector，线条风格与 App 内的 Ionicons 一致</div></div>
+    </div>
+  </div>
+
+  <pre><span class="c">&lt;!-- ① android/app/src/main/res/xml/shortcuts.xml --&gt;</span>
+&lt;shortcuts xmlns:android="http://schemas.android.com/apk/res/android"&gt;
+  &lt;shortcut
+      android:shortcutId=<span class="s">"compose"</span>
+      android:enabled=<span class="s">"true"</span>
+      android:icon=<span class="s">"@drawable/ic_shortcut_compose"</span>
+      android:shortcutShortLabel=<span class="s">"@string/sc_compose_short"</span>
+      android:shortcutLongLabel=<span class="s">"@string/sc_compose_long"</span>&gt;
+    &lt;intent
+        android:action=<span class="s">"android.intent.action.VIEW"</span>
+        <span class="a">android:targetPackage</span>=<span class="s">"com.gewu.app"</span>
+        <span class="a">android:targetClass</span>=<span class="s">"com.gewu.app.MainActivity"</span>&gt;
+      &lt;data android:scheme=<span class="s">"gewu"</span> android:host=<span class="s">"compose"</span>/&gt;
+    &lt;/intent&gt;
+  &lt;/shortcut&gt;
+  <span class="c">&lt;!-- 其余两条同理：host=alerts / 不带 host、只带 ?focus=search --&gt;</span>
+&lt;/shortcuts&gt;</pre>
+
+  <pre><span class="c">&lt;!-- ② AndroidManifest.xml，加在 MainActivity 的 &lt;activity&gt; 里 --&gt;</span>
+&lt;meta-data android:name=<span class="s">"android.app.shortcuts"</span>
+           android:resource=<span class="s">"@xml/shortcuts"</span>/&gt;</pre>
+
+  <div class="box warn">
+    <h4>三个会让它「静默失败」的地方</h4>
+    <ul>
+      <li><b>XML 解析不过，Android 直接跳过整份文件</b> —— 长按菜单里一条都不出现，不报错、不崩溃、日志里也未必有。官方排查手段是这条命令，它能看到系统里真实注册了什么：<br>
+        <code>adb shell cmd shortcut get-shortcuts com.gewu.app</code><br>
+        <b>但它只证明「注册了」。</b>它打印 intent 时会把 <b>path 和 query 一起省略</b> —— <code>gewu://compose/aaa/bbb</code> 与 <code>gewu://compose?q=hello</code> 的打出来<b>一模一样</b>（用两条构造出来的对照命令实测过）。所以它<b>证明不了</b>第 3 条的 <code>?focus=search</code> 还在。</li>
+      <li><b>shortLabel 必须是资源引用。</b>写内联中文不会「显示不对」，是编译/解析期就过不去。这一点反而是好事 —— 它会早早报错，而不是等用户在桌面上发现少了东西。</li>
+      <li><b>改完要重启 Launcher 才看得到</b>（系统缓存）。别把缓存当成「没生效」然后去改一份本来是对的配置。</li>
+    </ul>
+  </div>
+
+  <div class="box stop">
+    <h4>唯一需要真机实测的一项：deep link 会不会被认</h4>
+    <p><code>&lt;intent&gt;</code> 里同时给了显式 component 和 <code>&lt;data&gt;</code> —— 这是合法写法，Intent 会被直接投递给 MainActivity，<code>getIntent().getData()</code> 应当就是 <code>gewu://compose</code>，expo-linking 读它派发，expo-router 路由。整条推理是通的，<b>但「expo-linking 认不认这条来源的 intent」必须实测一次</b>，不能靠推断写进代码就算完。</p>
+    <p><b>★ 实测结果（2026-10-14，真机）：三条全部通过</b> —— 冷启动与「App 已在后台」两条路径都落到了正确的页面，含第 3 条的 <code>?focus=search</code> 自动聚焦搜索框。</p>
+    <p class="bad"><b>这次实测暴露了一件事：这一步没法用 adb 做。</b>我最初写在这里的命令 <code>cmd shortcut invoke-shortcut …</code> <b>并不存在</b> —— Android 16 上 <code>cmd shortcut</code> 只有 <code>get-shortcuts</code> 一个子命令（用 <code>cmd shortcut help</code> 可以看到），而 <code>get-shortcuts</code> 又会省略 path 与 query。<b>结论：长按菜单能不能用，只能在真机上用手指点。</b>以后再有人想「用命令验一遍」，省下这个念头。</p>
+    <p>所以实施上<b>先只声明 1 条 shortcut 打通链路</b>，确认点了能落到录入页，再补齐其余 2 条。反过来做的话，三条一起不生效时，你不知道是链路错了还是 XML 写错了。</p>
+  </div>
+</section>
+
+<!-- ============================================================ 四 -->
+<section class="sec">
+  <div class="sec-head"><span class="sec-num">四</span><h2>iOS：同一个东西，贵的不是一星半点</h2><span class="note">为什么这一期不做</span></div>
+
+  <p>iOS 的 Home Screen Quick Actions 同样是<b>最多 4 条</b>，语义和 Android 一一对应。差的是机制：</p>
+
+  <table>
+    <thead><tr><th style="width:26%">环节</th><th style="width:37%">Android</th><th>iOS</th></tr></thead>
+    <tbody>
+      <tr><td class="k">声明位置</td><td><code>res/xml/shortcuts.xml</code></td><td><code>Info.plist</code> 的 <code>UIApplicationShortcutItems</code>（可以走 <code>app.json</code> 的 <code>ios.infoPlist</code>，零手改文件）</td></tr>
+      <tr><td class="k">图标</td><td>要手写 4 个 vector drawable</td><td><b>不用资源文件</b>：SF Symbols 名字即可</td></tr>
+      <tr><td class="k">点击之后</td><td>intent 带 deep link，expo-linking 自动接住</td><td><b>要原生接</b>：<code>UIApplicationShortcutItemType</code> 必须在 AppDelegate 里处理，或引入社区库</td></tr>
+    </tbody>
+  </table>
+
+  <p>差别只在最后一行，而那一行决定了成本：<b>iOS 这一期若要一起做，就要么动 AppDelegate，要么引一个新依赖</b> —— 而格物的原则是零新原生依赖。所以把它和「iOS 上架」一起排更合理，届时图标那部分反而比 Android 省事。</p>
+</section>
+
+<!-- ============================================================ 五 -->
+<section class="sec">
+  <div class="sec-head"><span class="sec-num">五</span><h2>建议的实施顺序</h2><span class="note">先验证最不确定的那一步</span></div>
+
+  <div class="tl done">
+    <div class="n"><div class="t">1 · 快照桥 <span class="st ok">已完成</span></div><div class="d">纯 TS：算 JSON、落盘。不碰原生。<code>src/lib/widget/snapshot.ts</code> + <code>lib/widget/palette.ts</code> + <code>lib/widget/publish.ts</code>，<code>tests/widget-snapshot.test.mjs</code>（23 条）+ <code>tests/widget-theme-parity.test.mjs</code>（<b>13 条</b>）</div></div>
+    <div class="n"><div class="t">2 · 最小真机验证 <span class="st ok">已完成</span></div><div class="d">三条 shortcut 已在真机点过：<b>三条全通</b>，含冷启动、后台唤起与 <code>?focus=search</code> 的聚焦。当时没有设备，是用手点的，不是 adb（见偏差说明）</div></div>
+    <div class="n"><div class="t">3 · 甲版四态 <span class="st ok">已完成 · 真机验过</span></div><div class="d">正常 / 空态 / 无快照三张布局 + 行布局；<b>整卡位图圆角</b>（原「四角位图」方案是错的，见下）、点击区、两个版本的时间戳。渲染走<b>手写 Kotlin + RemoteViews</b>（见偏差说明）。真机第一轮踩出四个 bug，全部修掉（见下方「真机第一轮」）</div></div>
+    <div class="n"><div class="t">4 · 补齐三条 <span class="st ok">已完成</span></div><div class="d">三条 shortcut、3 个图标、<code>focus=search</code> 那处改动 —— <b>提前做了</b>，见下方偏差说明</div></div>
+    <div class="n"><div class="t">5 · 差分验证 <span class="st ok">已完成</span></div><div class="d">与上一版交付包比权限计数与体积。<b>权限 12 → 12，与线上 r2 逐条一致、零新增</b>；体积 r2 → r7 <b>+63,664 字节</b></div></div>
+  </div>
+
+  <div class="box inset">
+    <h4>为什么第 2 步排在第 3 步前面</h4>
+    <p>甲版里所有不确定的东西都集中在「快照能不能被 widget 读到、deep link 能不能被认」这两点上，它们和界面做得多精致无关。先用一张最丑的静态卡片把这两点打穿，后面全是确定的工作；反过来先精修界面，最后卡在链路上，前面全白做。</p>
+  </div>
+
+  <h3>实际执行的偏差（2026-10-14 记）</h3>
+  <div class="box stop">
+    <p><b>把第 4 步提到第 2 步前面做了。</b>理由是「三条 shortcut 都是同一套机制，写一条和写三条的成本差不多」——但这恰好废掉了第 2 步原本的价值：<b>用一条快捷方式把变量降到一</b>。现在真机一验就是三条一起验，万一不通，得在三个 <code>shortcutId</code> 里再分一次。</p>
+    <p>补救：真机<b>逐条单独点</b>（先在启动器里点一条、确认落对了页再点下一条），不要在三条之间来回切 —— 那样失败时分不清是「没注册」还是「深链没认」。<b>没法用 adb 逐条 invoke</b>：<code>cmd shortcut</code> 在 Android 16 上没有 <code>invoke-shortcut</code> 子命令。</p>
+  </div>
+
+  <div class="box stop">
+    <h4>偏差二：渲染路线换了（原推荐是错的那个）</h4>
+    <p>方案页里我原本推荐引社区库 <code>react-native-android-widget</code>，理由是「少写原生代码」。<b>这个理由是错的</b> —— 它要走 expo config plugin + prebuild，会改 6 个受版本控制的原生面（<code>MainApplication</code> / <code>MainActivity</code> / <code>settings.gradle</code> / <code>build.gradle</code> / <code>AndroidManifest</code> / <code>gradle.properties</code>），而这些文件正是每次 <code>npx expo prebuild</code> 或 Expo SDK 升级时会被覆盖的东西；换来的是省下大约 5 个手写文件。格物的原则是零新原生依赖，所以改成<b>手写 Kotlin + RemoteViews</b>。实测对比见 <code>docs/widget-plan.html</code> §六 的更正框。</p>
+  </div>
+
+  <div class="box">
+    <h4>本期产物：<code>r7</code> 试装包（<b>不是发版</b>）</h4>
+    <table>
+      <thead><tr><th style="width:16%">包</th><th style="width:16%">体积</th><th style="width:26%">md5</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td class="k">线上 <code>r2</code></td><td>50,102,140</td><td><code>7d298cb4747763fe869303340cd389fa</code></td><td>当前对外的那一份</td></tr>
+        <tr><td class="k"><code>r3</code></td><td>50,104,704</td><td><code>732a456909ae1311b2d70357593ee8df</code></td><td>只加了三条长按快捷方式（<b>+2,564</b>）</td></tr>
+        <tr><td class="k"><code>r4</code></td><td>50,166,168</td><td><code>8d39e5545c7c39ef7bf595825c06a1d7</code></td><td>再加方案甲小组件 + 快捷方式改名（相对 <code>r3</code> <b>+61,464</b>）。<b>已作废</b>：装到桌面直接报「载入窗口小部件时出现问题」</td></tr>
+        <tr><td class="k"><code>r5</code></td><td>50,166,072</td><td><code>6df7040ed2946285c4f1b7a9c63dd2bd</code></td><td>修 ①（裸 <code>&lt;View&gt;</code> → <code>FrameLayout</code>）+ ②（全限定标签名）。桌面能显示了，但圆角是尖的、只看得见一行</td></tr>
+        <tr><td class="k"><code>r7</code></td><td><b>50,165,804</b></td><td><code>590459f7c8a243328eb195717d76dd6e</code></td><td>修 ③（整卡 dp 位图圆角）+ ④（六个尺寸全贴 276×220dp）＋ 快捷方式 short/long 标签成对。<b>真机 <code>InflateException</code> / <code>ActionException</code> 计数均为 0</b></td></tr>
+      </tbody>
+    </table>
+    <p>归档在 <code>_build/baseline-v230-r{2,3,4,5,7}.apk</code>（<code>r6</code> 被 <code>r7</code> 取代，未归档）。构建日志 <code>_build/widget-build-r7.log</code>：<code>BUILD SUCCESSFUL in 1m 59s</code>。</p>
+    <p><b>★ 权限差分：12 → 12，与线上 <code>r2</code> 逐条一致 —— 零新增。</b>这是「甲版不碰图片通路」的直接兑现（<code>aapt2 dump badging</code> 实测，不是读源码推的）。</p>
+    <p><b>版本号仍是 <code>2.3.0 / vc 27</code></b>，与线上 <code>r2</code> 同号 —— 因此这个包<b>只能拿来真机联调，不能当作更新发出去</b>。同号换包的下游代价见 <code>roadmap.md</code>：缓存过旧字节的客户端不会知道有新版本。要发得先升版本号。</p>
+  </div>
+
+  <div class="box stop">
+    <h4>真机第一轮（2026-10-14 17:00～17:30）：四个 bug，一个比一个安静</h4>
+    <p>第 3 步「待真机」那一栏，真机给回来的不是「通/不通」，而是<b>四个都不会在构建期报错、也不在 App 侧报错的 bug</b>：</p>
+    <ul>
+      <li><b>① 裸 <code>&lt;View&gt;</code>。</b>卡片底色与两条 1dp 分隔线写成了 <code>&lt;View&gt;</code>，而 RemoteViews 只认 <code>@RemoteView</code> 白名单内的类，裸 <code>View</code> 不在其中。失败方式最坏：构造 RemoteViews 不报错、我们自己 inflate 也不报错、<b>只有 launcher 侧 <code>apply()</code> 时炸</b>，桌面一句「载入窗口小部件时出现问题」，不给行号、不给文件名，launcher 堆栈还被系统吞掉。→ 改成 <code>FrameLayout</code>。★ <b>是靠 <code>selfCheck</code> 抓到的</b>：那个「在自己进程里 <code>apply()</code> 一遍」的设计把 <code>InflateException: Class not allowed to be inflated android.view.View</code> 连同行号写进了我们自己的 logcat。</li>
+      <li><b>② <code>&lt;ImageView&gt;</code> 被 AppCompat 换成了 <code>AppCompatImageView</code>。</b>它覆写了 <code>setImageBitmap</code> 却没标 <code>@RemotableViewMethod</code> → <code>ActionException</code>。★ 但这是 <code>selfCheck</code> 的<b>假阳性</b>（它跑在 Activity 的 context 上，AppCompat 一定生效；launcher 用标准 <code>ImageView</code>，桌面其实正常）。→ <b>标签一律写全限定名</b>（<code>&lt;android.widget.ImageView&gt;</code>），AppCompat 的 switch 匹配不上。</li>
+      <li><b>③「四枚角块」这个圆角方案是错的。</b>卡身铺纯色矩形 + 四角叠 24dp 圆角四分之一，指望盖住方角 —— <b>盖不掉</b>：角块在圆弧之外是<u>透明</u>的，露出来的正是它底下那块铺满的方角。真机上四角是实心白，一个像素的圆角都没有。这个错<b>在书面上无懈可击</b>。→ 改成<b>整卡 dp 位图</b>（1 像素 = 1 dp，276×220 只有 243KB）交给 <code>ImageView</code> 的 <code>fitXY</code> 等比拉伸。</li>
+      <li><b>④ <code>minHeight</code> 按「1 行」写的</b>（110dp＝118×1−16），而布局承诺三行。真机上桌面只给约 136dp 高，「最多三行」变成「看得见一行」，<b>不报错</b>。→ 六个尺寸全贴 276×220dp，并加一条测试把「三行 + 页眉 + 页脚」的高度<b>算出来</b>跟 <code>minHeight</code> 比。</li>
+    </ul>
+    <p>★★ <b>改了 <code>minHeight</code> 不会让已经躺在桌面上的 widget 变高</b> —— launcher 保留实例尺寸，必须删掉重新添加一次。</p>
+    <p><b>三条快捷方式的名字</b>（用户报的第二个问题）：改的只有 <code>shortcutShortLabel</code>，而 <b>launcher 的长按菜单优先读 <code>shortcutLongLabel</code></b> —— 于是代码、测试、构建、包里字符串池<b>全是绿的</b>，只有菜单上的字没变。→ 六条字符串做成<u>故意相同</u>的成对值（<code>录一件</code> / <code>待办</code> / <code>找东西</code>），并加一条测试钉住「short 与 long 成对且一致」。</p>
+  </div>
+
+  <div class="box">
+    <h4>真机验证：结论</h4>
+    <p>原先「至今没验证过」的两点，现在都过了：</p>
+    <ul>
+      <li><b>快照能被 provider 读到 —— 通了。</b><code>selfCheck</code> 日志里那行 <code>渲染 空态 lead="都还好，没有要处理的" sub="在看着 1 件 · 录入时填上保质期，这里就有用了" 戳="截至今天 17:02"</code> 同时证明了两件事：<code>Paths.document === context.filesDir</code> 成立，且<b>零权限</b>读私有目录没问题。</li>
+      <li><b>launcher 侧 apply 不抛 —— 通了。</b>装 <code>r7</code> 之后 <code>adb logcat -d | grep GewuWidget</code> 里 <code>InflateException</code> 与 <code>ActionException</code> 计数<b>都是 0</b>；桌面截图能看到完整卡片（页眉 / 正文 / 副标 / 两条分隔线 / 时间戳）。</li>
+    </ul>
+    <p class="bad"><b>★ 取证姿势：<code>adb logcat -d | grep GewuWidget</code>，千万不要叠 <code>-a</code></b> —— 叠了输出会变成空的，表现成「这个 tag 一行日志都没有」，与事实完全相反（去掉 <code>-a</code> 有 53 行）。为这个差点把根因判成「日志被 R8 删了」。<br>
+    另一条：<code>adb exec-out screencap -p</code> 会先吐一行 <code>[Warning] Multiple displays were found…</code> 混进 PNG，要按 <code>\x89PNG</code> 签名与 <code>IEND</code> 截干净。<br>
+    <b>★ 加小组件 / 点快捷方式这两步没法脚本化</b>：MIUI 拦 <code>adb shell input</code>（<code>Injecting input events requires INJECT_EVENTS</code>），连唤醒屏幕都做不到，必须用户手点。</p>
+    <p><b>还差最后两步</b>：① 用户手点，把桌面上的小组件<b>删掉重新添加</b>（否则拿不到 220dp 的高度，三行显示不全）；② 圆角的最后一眼——内容与尺寸已用截图 + 像素测量验过，圆角那一步被「屏幕已锁、adb 唤不醒」打断了。另加一项：<b>版本号未裁决</b>，<code>r7</code> 与线上 <code>r2</code> 同号，要发必须先升。</p>
+  </div>
+</section>
+
+<footer>
+  格物 · 落地规格 · 2026-10-14 起草<br>
+  上游方案（三版对比）见 <code>docs/widget-plan.html</code>，本页是它的收敛结果，方案页保留为决策记录。<br>
+  尺寸按官方格子公式核算；快捷方式上限与「不需权限」以 Android 开发者文档为准。<br>
+  <b>已真机验证：</b>三条长按快捷方式（含冷启动与 <code>?focus=search</code> 的落地）。
+  <b>未验证：</b>小组件的「快照能不能被 provider 读到」与「launcher 侧 apply 会不会抛」这两点 —— 见上方那个框。
+</footer>
+
+</div>
+</body>
+</html>

@@ -3,7 +3,7 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import type { ReactNode } from 'react';
+import type { ComponentRef, ReactNode, Ref } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -230,6 +230,14 @@ export function Segmented<T extends string>({
 
 /* ------------------------------------------------------------ 搜索框 */
 
+/**
+ * 输入框实例的类型。
+ *
+ * ★ 单独导出一个别名，是为了让调用方不必 import `TextInput`：
+ *   他们只需要「一个能 `.focus()` 的东西」，而不需要知道里面是哪个组件。
+ */
+export type SearchFieldRef = ComponentRef<typeof TextInput>;
+
 export function SearchField({
   value,
   onChange,
@@ -238,11 +246,23 @@ export function SearchField({
   placeholder = '搜索名称 / 品牌 / 分类 / 位置',
   onClear,
   right,
+  inputRef,
 }: {
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
   onClear?: () => void;
+  /**
+   * 输入框实例，给调用方在需要时主动聚焦。
+   *
+   * 目前的唯一用途是**图标长按的「找东西」快捷方式**：它带着
+   * `gewu://?focus=search` 进来，首页拿到之后要把搜索框拉起来、键盘一起弹出来 ——
+   * 否则这一格就退化成「打开 App」，而用户本来就能点图标做到那件事。
+   *
+   * 不用 `autoFocus`：那玩意只在**挂载**时生效，而这条路径常常是
+   * 「App 已在后台、首页早就挂载好了」，只有拿到 ref 主动 `focus()` 才管用。
+   */
+  inputRef?: Ref<SearchFieldRef>;
   /**
    * 输入框右缘的动作区（首页放的是语音与问一问两格）。
    *
@@ -257,6 +277,7 @@ export function SearchField({
     <View style={styles.search}>
       <Ionicons name="search" size={15} color={Palette.ink3} />
       <TextInput
+        ref={inputRef}
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}

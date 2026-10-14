@@ -2,4 +2,45 @@
   <string name="app_name">格物</string>
   <string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>
   <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
+
+  <!-- 长按图标的静态快捷方式标签（定义见 res/xml/shortcuts.xml）。
+       ★ 必须走资源引用：shortcutShortLabel 写内联字符串会**直接编译失败**（好事，早报错）。
+
+       ★★★ 这两个标签的关系，第一次真机就踩了：
+         **launcher 在长按菜单里优先显示的是 LongLabel，不是 ShortLabel。**
+         上一轮只改了 ShortLabel，于是真机上三条仍然显示旧名 ——
+         而代码、测试、编译、包里字符串核对**每一环都是绿的**，
+         因为改的那一处根本不是菜单显示的那一处。
+         现在这两条**成对存在且刻意保持一致**：三个名字都只有两三字，
+         没有「更完整的说法」可给，而保持一致就同时封死了
+         「launcher 到底取哪个」这个变量。
+         ★ 以后若真要给 LongLabel 不同的说法，**两处一起改** ——
+           有一条测试钉着「成对且非空」（tests/widget-theme-parity.test.mjs）。
+       ★ 三条的顺序与 shortcuts.xml 的声明顺序一致，改一处要两处一起改。 -->
+  <string name="shortcut_compose_short">录一件</string>
+  <string name="shortcut_compose_long">录一件</string>
+  <string name="shortcut_alerts_short">待办</string>
+  <string name="shortcut_alerts_long">待办</string>
+  <string name="shortcut_search_short">找东西</string>
+  <string name="shortcut_search_long">找东西</string>
+
+  <!-- 桌面小组件（方案甲 · 待办看板，定义见 res/xml/gewu_widget_info.xml）。
+       ★ 这里只放**常量**文案：小组件选择器里的名字与说明、卡片页眉那句、
+         页脚右侧那颗「打开格物」。
+       ★★ 与快照的分工要记牢：**随数据变的那几句一律在 JS 侧算好**
+         （`src/lib/widget/snapshot.ts` → 落到 widget-snapshot.json）。
+         判断依据只有一条：「这句话会不会因为库里的东西不同而不同」。
+         会 → 进快照；不会 → 进这里。
+         两边都写会当场分叉（页眉走资源、页脚走快照），而且**两侧都不报错**。 -->
+  <string name="widget_gewu_label">待办</string>
+  <string name="widget_gewu_description">把「到期」页最上面那几行放到桌面上，不用打开 App 也能看见</string>
+  <string name="widget_gewu_header">格物 · 待办</string>
+  <!-- 页脚右侧那颗 CTA。★ 跟着 app_name 走：改名时两处一起改 -->
+  <string name="widget_gewu_open">打开格物</string>
+  <!-- 还没有快照时的两句话（装了 widget 但还没打开过 App）。
+       ★ 这一态必须**说清楚原因**，不能只是一个空卡片 —— 用户看到空白
+         会以为小组件坏了，而其实只是它还没有数据可看。 -->
+  <string name="widget_gewu_none_lead">还没有数据</string>
+  <string name="widget_gewu_none_sub">打开格物看一眼，这里就会列出要处理的东西</string>
+  <string name="widget_gewu_none_count">—</string>
 </resources>

@@ -42,6 +42,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { UpdateSheet } from '@/components/domain/UpdateSheet';
+import { WidgetSync } from '@/components/domain/WidgetSync';
 import { autoBackupIfDue } from '@/lib/backup/backup';
 import { getDatabase } from '@/lib/db';
 import { hydrateApiKey } from '@/lib/photos/stock';
@@ -172,6 +173,11 @@ function AppShell() {
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
       </Stack>
+
+      {/* 桌面小组件的快照同步。不画任何东西，只保证「数据/主题一变，
+          磁盘上那份 JSON 就是新的」。真正的桌面刷新由原生在 onStop 触发 —— 
+          它需要在 ThemeProvider 内层（快照要带当前主题的色值）。 */}
+      <WidgetSync />
 
       <UpdateSheet
         visible={sheetOpen}

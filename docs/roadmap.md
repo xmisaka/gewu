@@ -2218,12 +2218,23 @@ MicroMessenger UA，三种都试）**永远 `301 → https://www.wechat.com/`** 
 | 项 | 值 |
 |---|---|
 | 版本 | **2.3.0 / versionCode 27** |
-| 包 | `gewu-v2.3.0-arm64.apk` · 50,101,992 字节（47.78 MB）· 仅 `arm64-v8a` |
-| sha256 | `24d0c63cf77ac55b7be852075cc6c049ecf49980919fb8508b25e6885ca0a965` |
-| md5 | `f5ee82ee5cdc5043942ced53d73f7a03`（本地 == 线上） |
+| 包（r1，首发） | `gewu-v2.3.0-arm64.apk` · 50,101,992 字节（47.78 MB）· 仅 `arm64-v8a` |
+| sha256（r1） | `24d0c63cf77ac55b7be852075cc6c049ecf49980919fb8508b25e6885ca0a965` |
+| md5（r1） | `f5ee82ee5cdc5043942ced53d73f7a03` |
+| **包（r2，线上现行）** | 50,102,140 字节 · 仅 `arm64-v8a` |
+| **md5（r2，线上现行）** | **`7d298cb4747763fe869303340cd389fa`** |
 | 权限 | 12 条，与 v2.2.0 完全相同（**无新增**） |
 | 依赖 | **无新增** |
 | 数据库 | schema v3（本版未动结构） |
+
+★★ **补记（2026-10-14 ssh 上机核对，本条是防坑的）**：首发当晚还发生过一次**同号换包 r2**
+（`fix(wechat): 分享动作改回「分享二维码图片」`，见 commit `e59d764`）——
+**线上现行字节是 r2，不是这张表原本记的 r1**。原表只写了 r1 的 md5/size 且标着「本地 == 线上」，
+**这句话在换包之后就假了**。
+→ 后果很实：以后做 bundle 差分要「取上一版交付包当基点」时，照着这行会拿到 **r1**（首发字节），
+而用户手里真正装的是 **r2** —— 差分会把 r2 的修复算成「本期新增」，**不报错，报告全错**。
+→ 归档现状：`_build/baseline-v230-r1.apk`（`f5ee82ee`）/ `-r2.apk`（`7d298cb4`，线上）/ `-r3.apk`（`732a4569`，本期试装）。
+**取基点一律取 r3 之前那个「线上现行」＝ r2。**
 
 发版动线（10-10 裁决后唯一一条）：功能代码提交推送 → 升版本号 → 打包 → 传 `downloads/`
 → 改 `docs/version.json` 与 `shared.py` 的 `CHANGELOG` → 重新生成 `index.html` + `changelog.html`
@@ -2277,3 +2288,192 @@ CSS 的现居地是 `rc.BASE_CSS`（首页用的就是它），已改过来。
 **教训**：10-11 改版把 CSS 搬了个家，而**没有任何地方会告诉你这个 import 断了**。
 每次发版都要**确认生成器真的跑过**（看它自己那行「写出 xxx.html」），
 而不是只看 `deploy.py` 说「已确认落地」—— 后者对「内容是不是新的」一无所知。
+
+---
+
+## 十七、桌面小组件（方案甲 · 4×2 待办看板）+ 三条长按快捷方式（2026-10-14）
+
+### 裁决：走「手写 Kotlin + RemoteViews」
+
+方案页原稿推荐引社区库 `react-native-android-widget`，理由是「少写原生代码」。
+**这个理由是错的** —— 拆包实测（`npm pack` 后读它的 config plugin 源码）：
+
+| 判据 | 社区库 | 手写 RemoteViews |
+|---|---|---|
+| 拖进的原生 AAR | **3 个**（`androidx.work:work-runtime`、`androidx.concurrent:concurrent-futures`、`com.caverock:androidsvg-aar`） | **0** |
+| 每个 widget 的注册面 | config plugin 自动改 manifest + 生成 Java 类 | 一个 `<receiver>`，手写 |
+| 受版本控制的原生改动面 | **6 处**（`MainApplication`/`MainActivity`/`settings.gradle`/`build.gradle`/`AndroidManifest`/`gradle.properties`）—— 正是 prebuild 会覆盖的那批 | **5 个手写文件**，prebuild 不碰 |
+| JS 侧还要跑运行时 | 要（每次刷新拉起 JS 渲染） | 不要（原生读 1KB JSON） |
+| 与「零新原生依赖」的关系 | 违反 | 符合 |
+
+工作负载（盒子 + 文字 + 圆点 + 胶囊）**完全落在 RemoteViews 白名单内**，
+且原设计「原生侧只做查表、不做判断」本来就是照着 RemoteViews 写的 ——
+所以手写这条路反而更短。`docs/widget-plan.html` 里那个错的推荐已改成更正框，原文保留作决策记录。
+
+### 落地清单
+
+**JS（3 个纯函数模块 + 1 个无头组件）**
+| 文件 | 职责 |
+|---|---|
+| `src/lib/widget/snapshot.ts` | 把待办整理成快照，**文案全部在这里拼成整句** |
+| `src/lib/widget/palette.ts` | 27 个主题令牌 → widget 用的 10 个 |
+| `src/lib/widget/publish.ts` | 同步落盘到 `Paths.document`（＝原生侧 `context.filesDir`，零权限） |
+| `src/components/domain/WidgetSync.tsx` | 无头组件，800ms 防抖；**`!ready` 时什么都不写** |
+
+**原生（3 个 Kotlin + 一组资源）**：`widget/GewuWidgetSnapshot.kt`（读+解析）、
+`widget/GewuWidgetRender.kt`（摆 RemoteViews + 现画圆角/圆点/胶囊位图）、
+`widget/GewuWidgetProvider.kt`（receiver + `refreshAll`）；
+`res/xml/gewu_widget_info.xml`、三份 `res/layout/widget_gewu{,_row,_empty}.xml`、
+`res/drawable-nodpi/widget_gewu_preview.png`（由 `scripts/make-widget-preview.py` 生成）；
+`MainActivity.kt` 加一个 `onStop` 覆写。**不跑 prebuild。**
+
+### 顺手做的改名
+
+三条长按快捷方式：**录入一件 → 录一件**（另两条不变：待办 / 找东西）。
+落在 `strings.xml` 的 `shortcut_compose_short`，并同步了 5 处注释与文档里的旧名。
+★ 同时把 `shortcuts.xml` 与 `docs/widget-shortcuts-spec.html` 里那句
+**不存在的 `cmd shortcut invoke-shortcut`** 改掉了（Android 16 上只有 `get-shortcuts`，
+而它打印 intent 时会连 path 与 query 一起省略）——**真机上用手指点是唯一的验法**。
+
+### 构建与差分
+
+| 项 | 值 |
+|---|---|
+| 构建 | `BUILD SUCCESSFUL in 4m 23s`（日志 `_build/widget-build-r4b.log`） |
+| 包 | 50,166,168 字节 · md5 `8d39e5545c7c39ef7bf595825c06a1d7` · 归档 `_build/baseline-v230-r4.apk` |
+| 权限 | **12 → 12，与线上 r2 逐条一致：零新增**（`aapt2 dump badging` 实测） |
+| 体积 | r2 线上 50,102,140 → r4 50,166,168（**+64,028 字节**）；r3 试装 50,104,704 → r4（+61,464） |
+| 版本 | **仍是 `2.3.0` / vc 27** —— 与线上 r2 同号，**不能当更新发出去** |
+| 包内核对 | 资源表有 `drawable/widget_gewu_preview`、`layout/widget_gewu{,_empty,_row}`、`xml/gewu_widget_info`、全套 `string/widget_gewu_*`；字符串池里有「**录一件**」且没有「录入一件」；receiver `com.gewu.app.widget.GewuWidgetProvider` `exported=false` + `APPWIDGET_UPDATE` |
+
+★ 归档一律 `cp -p`（普通 `cp` 会刷新 mtime，差分脚本的归因时间取自基线 APK 的 mtime）。
+
+### ★★★ 第一次编译就踩到的 Kotlin 坑（21 条错误里只有 1 条是真的）
+
+三个 `.kt` 第一次编译报 21 条错误，其中十几条是
+`actual type is 'Long', but 'Int' was expected`，散布在第 143、213、216～220、271～284 行。
+**真正的错只有一处**：尺寸常量声明在 `object GewuWidgetRender` 内部，而渲染用的
+`Renderer` 是**同一个文件里的另一个顶层类** —— Kotlin 的 `private` 只在声明它的类
+（及其嵌套类）里可见，那些引用于是**全部解析失败**；参数一旦成了错误类型，
+`Math.round` 就落到返回 `Long` 的那个重载上，错误从一个点扩散成一片。
+
+→ 两条固定做法，已写进代码注释并有测试盯着：
+1. **widget 包里的 `private const val` 一律声明在文件顶层** —— 文件的 `private` 等于全文件可见，
+   不损失封装，却让「这个引用能不能解析」不再取决于「我在哪个花括号里」。
+2. 单位换算一律 `(v * density).roundToInt()`，**不用 `Math.round`**
+   （后者在 JVM 上有 Int / Long 两个重载，选哪个取决于参数是 Float 还是 Double）。
+
+★ 另一条流程教训：后台构建的**重试循环在源码没改时会白烧时间**（每遍 3.5 分钟）——
+第一次失败后**先停任务再改代码**。代价：一轮 3m38s 白跑 + 一轮重试又跑了 2 分钟才被停掉。
+
+### 测试
+
+`tests/widget-snapshot.test.mjs`（23 条）＋ `tests/widget-theme-parity.test.mjs`（**13 条**）。
+后者守的是**跨语言、跨编译单元的重复**（Kotlin 读不到 `theme.ts`，也 import 不了 `snapshot.ts`）：
+文件名 / 版本号 / 兜底配色 / Kotlin 里用到的每个 `R.id.*` 与 `R.layout.*`、`R.string.*` /
+清单里的 receiver / provider 信息里那些**写错了会被系统静默忽略**的尺寸与刷新下限 /
+private const 的作用域 / **布局里只能用 RemoteViews 白名单内的类、且必须写全限定名** /
+**三条快捷方式的 short 与 long 标签成对且一致** /
+**`minHeight` 装得下「三行 + 页眉 + 页脚」**（把布局的固定开销算出来跟它比，约 213.5dp ≤ 220dp）。
+
+★ 后三条都是**真机踩完之后补的** —— 它们对应的全是「构建通过、App 不报错、
+只有屏幕上不对」那一类。每条都先做过**反向验证**（喂一段错的进去，确认它真的会红）：
+一条永远绿的检查只是装饰，假警比没有检查更糟，因为它会训练人忽略它。
+
+### ★★★ 真机第一轮（2026-10-14 17:00～17:30）：四个 bug，一个比一个安静
+
+r4 装到 `25098PN5AC` 上，桌面直接显示「**载入窗口小部件时出现问题**」。
+四个 bug 依次暴露，共同点是**每一个都不会在构建期报错、也不会在 App 侧报错**。
+
+#### ① 裸 `<View>` —— 桌面报错的真凶
+
+卡片底色与两条 1dp 分隔线写成了 `<View>`。RemoteViews 只认标注了 `@RemoteView` 的类，
+白名单是 `FrameLayout`/`LinearLayout`/`RelativeLayout`/`GridLayout` +
+`TextView`/`ImageView`/`Button`/`ProgressBar` 等，**裸 `View` 不在其中**。
+它的失败方式是这里最坏的一种：构造 RemoteViews 不报错、我们自己 inflate 也不报错、
+**只有 launcher 侧 apply 时炸**，桌面一句「载入窗口小部件时出现问题」，
+不说哪一行、不说哪个文件，launcher 的堆栈还被系统吞掉。
+
+**是靠 `selfCheck` 抓到的** —— 那个「在自己进程里 `apply()` 一遍」的设计立了功，
+它把 `InflateException: Class not allowed to be inflated android.view.View`
+连同行号一起写进了我们自己的 logcat：
+
+```
+E GewuWidget: 自检失败：布局里的 id 或 action 对不上，桌面上会抛同一类异常
+E GewuWidget: InflateException: Binary XML file line #28 in ...widget_gewu_empty:
+              Error inflating class android.view.View
+E GewuWidget: Caused by: Class not allowed to be inflated android.view.View
+E GewuWidget:   at LayoutInflater.failNotAllowed(LayoutInflater.java:800)
+E GewuWidget:   at GewuWidgetRender.selfCheck(GewuWidgetRender.kt:96)
+E GewuWidget:   at MainActivity.onStop(MainActivity.kt:47)
+```
+
+→ 纯色块改用 `FrameLayout`。**现在有测试按「正面白名单」逐标签校验。**
+
+★ 同一段日志顺带证明了另一件原本不确定的事：**快照读写是通的**
+（`渲染 空态 lead="都还好，没有要处理的" sub="在看着 1 件 …" 戳="截至今天 17:02"`）——
+`Paths.document === context.filesDir` 这个推理在真机上成立，零权限读私有目录没问题。
+
+#### ② `<ImageView>` 被 AppCompat 换成了 `AppCompatImageView`
+
+修完 ① 之后露出第二个：`selfCheck` 报
+`ActionException: view: androidx.appcompat.widget.AppCompatImageView can't use method with RemoteViews: setImageBitmap`。
+AppCompat 的 LayoutInflater 工厂会把简单名换成自己的子类，而 `AppCompatImageView`
+**覆写了 `setImageBitmap` 却没标 `@RemotableViewMethod`**。
+
+★ 但**这是 `selfCheck` 的假阳性**：它跑在 Activity 的 context 上（AppCompat 一定生效），
+而 launcher 用的是自己的 context（标准 `ImageView`）—— 桌面上卡片其实显示正常。
+假阳性比没有自检更糟（会训练人忽略它），所以**布局标签一律改成全限定名**
+（`<android.widget.ImageView>`）：AppCompat 的 switch 匹配不上简单名之外的名字，
+两侧拿到的就都是标准控件了。
+
+#### ③ 「四枚角块」这个圆角方案是错的
+
+第一版用「卡身铺一块纯色矩形 ＋ 四角各叠一枚 24dp 的圆角四分之一」，指望把方角盖住。
+**盖不掉**：角块在圆弧之外是**透明**的，露出来的正是它底下那块铺满的卡身。
+真机上四角是实心的白，一个像素的圆角都没有。
+这个错**在书面上无懈可击** —— 不报错、布局合法、构建通过、包里资源齐全，
+只是屏幕上是错的。
+
+→ 改成**整卡身位图**，但**按 dp 尺寸画**（1 像素 = 1 dp，276×220 只有 243KB），
+再交给 `ImageView` 的 `fitXY` 拉伸。因为画的宽高比与卡片完全一致，拉伸是等比的 ——
+圆角不会被拉成椭圆，半径正好 24dp，且与屏幕密度无关。
+
+#### ④ `minHeight` 按「1 行」写的，而布局承诺三行
+
+`minHeight="110dp"`（＝118×1−16），**按 1 行算的**。真机上桌面给了约 136dp 高，
+于是「最多三行」变成「看得见一行」—— 而布局合法、构建通过、卡片看起来也「有内容」，
+**没有任何东西会报错**。
+→ 六个尺寸全部贴到 276×220dp，并加一条测试把「三行 + 页眉 + 页脚」的高度
+**算出来**跟 `minHeight` 比。
+
+★★ **改了 `minHeight` 不会让已经躺在桌面上的 widget 变高** —— launcher 保留实例尺寸，
+必须**删掉重新添加一次**。
+
+#### 交付状态（2026-10-14 17:30）
+
+| 项 | 值 |
+|---|---|
+| 包 | `_build/baseline-v230-r7.apk` · 50,165,804 字节 · md5 `590459f7c8a243328eb195717d76dd6e` |
+| 权限 | **12 → 12，与线上 r2 逐条一致：零新增**（`aapt2 dump badging` 实测） |
+| 体积 | r2 线上 50,102,140 → r7（**+63,664 字节**） |
+| 版本 | 仍是 `2.3.0` / vc 27 —— 与线上 r2 同号，**不能当更新发出去** |
+| 真机 | 已装 r7；`InflateException` / `ActionException` **计数均为 0**；尺寸探测 `minW=256 minH=128`（宽高比 2:1，与卡片实际比例 1.98 几乎一致 → 圆角不会被拉椭圆）；三条快捷方式的 short/long 标签在包内资源表里都是「录一件 / 待办 / 找东西」 |
+
+★ **真机取证据的正确姿势：`adb logcat -d | grep GewuWidget`。**
+`adb logcat -d` **不能叠 `-a`** —— 叠了输出会变成空的，表现成「这个 tag 一行日志都没有」，
+与事实完全相反（去掉 `-a` 就有 53 行）。为这个差点把根因判成「日志被 R8 删了」。
+★ 另一条：`adb exec-out screencap -p` 在本机会先吐一行
+`[Warning] Multiple displays were found…` 混进 PNG 里，要按 `\x89PNG` 签名与 `IEND` 截干净。
+★ **MIUI 拦 `adb shell input`**（`SecurityException: Injecting input events requires INJECT_EVENTS`），
+连唤醒屏幕都做不到 —— 任何需要「点一下」的验证都必须用户手点。
+
+### 待办（本节未完成的）
+
+- [ ] **把桌面上的小组件删掉、重新添加一次**（用户手点）。launcher 保留实例尺寸，
+      不重加就拿不到 220dp 的高度，三行显示不全。r7 已装好，重加即可。
+- [ ] **最后一眼：确认圆角**。内容与尺寸已经用截图 + 像素测量验证过，
+      圆角那一步被「屏幕已锁、adb 唤不醒」打断了，没截到桌面。
+- [ ] **版本号裁决。** r7 与线上 r2 同号（`2.3.0` / vc 27），要发就得升 —— 未定。
+- [ ] iOS 侧（WidgetKit extension + App Group）—— 与「iOS 上架」一起排，本期不做。
+

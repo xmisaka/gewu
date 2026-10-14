@@ -5,7 +5,7 @@
  * 保证派生指标与到期状态在所有页面的口径完全一致。
  */
 
-import { dailyCost, expiryState, holdingDays, today } from '../date';
+import { dailyCost, daysBetween, expiryState, holdingDays, today } from '../date';
 import { isStockEnabled, LOW_STOCK_THRESHOLD, nextQuantity, normalizeQuantity, stockState } from '../stock';
 import { aggregateTagCounts, applyTagTransform, normalizeTags, type TagCount, type TagTransform } from '../tags';
 import type { Database } from './index';
@@ -679,11 +679,69 @@ export async function listExpiring(): Promise<ExpiringGroup[]> {
   ];
 }
 
+/**
+ * 「需要关注」的分组列表 —— **提醒页与桌面小组件共用这一份**。
+ *
+ * ★ 这条拼装规则（「该补货了」排在最前、且**只在它非空时**才出现）原来只长在
+ *   提醒页里。桌面小组件要的是同一个顺序，所以必须搬上来。
+ *   抄第二份的代价：某天只改了一边，桌面上那三行的顺序就和点进去看到的不一样 ——
+ *   而两边都不会报错。
+ * ★ 两组各查一次再拼，而不是把 low 塞进 `listExpiring`：那个函数的名字与职责是
+ *   「到期」，混进库存会让它变成一个说不清的东西。
+ */
+export async function listAttentionGroups(): Promise<ExpiringGroup[]> {
+  const [expiring, low] = await Promise.all([listExpiring(), listLowStock()]);
+  return low.length > 0
+    ? [{ key: 'low', title: '该补货了', items: low }, ...expiring]
+    : expiring;
+}
+
 /** 导入用：一次性取出全部字段（含软删除） */
 export async function listAllForExport(): Promise<Item[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<ItemRow>(`${SELECT_VIEW} ORDER BY i.created_at ASC`);
   return rows.map(toItem);
+}
+
+/* ------------------------------------------------------------ 最近的下一个到期 */
+
+/**
+ * 「下一个到期」——**桌面小组件空态要用的那一个数**。
+ *
+ * ★ 现有派生里没有这个：`attentionCount` 只给条数，`listExpiring` 给的是分组后的整个列表，
+ *   都答不了「最近还有几天」。
+ * ★ 只取**未来**（含今天）的那一件：空态出现在「没有待办」时，此时所有带保质期的物品
+ *   都在 30 天之外，所以这一条查出来的就是「下一次需要抬头看的日子」。
+ *   若库里有到期日但全在过去，那早就是待办了，空态根本不会出现 —— 不必在这里兜。
+ * ★ 用 `julianday()` 而不是字符串比较：`expire_date` 是 `YYYY-MM-DD`，字典序恰好等于
+ *   日期序，但写成日期函数能让意图在 SQL 里就看得出来，也不怕将来混进别的格式。
+ */
+export interface NextExpiry {
+  itemId: string;
+  name: string;
+  /** `YYYY-MM-DD` */
+  date: DateString;
+  /** 距今还有几天（>= 0） */
+  days: number;
+}
+
+export async function getNextExpiry(on: DateString = today()): Promise<NextExpiry | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ id: string; name: string; expire_date: string }>(
+    `SELECT i.id, i.name, i.expire_date
+       FROM items i
+      WHERE i.deleted_at IS NULL
+        AND i.expire_date IS NOT NULL AND i.expire_date <> ''
+        AND julianday(i.expire_date) >= julianday(?)
+      ORDER BY i.expire_date ASC
+      LIMIT 1`,
+    on,
+  );
+  if (!row) return null;
+
+  const days = daysBetween(on, row.expire_date as DateString);
+  if (days == null) return null;
+  return { itemId: row.id, name: row.name, date: row.expire_date as DateString, days };
 }
 
 /* ------------------------------------------------------------ 标签 */

@@ -13,7 +13,7 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -36,7 +36,14 @@ import {
   isItemSort,
   sortOptionOf,
 } from '@/components/domain/SortPickerModal';
-import { Chip, ChipRow, IconButton, SearchField, Segmented } from '@/components/ui/controls';
+import {
+  Chip,
+  ChipRow,
+  IconButton,
+  SearchField,
+  Segmented,
+  type SearchFieldRef,
+} from '@/components/ui/controls';
 import { EmptyState, LegendStrip, Loading, MetricStrip, UndoBar, type UndoAction } from '@/components/ui/feedback';
 import { Card, PageHeader, Screen } from '@/components/ui/layout';
 import { Body, Heading, Label, Meta } from '@/components/ui/typography';
@@ -70,11 +77,27 @@ import { useEntitlement } from '@/lib/store/entitlement';
 import type { ItemSort, ItemView } from '@/lib/types';
 import { makeStyles } from '@/lib/theme';
 
+/**
+ * 从深链参数到「搜索框真的被聚焦」之间要等的那一下（毫秒）。
+ *
+ * 不是随手拍的数：列表视图那一屏要等 React 渲染 + 原生视图挂载完成才会有实例可聚焦。
+ * 等太短会落空，而且**不报错** —— 表现只是「点了快捷方式，App 打开了但搜索框没反应」。
+ */
+const FOCUS_AFTER_NAV_MS = 150;
+
 type ViewMode = 'list' | 'location';
 
 export default function ItemsScreen() {
   const styles = useStyles();
   const router = useRouter();
+  /**
+   * 图标长按的「找东西」快捷方式带来的意图：`gewu://?focus=search`。
+   *
+   * ★ 只认这一个取值 —— 它不是通用开关，别的值一律当没看见。
+   *   深链的 URL 写在 `android/app/src/main/res/xml/shortcuts.xml`，
+   *   两处是同一个约定，改一处必须改另一处。
+   */
+  const { focus } = useLocalSearchParams<{ focus?: string }>();
   const { stats, dataVersion, bump } = useAppState();
   const { entitled } = useEntitlement();
   /* ★ 露不露 AI 这一族的入口看 `enabled`（总开关），不看 `active`（还要有 Key）。
@@ -91,8 +114,39 @@ export default function ItemsScreen() {
      等于每帧重建一次离屏层。实测那几帧里出现了「同一行文字被复制成两层、偏移 3–4px」
      的重影。现在滚动完全由原生列表驱动，一帧布局都不用做。 */
   const listRef = useRef<FlatList<ItemView>>(null);
+  /** 搜索框实例。只在「找东西」快捷方式深链进来时用一次（见下面的 focus effect） */
+  const searchRef = useRef<SearchFieldRef>(null);
 
-  const [mode, setMode] = useState<ViewMode>('list');
+  /**
+   * 视图由**两段**合成：用户自己选的这一段，加上「找东西」快捷方式的要求。
+   *
+   * ★ 为什么不做成「effect 里 setMode('list')」——那条路有两个毛病，第二个是致命的：
+   *   ① 在 effect 里同步 setState 会引发级联渲染（lint 直接拦，React 自己也不推荐）；
+   *   ② **它会先按位置视图渲染一帧、再把 mode 改过来**，而列表视图那一屏是在
+   *      mode 变过来之后才挂载的 —— 紧接着那句 `searchRef.current?.focus()`
+   *      就落在一个还不存在的实例上，而且**不报错**，只是搜索框没反应。
+   *   派生把这两个问题一起消掉：从第一帧起 mode 就是 'list'，列表视图当帧挂载，
+   *   定时器到点时光标一定落得下去。
+   */
+  const [userMode, setUserMode] = useState<ViewMode>('list');
+  const mode: ViewMode = focus === 'search' ? 'list' : userMode;
+
+  /**
+   * 用户主动切视图。
+   *
+   * ★ 顺手把「找东西」的深链意图清掉 —— 不清的话 `focus` 还是 'search'，
+   *   上面那个派生把 mode 钉死在 'list'，用户点「位置」将**毫无反应**，
+   *   而按钮本身看起来完全正常（没有禁用态、没有报错）。
+   *   清掉之后 mode 退回 `userMode`，切换立刻生效，同时也让下一次点快捷方式
+   *   重新产生一次参数变化（否则第二次点会因为没有变化而不聚焦）。
+   */
+  const changeMode = useCallback(
+    (next: ViewMode) => {
+      setUserMode(next);
+      if (focus === 'search') router.setParams({ focus: '' });
+    },
+    [focus, router],
+  );
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   /**
@@ -133,6 +187,39 @@ export default function ItemsScreen() {
 
   /** 免费档点「问一问」或「语音」时弹的门控浮层 */
   const [gateOpen, setGateOpen] = useState(false);
+
+  /**
+   * 「找东西」快捷方式：把搜索框拉起来、键盘一起弹出来。
+   *
+   * ★ 这条深链**必须**落到搜索框上。不带参数的话，它就等价于点图标打开首页、
+   *   用户还得自己再点一次搜索框 —— 那一格的价值当场归零。
+   *
+   * 三件事必须一起做，少任何一件都表现为「点了像没反应」：
+   *   ① **视图要落在列表上**：首页的「列表 / 位置」是组件内 state、不归路由管。
+   *      用户上次停在位置视图时进来，会得到「想搜物品、看到的却是柜子搜索框」。
+   *      —— 这一条**不需要在这里 setState**：mode 是从 `focus` 派生的（见上文），
+   *      进来那一刻就已经是列表视图了，连「等挂载」都一并省掉。
+   *   ② **等一会儿再聚焦**（见 FOCUS_AFTER_NAV_MS）：那时列表视图那一屏已经挂载完。
+   *   ③ **处理完把参数清掉**：不清的话，第二次点同一个快捷方式时参数没有变化
+   *      （还是 'search'），这个 effect 不会重跑 —— 症状是「第一次好使、之后失灵」，
+   *      而两次操作在用户看来完全一样。
+   *
+   * 定时器里的顺序不能换：先 `setUserMode('list')` **把这一次派生的结果固化下来**
+   * （紧接着清掉参数之后 mode 会退回 userMode，不先固化就会当场跳回位置视图），
+   * 再清参数，最后聚焦。
+   *
+   * ★ body 里只留「清参数」这类对外部系统的调用；凡涉及 state 的一律进定时器 ——
+   *   在 effect 里同步 setState 会被 lint 直接拦下（这一版就是被它拦下来改的）。
+   */
+  useEffect(() => {
+    if (focus !== 'search') return;
+    const timer = setTimeout(() => {
+      setUserMode('list');
+      router.setParams({ focus: '' });
+      searchRef.current?.focus();
+    }, FOCUS_AFTER_NAV_MS);
+    return () => clearTimeout(timer);
+  }, [focus, router]);
 
   /**
    * 搜索框右侧那两格（麦克风 / 星标）。**两道门，顺序不能反**：
@@ -457,7 +544,7 @@ export default function ItemsScreen() {
   ) : (
     <Segmented<ViewMode>
       value={mode}
-      onChange={setMode}
+      onChange={changeMode}
       options={[
         { value: 'list', label: '列表', icon: 'list-outline' },
         { value: 'location', label: '位置', icon: 'grid-outline' },
@@ -486,6 +573,10 @@ export default function ItemsScreen() {
             value={query}
             onChange={setQuery}
             placeholder={activeCategory ? `在「${activeCategory.name}」中搜索` : undefined}
+            /* 只给列表视图这一屏挂 ref —— 「找东西」快捷方式进来时会先把 mode 切回
+               list（见上面的 focus effect），所以被聚焦的永远是这一屏的搜索框。
+               位置视图那个不挂：它搜的是柜子名，与「找一件东西」不是一回事。 */
+            inputRef={searchRef}
             /* 右侧两格：麦克风（说一句话录入）与星标（问一问）。
                设计稿 01 屏把它们并排画在这里，而不是挤进底部第五格 ——
                底部五格是「找东西」的骨架，AI 是辅助，不该占黄金位。

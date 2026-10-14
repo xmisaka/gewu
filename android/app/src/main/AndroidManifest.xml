@@ -56,6 +56,20 @@
     <meta-data android:name="expo.modules.notifications.default_notification_icon" android:resource="@drawable/notification_icon"/>
     <meta-data android:name="expo.modules.notifications.default_notification_color" android:resource="@color/notification_icon_color"/>
     <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|smallestScreenSize|assetsPaths" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="portrait">
+      <!-- 长按图标的静态快捷方式（三条：录一件 / 待办 / 找东西）。
+           ★ 标签必须写在 res/values/strings.xml 里，不能内联 —— 否则编译失败。
+           ★★ 这份 XML 解析不过时 Android 会**静默跳过整份文件**：长按菜单里
+              一条都不出现，不报错、不崩溃、日志里也未必有痕迹。唯一真相是
+                  adb shell cmd shortcut get-shortcuts com.gewu.app
+              （改完还要重启 Launcher 才看得到，别把系统缓存当成「没生效」。
+                ★ 注意：**没有** list-shortcuts / invoke-shortcut 这两个子命令，
+                而且它打印 intent 时会连 path 与 query 一起省略掉，
+                所以它证明不了 `?focus=search` 有没有被认 —— 详见过那里的说明。）
+           ★ 三条都走 deep link（intent 的 android:data）而不是原生 extra：
+             MainActivity 上已经有下面那个 `gewu` scheme 的 intent-filter，
+             expo-linking 会接住 URI、expo-router 负责路由 —— 不需要一行 Kotlin。
+             桌面小组件的点击跳转复用同一条通路（见 widget/GewuWidgetProvider.kt）。 -->
+      <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts"/>
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
@@ -67,5 +81,30 @@
         <data android:scheme="gewu"/>
       </intent-filter>
     </activity>
+    <!-- ============================================================
+         桌面小组件（方案甲 · 待办看板）
+
+         ★★ `exported="false"` 是对的，别改成 true：
+            APPWIDGET_UPDATE 是**系统**（system_server，uid 1000）发的，
+            而系统在 `ActivityManager.checkComponentPermission` 里是被直接放行的
+            ——所以不需要（也不应该）把自己暴露出去。
+         ★ 但它同时也是**最值得怀疑的一处**：万一这个判断有误，
+            表现是 onUpdate 永不触发 —— widget 停在 initialLayout（一张空白卡片），
+            不报错、不崩溃。排查顺序：
+              ① adb logcat -s GewuWidget  —— 有没有「渲染 …」那一行
+              ② adb shell dumpsys appwidget | grep -A5 gewu  —— provider 注册上没有
+              ③ 真到这一步再把 exported 改成 true 试一次，并记下来为什么。
+         ★ 这里**不加任何权限**：widget 不需要权限，读自己的私有目录也不需要。
+            出包后照例做双版本差分的权限计数（见 docs/roadmap.md 的校验链）。 -->
+    <receiver
+        android:name=".widget.GewuWidgetProvider"
+        android:exported="false">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+      </intent-filter>
+      <meta-data
+          android:name="android.appwidget.provider"
+          android:resource="@xml/gewu_widget_info"/>
+    </receiver>
   </application>
 </manifest>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  格物 · 桌面小组件的 provider 信息（方案甲 · 待办看板）
+
+  尺寸：4×2 格。官方给的格子换算公式
+      宽 = 73n − 16，高 = 118m − 16       （n / m 为格数，竖屏 dp）
+  摆到 4×2 上就是 276 × 220 dp —— 布局里那三行 40dp 的条目、
+  页眉与页脚，就是照这个数配的（见 res/layout/widget_gewu.xml）。
+
+  ★★ 这一份是**手写**的产物：库的配置插件不会在 prebuild 时替我们写它
+    （本项目不跑 prebuild），所以四件原生改动全是手写的 —— 见 docs/widget-plan.html
+    第七节「不 prebuild 怎么写进这条路」的走法 A。
+
+  ★★ 尺寸为什么要「锁死」而不是让用户随便拉：
+    本期只做了 **一份** 4×2 布局。若放任拉成 2×2，130dp 的宽度里
+    名称与状态胶囊必然折行或被裁掉，而**不会报错** —— 看起来像样式出问题。
+    所以尺寸**六个值全部贴在目标尺寸上**（276 × 220），加 resizeMode="none"：
+      · 老版本（≤ Android 11）看 min/maxResize，六个值一致 ⇒ 只有一个尺寸可选
+      · Android 12+ 看 targetCellWidth/Height，正好 4×2
+      · 布局本身用 layout_weight 收余量 —— 真被拉大了也只是多出空白，不会错位
+    （注：官方文档写明「maxResizeWidth 小于 minWidth 时会被忽略」，
+     所以这里 max ≥ min，方向不能反。六个值相等时两边都成立。）
+
+  ★★★ 高度为什么从 110dp 提到 220dp（2026-10-14 真机改正）：
+    110dp 是**按 1 行算的**（118×1−16 = 102），而这份布局承诺的是**三行** ——
+    真机上桌面确实只给了 136dp 高，三行 40dp 加页眉页脚需要约 220dp，
+    于是「最多三行」变成「看得见一行」，而**没有任何东西会报错**：
+    布局合法、构建通过、卡片看起来也「有内容」。
+    → 高度必须按设计尺寸给。改了之后**已经在桌面上的那个 widget 不会自己变高**
+      （launcher 保留实例尺寸），要删掉重新添加一次。
+
+  ★ updatePeriodMillis = 1800000（30 分钟）：
+    这是系统的**下限**，写更小的值会被顶回 30 分钟，写 0 等于关掉周期刷新。
+    它的作用是兜底 —— 真正的刷新由 App 侧在离开前台时主动触发（MainActivity.onStop），
+    而这条周期刷新负责两件 App 不在时也会发生的事：
+      ① 时间戳从「截至今天 09:12」自动退回「截至 10 月 12 日 09:12」
+         （跨零点了，快照里的「今天」已经是假话 —— 这个判断必须在渲染时做）
+      ② 被系统重启/换机恢复后，widget 空着没内容
+
+  ★ previewImage：小组件选择器里那张示意图。没有它，选择器只会显示一个
+    带应用图标的灰盒子，用户不知道装上去长什么样。
+
+  ★ widgetCategory=home_screen：只管桌面，不上锁屏（锁屏 widget 在
+    Android 5 之后就被系统移除了，写了也没用）。
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_gewu"
+    android:previewImage="@drawable/widget_gewu_preview"
+    android:description="@string/widget_gewu_description"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:minWidth="276dp"
+    android:minHeight="220dp"
+    android:minResizeWidth="276dp"
+    android:minResizeHeight="220dp"
+    android:maxResizeWidth="276dp"
+    android:maxResizeHeight="220dp"
+    android:resizeMode="none"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="1800000" />

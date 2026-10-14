@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  格物 · 桌面小组件 —— 空态 / 还没有快照时
+
+  ★★ 为什么单独一份布局，而不是在正常态里「把三行藏起来」：
+    RemoteViews 没有条件判断能力，但**可以选不同的布局**。用
+    setViewVisibility 藏三行、再显两句别的，等于把「什么时候该说什么话」
+    这件事的形态塞进原生 —— 而那份判断在 JS 侧已经算完了
+    （空态那几句整句都在快照里，见 src/lib/widget/snapshot.ts）。
+    换成两份布局之后，原生的选择只有一句 `rows.isEmpty()`，是个结构问题，
+    不是文案问题。
+
+  ★ 这一份同时服务两种「没有东西可列」的情况，靠文案区分：
+    · 有快照但库里没有待办 → 快照里的 emptyLead / emptySub / emptyNext
+    · 压根还没有快照（装了 widget 却从没打开过 App）→ strings.xml 里那两句
+    两者都不该画成一块白板：白板看起来像小组件坏了，而其实各有各的原因。
+
+  ★ 结构与配色规则同 widget_gewu.xml，圆角同样是「一枚 ImageView + 一张按 dp 尺寸
+    现画的纯色圆角位图」—— 那边顶部写了为什么不能用角块、也不能按密度画。
+-->
+<android.widget.FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_card"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+  <!-- ★★ 整份布局与 widget_gewu.xml 共用同一套约束，详尽的理由写在那份文件顶部，
+       一句话版：① 容器只能是白名单里的那四个（裸 <View> 会让桌面报
+       「载入窗口小部件时出现问题」）；② 标签一律写全限定名，否则 AppCompat 会把
+       ImageView 换成 AppCompatImageView，而它没标 @RemotableViewMethod。 -->
+  <android.widget.ImageView
+      android:id="@+id/widget_body"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:scaleType="fitXY"
+      android:importantForAccessibility="no" />
+
+  <android.widget.LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="vertical"
+      android:padding="14dp">
+
+    <android.widget.LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+      <android.widget.TextView
+          android:id="@+id/widget_header"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:maxLines="1"
+          android:ellipsize="end"
+          android:letterSpacing="0.06"
+          android:textSize="12sp"
+          android:text="@string/widget_gewu_header" />
+
+      <android.widget.TextView
+          android:id="@+id/widget_count"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="8dp"
+          android:maxLines="1"
+          android:textSize="11sp" />
+    </android.widget.LinearLayout>
+
+    <android.widget.FrameLayout
+        android:id="@+id/widget_rule_top"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="6dp" />
+
+    <!-- 两句话垂直居中：主句给结论、副句给依据。
+         ★ 副句不能省 —— 只有「都还好」而没有依据时，用户分不清
+           是真没事，还是这个小组件根本没在读数。 -->
+    <android.widget.LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center">
+
+      <android.widget.TextView
+          android:id="@+id/widget_empty_lead"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:maxLines="1"
+          android:ellipsize="end"
+          android:textSize="14sp" />
+
+      <android.widget.TextView
+          android:id="@+id/widget_empty_sub"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="3dp"
+          android:maxLines="1"
+          android:ellipsize="end"
+          android:textSize="11sp" />
+    </android.widget.LinearLayout>
+
+    <android.widget.FrameLayout
+        android:id="@+id/widget_rule_bottom"
+        android:layout_width="match_parent"
+        android:layout_height="1dp" />
+
+    <android.widget.LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="7dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+      <android.widget.TextView
+          android:id="@+id/widget_empty_next"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:maxLines="1"
+          android:ellipsize="end"
+          android:textSize="10.5sp" />
+
+      <android.widget.TextView
+          android:id="@+id/widget_stamp"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_marginStart="8dp"
+          android:maxLines="1"
+          android:textSize="10.5sp" />
+    </android.widget.LinearLayout>
+  </android.widget.LinearLayout>
+</android.widget.FrameLayout>
