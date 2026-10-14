@@ -1,13 +1,10 @@
 {
-  "versionCode": 28,
-  "versionName": "2.4.0",
-  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.4.0-arm64.apk",
+  "versionCode": 29,
+  "versionName": "2.4.1",
+  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.4.1-arm64.apk",
   "size": "47.84 MB",
   "notes": [
-    "新增桌面小组件（4×2 待办看板）：待办直接摆在桌面上，不用打开 App 也能看见；点一下卡片进 App",
-    "卡片可以长按拖动调高：拉高一格就多显示一条，最多 8 条（默认 3 行）",
-    "长按 App 图标多了三个快捷方式：录一件 / 待办 / 找东西",
-    "修复「备份到手机文件夹」：以前必报「写入失败」，现在能真正存进你挑的文件夹（固定名 格物-备份.zip，只留最新一份）"
+    "修复详情页封面图发糊：详情页那张大图以前取的是缩略图，放到整屏宽必然发虚；现在改用原图 —— 同一张照片，点开全屏有多清晰，详情页就有多清晰"
   ],
   "force": false
 }
