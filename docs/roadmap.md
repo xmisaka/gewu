@@ -2053,7 +2053,87 @@ bundle 4,510,840 → 4,510,868 B；Metro 模块 1962 未变。构建一轮 5m19s
 实现上有个坑：**不能直接 `copy(dir, { overwrite: true })`** ——
 `DestinationSink.SAF` 取的是 `source.fileName` 当目标名，时间戳照样会带进去。
 而 SAF 的 `createFile` 碰到重名**不会覆盖**，会悄悄改成「格物-备份 (1).zip」。
-所以是「先按名删掉旧的 → 再建同名文件 → 把字节拷进去」，多了一步 `dir.list()`。
+所以当时写成了「先按名删掉旧的 → 再建同名文件 → 把字节拷进去」，多了一步 `dir.list()`。
+
+> ★★★ **上面这条结论的后半段是错的**（2026-10-14 真机报「写入失败」后查明）：
+> 「先建目标文件、再 `copy` 进去」这个组合在 `expo-file-system@57.0.7` 里**没有任何能跑通的分支**，
+> 在真机上 100% 失败。正确做法见 §14.7。这段保留原文只为留痕 —— 它当时看着无懈可击。
+
+### 14.7 ★★★ 真机报「写入失败」：那段写盘逻辑从来没有一次成功过（2026-10-14）
+
+用户截图：点「备份到手机文件夹」→ 弹「**保存失败 / 写入失败，请重试或改用「发送出去」**」。
+
+#### 这是「从未成功」，不是「回归」
+
+翻遍 10-11 / 10-12 的日志：这条路是 10-11 20:14 写完、10-12 随 v2.3.0 进包，
+**没有任何一次真机上保存成功的记录**。`npm run verify` 全绿、类型检查全绿 —— 因为它
+import 了 `expo-file-system`，node:test 加载不了原生模块，这条路径**在 CI 里根本不可达**。
+
+#### 根因（读 `expo-file-system@57.0.7` 源码得出，不是猜的）
+
+`fsops/CopyMoveStrategy.kt` 的 `SAF.prepareAsDestination()`：
+
+```kotlin
+if (!spec.isDirectory) {                 // 目的地是个「文件」
+  if (file.exists()) {
+    if (!spec.overwrite) throw DestinationAlreadyExistsException()
+    file.deleteRecursively()             // ← 拷之前先把目标删掉
+  }
+  return DestinationSink.SAF(spec, file, isContainer = false)
+}
+```
+
+旧写法是「先 `dir.createFile(固定名)` 建出目标文件 → 再 `copy` 进这个文件」。
+那个目标**必然已存在**（刚建的），于是：
+
+| `overwrite` | 结果 |
+|---|---|
+| `true` | 目标被 `deleteRecursively()` 删掉 → `DestinationSink.SAF` 拿着一个**已不存在的 document** 调 `contentResolver.openOutputStream()`（`SAFDocumentFile.outputStream`，**没有** `runCatching` 包着）→ `FileNotFoundException` |
+| `false` | `file.exists()` 当场抛 `DestinationAlreadyExistsException` |
+
+**两头都是死路** —— 这个组合在库里就没有能跑通的分支。
+
+#### 正确路径：`copy` 到一个**目录**
+
+`spec.isDirectory = true` 走 isContainer 分支（`DestinationSink.SAF.receiveFrom`）：
+先 `findFile(source.fileName)` 删掉同名旧件，再 `createFile` 建一个新的，然后流式拷进去。
+覆盖语义、流式拷贝、重名处理**它全都自己做了**。
+
+它唯一的毛病是**目标名取自 `source.fileName`** —— 于是 cache 那份的时间戳会被带进用户的文件夹。
+
+→ 所以让「拷的那一刻源文件就叫固定名」即可：
+**改名（同目录 rename，不产生第二份全量数据）→ `copy(dir, { overwrite: true })` → 拷完在 `finally` 里把名字还回去**
+（cache 里那份归档必须留着时间戳，`listBackupFiles` / 保留策略都靠它排时间序）。
+rename 用 `Path.moveTo`（overwrite=false），所以撞名会抛 —— 拷之前先把残留的 `格物-备份.zip` 删掉。
+改名失败**不拦着存**：名字带回时间戳是次要问题，让用户拿不到备份才是主要问题。
+
+#### 附带修的第二处：那个静默 `catch`
+
+原来写的是裸 `catch {}` —— 于是真机上四次失败**运行时一个字节都没留下**，
+定位全靠反读库源码。现在 `catch (err)` + `console.warn`（带目录与错误对象）。
+
+#### 校验
+
+- `npm run verify` = **596 条 / 0 失败**（592 → 596）
+- 新增 `tests/backup-saf.test.mjs`（**4 条源码级断言**）。为什么是源码级：这条路径在 CI 里
+  跑不了，而它偏偏是唯一「只在真机上才暴露」的写盘逻辑 —— 只能钉源码形状。四条各对应一个坑：
+  1. 目的地必须是**目录**；`copyIntoDir` 里**不许再出现 `createFile`**（就是这次的真机 bug）
+  2. 临时改名必须**成对**（`finally` 里 `rename(originalName)`）
+  3. 失败必须 `catch (err)` 且 `console.warn` 出错误对象
+  4. `DEVICE_BACKUP_NAME` 里不许有数字（防时间戳回归）
+- ★ **四条都做了变异验证**（脚本 `_build/mutate_backup_saf.py`）：把实现改回坏版本 → 各恰好红一条 → 还原 → 全绿
+
+#### 包 r9
+
+| 项 | 值 |
+|---|---|
+| 包 | `_build/baseline-v230-r9.apk` · **50,166,780 字节** · md5 **`708fba0df7b6f15eb4666157ff366c13`**<br>（上一版 `r8` 50,166,052 · `0bdd64ddfb720475d23171c02d4baf92`） |
+| 版本 | 仍 `2.3.0` / vc 27（未升，与 r8 同策略） |
+| 权限 | **12 → 12，零变化** —— 本轮只改 JS，Kotlin/XML 未动（`aapt2 dump badging` 实测，与预期一致） |
+| bundle | 4,542,888 → 4,543,616（**+728 字节**），sha256 不同；Metro **1968 → 1968 模块**（只改文件时「不增」才是对的） |
+| bundle 差分 | 正向：`[backup] 写入 SAF 目录失败` · `备份包临时改名失败，将按原名保存` · `备份包改名回滚失败` —— **旧 0 → 新 1**；对照：`格物-备份.zip` / `backup.safDir` / `saveBackupToDevice` / `canSaveToDevice` / `safDirLabel` / `写入失败，请重试或改用「发送出去」` 全部**两边相等** |
+| ★ 反向候选 | **本轮没有** —— 唯一的候选 `application/zip` 实测**旧 1 新 1**（它在 `generateBackup` 与导入的文件选择器里还有两处），不能拿来当反向探针。先量后归类，别预设。 |
+| 校验 | `npm run verify` **596 条 / 0 失败**（592 → 596，新增 `backup-saf.test.mjs` 4 条源码级断言） |
 
 #### 遗留观察（本次没做，留给用户定夺）
 
@@ -2501,7 +2581,7 @@ AppCompat 的 LayoutInflater 工厂会把简单名换成自己的子类，而 `A
 | JS bundle | ★ **r8 是第一个真正重打了 bundle 的包** —— 前面几版只改 Kotlin/XML/字符串，Metro 任务一直 `UP-TO-DATE`，bundle 是从更早那版**复用**的（r4～r7 的日志里根本没有 `Android Bundled … (N modules)` 这一行）。<br>差分 r7 → r8：4,542,616 → 4,542,888（**+272**），sha256 不同；字段名 `footLeftByShownToday`/`…Dated` **0→1**、`footLeftToday` **1→0**、`restCount` **1→0**、对照项 `countLabel` **1→1** —— 正/反/对照三类全部咬住 |
 | 版本 | 仍是 `2.3.0` / vc 27 —— 与线上 r2 同号，**不能当更新发出去** |
 | 真机 | r7 已装并验过：`InflateException` / `ActionException` **计数均为 0**，三条快捷方式 short/long 标签在包内资源表里都是「录一件 / 待办 / 找东西」。<br>**r8 待装机**（打包完成时设备已断开）—— 要验的是「把卡片拉高之后行数真的跟着变」，判据是日志里那行 `渲染 正常态 尺寸=… 行数=N（画得下 M / 备货 8）` |
-| 提交 | `534f92c`（小组件本体）＋ `add9f46`（文档回写）已推 `main`；**本轮 resize 改动尚未提交** |
+| 提交 | `534f92c`（小组件本体）＋ `add9f46`（文档回写）＋ **`974c2ff`（本轮 resize：可拉 + 行数随高，9 文件 +680/−209）** —— 均已在 `main` 上 |
 | 校验 | `npm run verify` **592 条测试 / 0 失败**；`widget-theme-parity` 13 条（新增的行数换算三方对账 + resize 关系，**每条都做过变异测试**）；`widget-snapshot` 23 条（页脚分档相关全部反向验证过） |
 | 文档 | `widget-shortcuts-spec.html`（新增「真机第二轮」整节 + 包表扩到 r8 + bundle 差分结论）、`widget-plan.html`（进度框补第五条坑 + 卡可调尺寸说明）、`roadmap.md` 本节，均已回写，两份 HTML 都过了结构自检（无未闭合、无错配） |
 

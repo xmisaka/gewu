@@ -334,12 +334,42 @@ function isPickerCanceled(err: unknown): boolean {
 /**
  * 把 cache 里那份包写进一个 SAF 目录，用**固定名**，返回写到的那份的文件名。
  *
- * ★ 不能直接 `copy(dir, { overwrite: true })` 了事 —— 那条路拿**源文件名**当目标名
- *   （`DestinationSink.SAF` 里取的是 `source.fileName`），于是又会把一串时间戳带进去。
- *   这里显式建目标文件：先按名删掉旧的，再建一个同名的，然后把字节拷进去。
- *   （SAF 的 createFile 碰到重名**不会覆盖**，会悄悄改成「格物-备份 (1).zip」—— 所以必须先删。）
+ * ── ★★★ 为什么是「先把源改名为固定名 → 再 copy 到目录」，而不是「先建目标文件 → 再拷进去」
+ *    （2026-10-14 真机报「写入失败」后，读 `expo-file-system@57.0.7` 源码得出的结论）
  *
- * ★ 拷贝本身仍是流式的（见 saveBackupToDevice 的说明），只是目标从「目录」换成了「文件」。
+ * 旧写法是后者，在真机上**必然失败**，而且库里根本没有能跑通的分支：
+ *
+ *   `expo-file-system` 的 SAF 目的地判定在 `fsops/CopyMoveStrategy.kt` 的
+ *   `SAF.prepareAsDestination()`：
+ *
+ *     if (!spec.isDirectory) {                    // 目的地是个「文件」
+ *       if (file.exists()) {
+ *         if (!spec.overwrite) throw DestinationAlreadyExistsException()
+ *         file.deleteRecursively()                // ← 拷之前先把目标删掉
+ *       }
+ *       return DestinationSink.SAF(spec, file, isContainer = false)
+ *     }
+ *
+ *   即：**目的地已存在时它一定先删**。而我们给自己造的目的地正是刚 `createFile` 出来的那个，
+ *   必然存在。于是 overwrite=true → 删掉 → `DestinationSink.SAF` 拿着一个已经不存在的
+ *   document 去 `contentResolver.openOutputStream()`（`SAFDocumentFile.outputStream`）→
+ *   `FileNotFoundException`（它不像 `openFileDescriptor` 那样被 runCatching 包住）→ 抛到 JS。
+ *   换 overwrite=false 更直接：`file.exists()` 当场抛 `DestinationAlreadyExistsException`。
+ *   → 「先建目标文件、再 copy 进去」这个组合**两头都是死路**。
+ *
+ *   库里**能跑通**的是「copy 到一个**目录**」：`spec.isDirectory = true` 走 isContainer 分支 ——
+ *   先 `findFile(source.fileName)` 删掉同名旧件，再 `createFile` 建一个新的，然后流式拷进去
+ *   （`DestinationSink.SAF.receiveFrom`）。覆盖语义、流式、重名处理它全都自己做了。
+ *   它**唯一**的毛病是目标名取自 `source.fileName` —— 于是 cache 那份的时间戳会被带进用户的文件夹，
+ *   而那正是固定名要避免的（理由见 DEVICE_BACKUP_NAME 的注释）。
+ *
+ *   → 所以只要让「拷的那一刻，源文件就叫固定名」，这条路就完全成立：改名（同目录 rename，不产生
+ *     第二份全量数据）→ copy 到目录 → **拷完再把名字还回去**（cache 里那份归档必须留着时间戳，
+ *     `listBackupFiles` / 保留策略都靠它排时间序）。
+ *
+ * ── 为什么仍然先按名删一次
+ * 上面那条 `findFile` 删旧件是库的内部行为，不同 provider 的 `listFiles` 表现未必一致；
+ * 这里自己兜一次底，删不掉也不拦着写（交给 copy 的 overwrite）。
  */
 async function copyIntoDir(sourceUri: string, dirUri: string): Promise<string> {
   const dir = new Directory(dirUri);
@@ -357,8 +387,37 @@ async function copyIntoDir(sourceUri: string, dirUri: string): Promise<string> {
     // 列不出目录（例如授权只剩写权限）也不该拦着写，接着往下走
   }
 
-  const target = dir.createFile(DEVICE_BACKUP_NAME, 'application/zip');
-  await new File(sourceUri).copy(target, { overwrite: true });
+  const source = new File(sourceUri);
+  const originalName = source.name;
+  const fixed = new File(Paths.cache, DEVICE_BACKUP_NAME);
+
+  // 改名只为把「目标叫什么」传下去（见上面那段），改不动也照样存 ——
+  // 名字带回时间戳是次要问题，让用户拿不到备份才是主要问题。
+  let renamed = false;
+  if (originalName !== DEVICE_BACKUP_NAME) {
+    try {
+      if (fixed.exists) fixed.delete(); // 上一轮崩在中间的残留，否则 rename 会撞名失败
+      source.rename(DEVICE_BACKUP_NAME);
+      renamed = true;
+    } catch (err) {
+      console.warn('[backup] 备份包临时改名失败，将按原名保存', err);
+    }
+  }
+
+  try {
+    // ★ 目的地给的是**目录**不是文件 —— 这是库里唯一能跑通的 SAF 覆盖写路径
+    await (renamed ? fixed : source).copy(dir, { overwrite: true });
+  } finally {
+    if (renamed) {
+      try {
+        fixed.rename(originalName);
+      } catch (err) {
+        // 名字没还回去只是这份归档从 cache 列表里消失，不该把一次成功的保存报成失败
+        console.warn('[backup] 备份包改名回滚失败', err);
+      }
+    }
+  }
+
   return DEVICE_BACKUP_NAME;
 }
 
@@ -409,7 +468,10 @@ export async function saveBackupToDevice(result: BackupResult): Promise<SaveToDe
     try {
       const fileName = await copyIntoDir(result.uri, dirUri);
       return { kind: 'ok', uri: dirUri, dirLabel: safDirLabel(dirUri), fileName };
-    } catch {
+    } catch (err) {
+      // ★ 必须记下来。这里原来是裸 `catch {}`，于是真机上「写入失败」四次都只留下一句
+      //   给用户看的文案，查因只能靠反读库源码 —— 别再让运行时证据断在这一行。
+      console.warn(`[backup] 写入 SAF 目录失败（第 ${attempt + 1} 轮，目录=${dirUri}）`, err);
       // 记下的那个目录多半是没授权了 —— 清掉，下一轮重新请用户选
       dirUri = null;
       await writeMeta(db, META_SAF_DIR, '').catch(() => {});
