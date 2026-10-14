@@ -2732,6 +2732,86 @@ AppCompat 的 LayoutInflater 工厂会把简单名换成自己的子类，而 `A
 规避＝`\r?\n\}\r?\n` ＋ 每条断言前先自检「抽全了没」（`contentFit=` 在不在）。
 与 `theme.ts` 那条 CRLF 约定同一个坑。
 
-**发版口径**：v2.4.0 已对外，本改动**未进任何包** → 随下一版发出。
-更新日志按「包里有什么」写一句「修复详情页封面图发糊」（**用户可见改动**）。
+**发版口径**：本改动**已随 v2.4.1 发出**（见 §二十）。更新日志按「包里有什么」写**一条**：
+「修复详情页封面图发糊」（**用户可见改动**）。
+
+---
+
+## 二十、发版记录：v2.4.1 已对外（2026-10-14 深夜）
+
+纯补丁版，只修一件事：**详情页封面图发糊**（根因与判据见 §十九）。
+
+### 20.1 包
+
+| 项 | 值 |
+|---|---|
+| 包 | `_build/baseline-v241-r1.apk` · **50,166,808 字节** · md5 **`1368e074c0712117d0cf0b4421408d6d`** · sha256 `2232eca2e43e3e355eab25252fe4241de298b2c0ef0dff9b5c963c019b04a971` |
+| 版本 | `versionName=2.4.1` / `versionCode=29`（`aapt2 dump badging` 实测）；`native-code: 'arm64-v8a'` |
+| 上一版交付包 | v2.4.0 r1 · 50,166,780 字节 · md5 `9441ec87b99abeab7599f55b964fe001` |
+| 权限 | **12 → 12，逐条集合完全一致（新增 0 / 移除 0）** |
+| 新依赖 | 无 |
+| 体积 | **+28 字节** —— 与 bundle 的 +28 完全对上 |
+| JS bundle | 4,543,616 → **4,543,644（+28）**，sha256 `d2c220d4…` → `f37da181…`；Metro **1968 → 1968 模块**（只改文件不增模块，正确） |
+| 构建 | `attempt 1` · **`BUILD SUCCESSFUL in 8m 9s`**（日志 `_build/build-v2.4.1.log`） |
+| 产物落点 | `/data/nginx/html/gewu/downloads/gewu-v2.4.1-arm64.apk` · **服务器侧 md5 `1368e074…` 已核对**；旧包 v2.1.1 → v2.4.0 共 **7 份全留** |
+
+★★ **发现并修掉一个发版链上的隐患：下一版的差分基线曾经没有落地。**
+v2.4.0 那次的记录写着交付包是 `_build/baseline-v240-r1.apk`，但磁盘上**没有这个文件** ——
+它其实一直躺在 `android/app/build/outputs/apk/release/app-release.apk`（md5 与记录一致，确认是同一份）。
+这次用 `os.replace` **移动**过去当差分基线，顺带保住 **mtime 20:23:42**（差分脚本的归因时间取它），
+同时把产物目录清空 —— 正好满足重试循环「轮前产物必须不存在」的前提（技能手册里的那条）。
+→ **新纪律：交付包一出来就 `cp -p` 归档成 `_build/baseline-v<ver>-r<n>.apk`**，
+别等下一版才发现手里没有基点。本次已同时归档 `baseline-v241-r1.apk`（mtime 21:08:33）。
+
+### 20.2 更新日志三处（判据＝包里有什么）
+
+本版包里**用户可见改动只有一条**，差分与归因都只剩它（见 20.3）：
+
+1. 修复详情页封面图发糊
+
+三处同源：`docs/version.json`（**notes 1 条**，App 弹窗上限 4，被截断 0）·
+`shared.py` 的 `CHANGELOG`（**+1 条 → 共 13 条**，`current=True` 已挪到 v2.4.1）·
+`docs/releases/v2.4.1.md`（全量存档）。
+★ 这次 `rc.py` 的 `V` 与 `CHANGELOG` **同一轮一起改**（v2.4.0 那次它连续落后两版，正是那条不变量说的坑）；
+`check_deploy.py` ⑩ 已把「兜底 == 最新」变成会叫的判据，本轮 5 条断言全过。
+
+### 20.3 bundle 差分的结论（★ 本版**没有**反向候选）
+
+- 基线 mtime 20:23:42 → 之后被改动的源文件**只有 4 个**：
+  `src/components/domain/media.tsx`、`src/app/item/[id]/index.tsx`（本次修复）
+  ＋ `app.json`、`docs/version.json`（版本号；**后者不进包，是假归因**）
+- 差异幅度 **+28 字节 / 行数 −17** —— 与「只动了一个组件的入参和一处调用」相符
+- Metro 确实重打包（`createBundleReleaseJsAndAssets` **无 `UP-TO-DATE`**，`Android Bundled 38669ms`）
+- ★★ **本版拿不出正向/反向字符串候选**：改动全在 props 层（`PhotoStage` 新收 `filePath`、
+  删掉从没被读过的 `name`），**不产生新的字符串常量**。逐条实测 9 个候选
+  （`filePath` / `thumb` / `PhotoStage` / `PhotoThumb` / `absoluteUri` / `contentFit` /
+  `photos/` / `thumbs/` / 负对照 `photo-stage.test`）**两版计数全部相等**。
+  → 按纪律**如实记「本版没有反向候选」**，不硬凑一个「看着像命中的」串。
+  本版闭环靠：bundle 逐字节不同 ＋ 归因唯一 ＋ Metro 重打包 ＋ 差异幅度极小。
+
+### 20.4 部署与审计
+
+| 项 | 结果 |
+|---|---|
+| `index.html` | **`6e5361acf8bdaad4a7304e018df7b76d`** · 本地 == 远端 == 公网 · **== `design-final.html`**（同一份内容写两处） |
+| `changelog.html` | **`c198fcacfa7eb71f331d69b8ea6fca0d`** · 三方一致 · 条目 **13** 条 · 最新版 **v2.4.1** |
+| 占位符残留 | index / design-final / changelog 三页 `@@[A-Z_]*@@` 计数**全 0**（`rc.finalize` 生效） |
+| `version.json` | **四方一致** md5 **`8d3c6995ec1fb59d5d994ff67752fa76`**<br>★ 又是**首次上传后线上仍旧值**（`a60404c7`），`deploy.py` 的 `confirm_landed` 接住并自动重传 → `8d3c6995`。**这不是噪音，是常态** |
+| 网站根（周周的生活） | `index.html` md5 **`f76e7d7b`** **未被动** ✓ · 根目录无格物残留 ✓ |
+| `/version.json` 响应头 | `HTTP/2 200` · **`cache-control: no-cache`** ✓（缺了 → 发版当天用户看不到新版） |
+| 公网取回 | `versionName 2.4.1` / vc 29 / `47.84 MB` / `url` 指向 `gewu-v2.4.1-arm64.apk` / **notes 1 条** |
+| App 判定 | `tools/verify-update-chain.mjs` 用**线上那份真实清单**跑：解析 / 版本比对 / 24h 节流 / 抑制 / 坏清单丢弃 全部符合预期 |
+| 审计 | `python scripts/check_deploy.py` **①–⑩ 全部通过**（唯 ⑧ 因本机无 cv2 打 `?` —— **`?` 是「无从证明」不是「通过」**） |
+
+### 20.5 提交
+
+`f43b3d0`（fix · 详情页大图位改吃原图 + 5 条守护测试）→ **`2c6d8ec`（release: v2.4.1 / vc 29）**，
+均在 `main` 上。**不发 GitHub Release**（GitHub 只做代码托管）。
+
+### 20.6 发布后待办（要用户手点）
+
+- [ ] **装 v2.4.1，看详情页那张封面还糊不糊** —— 判据：同一件物品，
+      详情页那张与点开全屏那张**锐度基本一致**；以前是「详情糊、全屏清晰」。
+- [ ] 可选：**百度网盘那份仍是 v2.4.0**。网盘 2026-10-10 已降为**备用**渠道、
+      发版动线里不含它，所以**不是阻塞项**；要同步就手传一次。
 
