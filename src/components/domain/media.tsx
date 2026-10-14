@@ -54,18 +54,32 @@ export function PhotoThumb({
   );
 }
 
-/** 详情页大图位；缺图时给出明确的空位提示而不是灰色块 */
+/**
+ * 详情页大图位；缺图时给出明确的空位提示而不是灰色块。
+ *
+ * ★★★ **必须喂原图 `filePath`，不能喂 `thumbPath`。** 这个位子是**整屏宽 × 230dp**
+ *   （`Screen` 与那一层的 `ScrollView` 都不给水平内边距），360dp 屏 @3x 就是
+ *   **1080 物理像素**宽 —— 而缩略图只有 **320px** 宽，喂它进来等于 3.4 倍上采样，
+ *   再叠一次 JPEG q0.75，看什么都糊。原图长边 1600，缩下去反而正好。
+ *   `contentFit="cover"` 按宽度定标，纵向同倍放大，所以两个方向都靠这一条解决。
+ *   （反证：全屏查看器一直用 `filePath`，所以它清晰；只有这里糊过。）
+ *
+ * ★ 兜底链 `filePath → thumb`：schema 里两者都是 NOT NULL，正常不会有单缺；
+ *   但万一原图文件丢了，给一张糊的总好过一个白框 —— 与「绝不显示破损图标」同一条原则。
+ */
 export function PhotoStage({
+  filePath,
   thumb,
-  name,
   height = 220,
 }: {
-  thumb: string | null;
-  name: string;
+  /** 原图相对路径，形如 `photos/xxxx.jpg` —— 首选 */
+  filePath?: string | null;
+  /** 缩略图相对路径，形如 `thumbs/xxxx.jpg` —— 仅兜底 */
+  thumb?: string | null;
   height?: number;
 }) {
   const styles = useStyles();
-  const uri = absoluteUri(thumb);
+  const uri = absoluteUri(filePath || thumb);
 
   if (!uri) {
     return (

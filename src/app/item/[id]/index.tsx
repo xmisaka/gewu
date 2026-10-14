@@ -156,13 +156,19 @@ export default function ItemDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* 点大图进全屏：盘点、理赔时要看清型号，230px 的大图位读不出来 */}
+        {/* 点大图进全屏：盘点、理赔时要看清型号，230px 的大图位读不出来。
+            ★ 大图位喂**原图** filePath：它是整屏宽，360dp@3x = 1080 物理像素，
+              而缩略图只有 320px 宽 —— 喂 thumbPath 等于 3.4 倍上采样，必糊。 */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="全屏查看照片"
           disabled={photos.length === 0}
           onPress={() => setViewerOpen(true)}>
-          <PhotoStage thumb={current?.thumbPath ?? null} name={item.name} height={230} />
+          <PhotoStage
+            filePath={current?.filePath ?? null}
+            thumb={current?.thumbPath ?? null}
+            height={230}
+          />
         </Pressable>
 
         {photos.length > 1 ? (
