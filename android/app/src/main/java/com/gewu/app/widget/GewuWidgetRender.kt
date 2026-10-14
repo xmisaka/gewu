@@ -52,6 +52,61 @@ private const val PILL_PAD_V_DP = 2
  */
 private const val BITMAP_BUDGET_BYTES = 700 * 1024
 
+/* ------------------------------------------------------------ 行数换算
+ *
+ * ★★★ 卡片现在**可以长按拖动改尺寸**，所以「能画几行」不再是个常量 ——
+ *   拉高一行就多画一条待办。这件事只能在原生侧算：
+ *   **它在写快照的那一刻根本不存在**（用户此刻把卡片拉到多高，
+ *   只有拿到 AppWidgetOptions 才知道），与 `isStampToday` 完全同构。
+ *
+ * ★ 它是个纯算术，两个输入都能从布局 XML 里现算出来 ——
+ *   `tests/widget-theme-parity.test.mjs` 会把下面三个常量与
+ *   widget_gewu.xml / widget_gewu_row.xml 对账。改了行高、内边距或字号，
+ *   那条测试立刻变红，不会等到桌面上少一行才发现。
+ *
+ * ★ 算错的表现是**安静**的：多算一行 → 最后一行被裁掉半截；
+ *   少算一行 → 卡片下面一大片空白。2026-10-14 用户报的正是后者
+ *   （「22 条待办只显示 3 条、下面有很大空白」）—— 当时行数还被
+ *   JS 侧的 WIDGET_MAX_ROWS 钉死在 3，尺寸怎么变都没用。
+ */
+
+/**
+ * 卡片里**与行数无关**的固定开销（dp）≈ 82。
+ *
+ * 逐项：内边距 14×2 = 28 ＋ 页眉 12sp×1.4 ≈ 17 ＋（分隔线上边距 6 ＋ 1dp = 7）
+ *      ＋ 列表上边距 7 ＋ 分隔线 1 ＋（页脚上边距 7 ＋ 页脚 10.5sp×1.4 ≈ 15）
+ * 上面这些数字全部由 parity 测试**从布局里解析出来**再相加，此处只是对账目标。
+ */
+private const val FIXED_OVERHEAD_DP = 82
+
+/** 一行占的高度（dp）= 行高 40 ＋ 行间距 4，两个数都在 widget_gewu_row.xml 里 */
+private const val ROW_PITCH_DP = 44
+
+/**
+ * 行数上限。
+ *
+ * ★ 必须与 JS 侧 `WIDGET_MAX_ROWS`（快照里的备货量）一致，由 parity 测试钉住：
+ *   这边比那边大 → 拉大之后多出来的行是空白的；小 → 快照白带了数据。
+ */
+private const val MAX_ROWS_CAPACITY = 8
+
+/**
+ * 给定卡片高度（dp），画得下几行。
+ *
+ * ★★ **至少返回 1**：高度小到放不下任何一行时（有些 launcher 不严格守
+ *   minResizeHeight），画一行、被 clipChildren 裁掉一截，
+ *   远好过画 0 行 —— 0 行会让列表区整个空着，而**「空列表」在屏幕上
+ *   与「空态」长得一模一样**，用户会以为东西丢了。
+ *   （真正的空态由 `snapshot.rows.isEmpty()` 决定，与这里无关。）
+ * ★ `coerceIn` 不能省掉上界：拉得很高时按除法算出来的可能是十几行，
+ *   而快照里只有 8 条备货 —— 多出来的行会画成空白。
+ */
+private fun rowsThatFit(heightDp: Int): Int {
+  val usable = heightDp - FIXED_OVERHEAD_DP
+  if (usable < ROW_PITCH_DP) return 1
+  return (usable / ROW_PITCH_DP).coerceIn(1, MAX_ROWS_CAPACITY)
+}
+
 /**
  * 画卡身位图用的尺寸（单位 dp）。
  *
@@ -66,20 +121,24 @@ internal data class WidgetCardSize(val widthDp: Int, val heightDp: Int)
  * 格物 · 把一份快照摆成 RemoteViews
  *
  * 这一层的职责被刻意压到最小：**只做「取一个值 → 放到一个 id 上」**。
- * 没有算术、没有判断、没有拼接 —— 所有会算错的东西都在 JS 侧的纯函数里
+ * 没有拼接、没有格式化 —— 所有会算错的东西都在 JS 侧的纯函数里
  * （`src/lib/widget/snapshot.ts`，有单测钉着）。这里如果多写一条规则，
  * 它就会在桌面上长出第二份实现，而两份分叉时不会有任何提示。
  *
- * 唯一的两处例外，都在下面各自标注了理由：
+ * 一共三处例外，各自在下面标注了理由：
  *   · 「生成日是不是今天」—— 快照躺在磁盘上到明天就过期了，不判断反而是在说谎
+ *   · 「这个尺寸画得下几行」—— 尺寸是用户长按拖出来的，写快照时无从得知
+ *     （见下面 `rowsThatFit`）
  *   · 状态槽位 → 一组色值 —— 那是查表，不是规则
  *
- * ★★ 圆角为什么不用一张整卡位图：
+ * ★★ 圆角为什么不能按屏幕密度画整张位图：
  *   位图要过 Binder，单次事务上限 1MB。按真实密度画一张 276×220dp 的
  *   ARGB_8888 圆角图是 2.2MB（三倍屏），**整次更新会被系统静默丢弃** ——
  *   widget 停在上一帧，只有 logcat 里一行，属于最难查的那类失败。
- *   改成「纯色底 + 四枚 24dp 角块」之后，载荷掉到几十 KB，而且与屏幕密度无关；
- *   角块按真实密度绘制，圆角是清晰的，卡片被拉大时半径也不会跟着变成椭圆。
+ *   现在的做法是「**按 dp 尺寸**画，1 像素 = 1 dp」再交给 fitXY 拉伸：
+ *   276×220 只有 243KB，而且画的宽高比与卡片一致，拉伸是等比的 ——
+ *   圆角不会被拉成椭圆。（更早还试过「纯色底 + 四枚 24dp 角块」，
+ *   那个方案**根本做不出圆角**，理由写在 res/layout/widget_gewu.xml 顶部。）
  */
 internal object GewuWidgetRender {
 
@@ -146,9 +205,23 @@ private class Renderer(
   private fun list(colors: WidgetColors, snap: WidgetSnapshot): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.widget_gewu)
 
-    /* ★★ 这是原生侧唯一做的判断。理由见 WidgetSnapshot.isStampToday：
-       快照会在磁盘上躺到明天，那时「截至今天」就是假话 */
-    val foot = if (snap.isStampToday(System.currentTimeMillis())) snap.footLeftToday else snap.footLeftDated
+    /* ★★ 判断一：这个尺寸画得下几行（理由见文件顶部那段「行数换算」）。
+       ★ `shown` 再与 `rows.size` 取小：用户把卡片拉得很高、
+         而库里只有 3 件待办时，不该画出 5 个空行 ——
+         那会让页脚那句「还有 0 件」显得莫名其妙。 */
+    val fit = rowsThatFit(size.heightDp)
+    val shown = minOf(fit, snap.rows.size)
+
+    /* ★★ 判断二：生成日是不是今天。理由见 WidgetSnapshot.isStampToday：
+       快照会在磁盘上躺到明天，那时「截至今天」就是假话。
+       ★ 页脚那句现在还要先按下标取 —— 它随**实际画了几行**变
+         （「还有 N 件」里的 N）。两件事叠在一起，所以先选日期那一套、
+         再取行数那一档，全程不拼字符串。 */
+    val foot = if (snap.isStampToday(System.currentTimeMillis())) {
+      footLeftFor(snap.footLeftByShownToday, shown)
+    } else {
+      footLeftFor(snap.footLeftByShownDated, shown)
+    }
 
     views.setTextViewText(R.id.widget_count, snap.countLabel)
     views.setTextViewText(R.id.widget_foot_left, foot)
@@ -158,15 +231,24 @@ private class Renderer(
 
     /* ★ addView 之前必须 removeAllViews：系统每 30 分钟会重画一次，
        不先清空的话第 4 件之后每一轮都会再叠三行上去，而**不报错** ——
-       表现是行越来越密、溢出卡片。 */
+       表现是行越来越密、溢出卡片。
+       ★ 卡片可调尺寸之后这一步更要紧：用户拖动的过程中
+         `onAppWidgetOptionsChanged` 会被连续触发，每一轮都是一次
+         removeAllViews + 重新 addView，少一次就会叠一行。 */
     views.removeAllViews(R.id.widget_rows)
-    for (row in snap.rows) {
+    for (row in snap.rows.take(shown)) {
       views.addView(R.id.widget_rows, rowView(colors, row))
     }
 
+    /* ★ 这一行是排查「桌面只显示 N 条」的第一现场：
+       把「尺寸 / 画得下几行 / 实际画了几行 / 快照备了几条」四个数一起打出来，
+       一眼能分辨是**尺寸没拿到**、**行数算错了**、还是**快照里就没带够**。
+       2026-10-14 那次「22 条只显示 3 条」，靠的就是这四个数。 */
     Log.i(
       WIDGET_TAG,
-      "渲染 正常态 rows=${snap.rows.size} 计数=\"${snap.countLabel}\" 页脚=\"$foot\" 位图=${bitmapBytes}B",
+      "渲染 正常态 尺寸=${size.widthDp}x${size.heightDp}dp" +
+        " 行数=$shown（画得下 $fit / 备货 ${snap.rows.size}）" +
+        " 计数=\"${snap.countLabel}\" 页脚=\"$foot\" 位图=${bitmapBytes}B",
     )
     return views
   }

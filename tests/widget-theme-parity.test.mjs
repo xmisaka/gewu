@@ -215,12 +215,20 @@ test('★ 注释里的 id 不该被当成真实引用（这条守着上面那条
   assert.ok(!ktAll.includes('R.id.xxx'), '去注释没生效，下面那条对账会报警');
 });
 
-test('★★ widget provider 信息的尺寸与刷新下限不能写成「会被系统忽略」的样子', () => {
-  /* 这些属性**没有一个会在构建期报错**，写错了只有一个后果：系统悄悄按自己的默认值来。
-   *   · `maxResizeWidth` 小于 `minWidth` → 官方语义是**直接忽略它**
-   *   · `updatePeriodMillis` 小于 1800000 → 系统按 30 分钟下限处理（文档明写）
-   *   · 缺 `minWidth/minHeight` → API 30 及以下拿不到尺寸，退成默认 1×1 那种小卡
-   * 所以在这里把关系钉住，而不是等到桌面上发现卡片不像设计稿。 */
+test('★★ 尺寸属性必须写对关系 —— 写错不是报错，是被系统**整条忽略**', () => {
+  /* 这些属性**没有一个会在构建期报错**，写错了只有一个后果：
+     系统悄悄按自己的默认值来，或者把某一条**整条忽略**。官方语义逐条查过
+     （别凭记忆 —— 它们的名字和实际含义是反的）：
+   *   · minWidth/minHeight 是「**默认**尺寸」= 刚放到桌面时占多大，**不是最小值**
+   *   · minResizeWidth/Height **大于** minWidth/minHeight 时被直接忽略
+   *   · maxResizeWidth/Height **小于** minWidth/minHeight 时被直接忽略（且 Android 12 才有）
+   *   · updatePeriodMillis 小于 1800000 → 系统按 30 分钟下限处理
+   *   · resizeMode 缺省时不同 launcher 行为不一致；写 none 则**完全拉不动**
+   *
+   * 2026-10-14 两次真机都栽在这上面：
+   *   第一次是 minHeight 写成了「一行」的高度，桌面上只显示得下一行；
+   *   第二次是六个值全部贴成同一个数 + resizeMode=none，
+   *   用户长按拉不动，卡片里 22 件待办只画得出 3 行。 */
   const info = readFileSync(rootOf('android/app/src/main/res/xml/gewu_widget_info.xml'), 'utf8');
   const dp = (name) => {
     const m = new RegExp(`android:${name}="(\\d+)dp"`).exec(info);
@@ -230,33 +238,18 @@ test('★★ widget provider 信息的尺寸与刷新下限不能写成「会被
 
   const minW = dp('minWidth');
   const minH = dp('minHeight');
-  const minRW = dp('minResizeWidth');
   const minRH = dp('minResizeHeight');
-  const maxW = dp('maxResizeWidth');
-  const maxH = dp('maxResizeHeight');
+  const maxRH = dp('maxResizeHeight');
 
   /* 官方格子公式：width = 73n − 16、height = 118m − 16 → 4×2 = 276×220 */
-  const TARGET_W = 276;
-  const TARGET_H = 220;
-  assert.equal(maxW, TARGET_W, '4×2 的宽度应为 73×4−16 = 276dp');
-  assert.equal(maxH, TARGET_H, '4×2 的高度应为 118×2−16 = 220dp');
+  assert.equal(minW, 276, '默认宽度应为 4×2 的 73×4−16 = 276dp');
+  assert.equal(minH, 220, '默认高度应为 4×2 的 118×2−16 = 220dp（那时正好三行）');
 
-  /* ★★ 六个值全部贴在目标尺寸上 —— 这一条是 2026-10-14 真机改正的：
-     原来 minWidth/minHeight 写的是 250×110，其中 **110dp 是按 1 行算的**
-     （118×1−16），而这份布局承诺三行。真机上桌面就给到了「一行多一点」的高度，
-     「最多三行」于是变成「看得见一行」—— 布局合法、构建通过、卡片看起来也
-     「有内容」，**没有任何东西会报错**。 */
-  assert.equal(minW, TARGET_W, 'minWidth 必须等于目标尺寸，见 gewu_widget_info.xml 顶部那段');
-  assert.equal(
-    minH,
-    TARGET_H,
-    'minHeight 必须等于目标尺寸 —— 110dp 是按 1 行算的，这份布局承诺三行',
-  );
-  assert.equal(minRW, TARGET_W, 'minResizeWidth 也贴目标尺寸（resizeMode=none 下与 minWidth 保持自洽）');
-  assert.equal(minRH, TARGET_H, 'minResizeHeight 同上');
-
-  assert.ok(maxW >= minW, `maxResizeWidth(${maxW}) 小于 minWidth(${minW}) —— 官方语义是直接忽略最大尺寸`);
-  assert.ok(maxH >= minH, `maxResizeHeight(${maxH}) 小于 minHeight(${minH}) —— 同上`);
+  /* ★★ 这两条是「能不能拉动」的全部：条件不满足时系统**不报错**，
+     只是那条属性被忽略 —— 用户看到的是一张拉不动的卡片。 */
+  assert.ok(minRH < minH, `minResizeHeight(${minRH}) 必须**小于** minHeight(${minH})，否则整条被忽略、拉不小`);
+  assert.ok(maxRH > minH, `maxResizeHeight(${maxRH}) 必须**大于** minHeight(${minH})，否则整条被忽略、拉不大`);
+  assert.ok(maxRH > minRH, '最大可拉尺寸不能小于最小可拉尺寸');
 
   const period = Number(/android:updatePeriodMillis="(\d+)"/.exec(info)?.[1]);
   assert.ok(
@@ -267,8 +260,15 @@ test('★★ widget provider 信息的尺寸与刷新下限不能写成「会被
 
   assert.match(info, /android:targetCellWidth="4"/);
   assert.match(info, /android:targetCellHeight="2"/);
-  assert.match(info, /android:resizeMode="none"/);
   assert.match(info, /android:widgetCategory="home_screen"/);
+
+  /* ★★ resizeMode 绝不能是 none。写成 none 的表现不是报错，而是
+     **用户长按拖不动** —— 卡片里明明有 22 件待办，却只画得出三行，
+     下面一大片空白。这是 2026-10-14 用户第二次反馈。 */
+  const resizeMode = /android:resizeMode="([^"]+)"/.exec(info)?.[1];
+  assert.ok(resizeMode, '没写 resizeMode —— 缺省行为在不同 launcher 上不一致');
+  assert.notEqual(resizeMode, 'none', 'resizeMode=none 会让用户完全拉不动这张卡片');
+  assert.match(resizeMode, /vertical/, '待办看板的价值在行数，而行数只由高度决定 —— 垂直方向必须可拉');
 });
 
 test('★★ widget/*.kt 里的 private const 一律声明在文件顶层', () => {
@@ -422,10 +422,17 @@ test('★★ 三条快捷方式的 short/long 标签必须成对存在、且文�
   assert.equal(new Set(checked).size, ids.length, `三条快捷方式的名字有重复：${checked.join(' / ')}`);
 });
 
-test('★★ minHeight 必须真的装得下「三行 + 页眉 + 页脚」', () => {
-  /* 上一条把六个尺寸钉在 276×220，这一条回答「220 够不够」——
-     不够的话卡片照样显示得出来、照样不报错，只是**少一行**。
-     把布局里的固定开销加出来跟 minHeight 比，改了行高/页眉页脚就立刻红。 */
+test('★★★ 行数换算的三个常量必须与布局 XML、JS 快照三方对得上', () => {
+  /* 卡片现在**可以长按拖动改尺寸**，「能画几行」由原生算
+     （`GewuWidgetRender.rowsThatFit`），那是个纯算术：
+         行数 = (卡片高度 − 固定开销) / 每行占的高度
+     两个输入全部来自布局 XML，却在 Kotlin 里被写成常量 ——
+     一份**跨编译单元的重复**。改了布局里的行高、内边距或字号，
+     Kotlin 那三个常量不会自己跟着变，而症状是**桌面上少一行或空一片**（不报错）。
+     这一条就是替两边对账，顺便验证三个尺寸之间的关系是自洽的。
+   *
+   * 另外它还会把 JS 侧的备货量（`WIDGET_MAX_ROWS`）拉进来一起比：
+   * 那三个数说的是同一件事的三种说法，任何一处单独改动都会在这里变红。 */
   const main = layouts.find((f) => f.name === 'widget_gewu.xml')?.text;
   const row = layouts.find((f) => f.name === 'widget_gewu_row.xml')?.text;
   assert.ok(main && row, '找不到 widget_gewu.xml / widget_gewu_row.xml');
@@ -469,28 +476,82 @@ test('★★ minHeight 必须真的装得下「三行 + 页眉 + 页脚」', () 
   const rowH = pick(row, /android:layout_height="([\d.]+)dp"/, '行高');
   const rowGap = pick(row, /android:layout_marginBottom="([\d.]+)dp"/, '行间距');
 
-  const ROWS = 3;
-  const need =
-    pad * 2 +
-    headerSp * LINE +
-    (ruleGap + 1) +
-    (rowsGap + ROWS * rowH + ROWS * rowGap) +
-    1 +
-    (footGap + footSp * LINE);
+  /* 布局算出来的两个值 */
+  const fixNeed =
+    pad * 2 + headerSp * LINE + (ruleGap + 1) + rowsGap + 1 + (footGap + footSp * LINE);
+  const pitchNeed = rowH + rowGap;
+
+  /* Kotlin 里写的三个值 */
+  const ktFix = Number(/private const val FIXED_OVERHEAD_DP = (\d+)/.exec(ktAll)?.[1]);
+  const ktPitch = Number(/private const val ROW_PITCH_DP = (\d+)/.exec(ktAll)?.[1]);
+  const ktRows = Number(/private const val MAX_ROWS_CAPACITY = (\d+)/.exec(ktAll)?.[1]);
+  assert.ok(
+    ktFix > 0 && ktPitch > 0 && ktRows > 0,
+    `没解析到 Kotlin 的行数换算常量（FIXED_OVERHEAD_DP=${ktFix} ROW_PITCH_DP=${ktPitch} ` +
+      `MAX_ROWS_CAPACITY=${ktRows}）—— 改名或挪位置了？`,
+  );
+
+  /* ★ 每行占的高度是精确值（两个整数相加），必须完全相等 */
+  assert.equal(
+    ktPitch,
+    pitchNeed,
+    `ROW_PITCH_DP 应为 ${pitchNeed}（行高 ${rowH} + 行距 ${rowGap}），Kotlin 里写的是 ${ktPitch}`,
+  );
+  /* ★ 固定开销里含两个「字号 × 1.4」的估算项，允许 ±3dp 的余量。
+     余量给大了它就变成装饰 —— 谁把内边距从 14 改成 20（差 12dp）必须报错。 */
+  assert.ok(
+    Math.abs(ktFix - fixNeed) <= 3,
+    `FIXED_OVERHEAD_DP=${ktFix}，布局算出来约 ${fixNeed.toFixed(1)}dp，差得太多 —— ` +
+      '改了内边距/字号/间距就要同步改 Kotlin 那一条',
+  );
+
+  /* ★ 行数上限必须与 JS 侧的快照备货量一致：
+     这边比那边大 → 拉大之后多出来的行是空白的；小 → 快照白带了数据 */
+  const snapshotSource = readFileSync(rootOf('src/lib/widget/snapshot.ts'), 'utf8');
+  const jsRows = Number(/WIDGET_MAX_ROWS\s*=\s*(\d+)/.exec(snapshotSource)?.[1]);
+  assert.ok(jsRows > 0, '没解析到 WIDGET_MAX_ROWS —— 改名了？');
+  assert.equal(
+    ktRows,
+    jsRows,
+    `MAX_ROWS_CAPACITY(${ktRows}) 与 JS 的 WIDGET_MAX_ROWS(${jsRows}) 不一致 —— 三处说的是同一件事`,
+  );
+
+  /* ★ 行数换算必须有**上界**：拉得很高时按除法算出来可能是十几行，
+     而快照里只有这么几条备货 —— 多出来的行会画成空白。 */
+  assert.match(
+    ktAll,
+    /coerceIn\(1, MAX_ROWS_CAPACITY\)/,
+    'rowsThatFit 没有把结果夹到 MAX_ROWS_CAPACITY —— 拉得很高时会画出空行',
+  );
 
   const info = readFileSync(rootOf('android/app/src/main/res/xml/gewu_widget_info.xml'), 'utf8');
   const minH = Number(/android:minHeight="(\d+)dp"/.exec(info)?.[1]);
-  assert.ok(minH > 0, '没解析到 minHeight');
+  const minRH = Number(/android:minResizeHeight="(\d+)dp"/.exec(info)?.[1]);
+  const maxRH = Number(/android:maxResizeHeight="(\d+)dp"/.exec(info)?.[1]);
+  assert.ok(minH > 0 && minRH > 0 && maxRH > 0, '没解析到 minHeight / minResizeHeight / maxResizeHeight');
 
-  console.log(`  [参考] 布局需要约 ${need.toFixed(1)}dp，minHeight = ${minH}dp`);
-  assert.ok(
-    minH >= need,
-    `minHeight=${minH}dp 装不下布局要的约 ${need.toFixed(1)}dp —— ` +
-      '卡片照样显示、也不报错，只是会少一行。调高 minHeight 或缩小行高。',
+  const rowsNeed = (n) => fixNeed + n * pitchNeed;
+  console.log(
+    `  [参考] 固定开销 ${fixNeed.toFixed(1)}dp ＋ 每行 ${pitchNeed}dp → ` +
+      `1 行 ${rowsNeed(1).toFixed(0)}dp / 3 行 ${rowsNeed(3).toFixed(0)}dp / ` +
+      `${ktRows} 行 ${rowsNeed(ktRows).toFixed(0)}dp；` +
+      `minHeight=${minH} minResizeHeight=${minRH} maxResizeHeight=${maxRH}`,
   );
 
-  /* 顺带钉住「三行」这个前提没被改掉 */
-  const snapshotSource = readFileSync(rootOf('src/lib/widget/snapshot.ts'), 'utf8');
-  const maxRows = Number(/WIDGET_MAX_ROWS\s*=\s*(\d+)/.exec(snapshotSource)?.[1]);
-  assert.equal(maxRows, ROWS, `WIDGET_MAX_ROWS 变成 ${maxRows} 了，上面那个高度算式要跟着改`);
+  /* ★ 三个尺寸各自要装得下它承诺的行数。任何一条不满足，后果都只是
+     **桌面上少一行或空一片**，不会有任何报错：
+       · 默认尺寸要装下 3 行（放置时的设计稿就是三行）
+       · 最小可拉尺寸要装下 1 行 —— 否则用户拉到最小，卡片看起来像坏了
+       · 最大可拉尺寸要装下「备货量」那么多行 —— 否则拉到底也是一片空白 */
+  assert.ok(minH >= rowsNeed(3), `minHeight=${minH}dp 装不下三行（要 ${rowsNeed(3).toFixed(0)}dp）`);
+  assert.ok(
+    minRH >= rowsNeed(1),
+    `minResizeHeight=${minRH}dp 连一行都装不下（要 ${rowsNeed(1).toFixed(0)}dp）—— ` +
+      '用户拉到最小尺寸会看到一张看起来像坏了的卡片',
+  );
+  assert.ok(
+    maxRH >= rowsNeed(ktRows),
+    `maxResizeHeight=${maxRH}dp 装不下 ${ktRows} 行（要 ${rowsNeed(ktRows).toFixed(0)}dp）—— ` +
+      '拉到底也是一片空白',
+  );
 });

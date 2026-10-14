@@ -172,9 +172,15 @@ code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;backgrou
     <h4>实现进度（2026-10-14 回写）</h4>
     <p>本页写作时的用途是「只出方案」，其中<b>技术路径那一段的结论已经作废并改正</b>。当前状态：</p>
     <ul>
-      <li><b>甲版 4×2 已实现，并在真机上跑通</b>：手写 Kotlin + 原生 RemoteViews（<b>不用</b> <code>react-native-android-widget</code>，也<b>不用</b> Glance），零新增依赖、零新增权限。见第七节。当前试装包 <code>r7</code>（50,165,804 字节 · md5 <code>590459f7…</code> · 权限 12→12 零新增），<b>仍与线上同号 <code>2.3.0 / vc 27</code>，只能联调、不能当更新发</b>。构建与差分细节见 <code>docs/widget-shortcuts-spec.html</code>。</li>
+      <li><b>甲版 4×2 已实现，并在真机上跑通</b>：手写 Kotlin + 原生 RemoteViews（<b>不用</b> <code>react-native-android-widget</code>，也<b>不用</b> Glance），零新增依赖、零新增权限。见第七节。<b>卡片可长按拖动改尺寸</b>（只开垂直方向），拉高一档就多显示一条待办，最多 8 行 —— 见下面最后一条。当前试装包 <code>r8</code>（50,166,052 字节 · md5 <code>0bdd64dd…</code> · 权限 12→12 零新增），<b>仍与线上同号 <code>2.3.0 / vc 27</code>，只能联调、不能当更新发</b>。构建与差分细节见 <code>docs/widget-shortcuts-spec.html</code>。</li>
       <li><b>长按图标的快捷方式三条已在真机验证通过</b>（录一件 / 待办 / 找东西），含冷启动与 <code>?focus=search</code> 的落地。见 <code>docs/widget-shortcuts-spec.html</code>。</li>
-      <li><b>真机上依次踩了四个坑，每一个都不报错：</b>裸 <code>&lt;View&gt;</code>（桌面直接报「载入窗口小部件时出现问题」）、被 AppCompat 换成 <code>AppCompatImageView</code> 的 <code>&lt;ImageView&gt;</code>、<b>「四枚角块」这个根本做不出圆角的方案</b>（书面上无懈可击，只在屏幕上是错的）、按 1 行算的 <code>minHeight</code>（「最多三行」变成看得见一行）。四条都已在代码与文档里更正，并各补了一条会立刻失败的检查。逐条见 <code>roadmap.md</code> 第十七章。</li>
+      <li><b>真机上依次踩了五个坑，每一个都不报错：</b>裸 <code>&lt;View&gt;</code>（桌面直接报「载入窗口小部件时出现问题」）、被 AppCompat 换成 <code>AppCompatImageView</code> 的 <code>&lt;ImageView&gt;</code>、<b>「四枚角块」这个根本做不出圆角的方案</b>（书面上无懈可击，只在屏幕上是错的）、按 1 行算的 <code>minHeight</code>（「最多三行」变成看得见一行）、<b>尺寸锁死 ＋ 行数写死</b>（22 条待办只画得出 3 行，卡片还拖不动）。五条都已在代码与文档里更正，并各补了一条会立刻失败的检查。逐条见 <code>roadmap.md</code> 第十七章。</li>
+      <li><b>卡片可长按拖动改尺寸（只开垂直方向）</b>，行数随高度走：拉高一档就多显示一条待办，最多 8 行。
+      ★ 难点不在「拉得动」，而在<b>页脚那句「还有 N 件」的 N 取决于「画了几行」</b> ——
+      而「画几行」在写快照时物理上不可知（用户随时会长按拖动，快照只在数据/主题变动时重写）。
+      所以它改成了<b>按行数分档的数组</b>，与「今天 / 不是今天」同一个套路：
+      <b>把「生成时不知道的事」展开成有限个完整版本</b>，原生只做一次选取、全程不拼字符串。
+      见 <code>docs/widget-shortcuts-spec.html</code> 的「真机第二轮」。</li>
       <li>乙（柜子截面）与丙（一件）<b>未实现</b>，仍按第六节的顺序排。</li>
     </ul>
   </div>

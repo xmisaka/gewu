@@ -2,32 +2,59 @@
 <!--
   格物 · 桌面小组件的 provider 信息（方案甲 · 待办看板）
 
-  尺寸：4×2 格。官方给的格子换算公式
-      宽 = 73n − 16，高 = 118m − 16       （n / m 为格数，竖屏 dp）
-  摆到 4×2 上就是 276 × 220 dp —— 布局里那三行 40dp 的条目、
-  页眉与页脚，就是照这个数配的（见 res/layout/widget_gewu.xml）。
+  ★★★ 先记住官方对这几个尺寸字段的**准确语义**，它们和直觉相反，
+    而且「写错」在这里永远不会报错 —— 只会悄悄按系统默认值走：
 
-  ★★ 这一份是**手写**的产物：库的配置插件不会在 prebuild 时替我们写它
-    （本项目不跑 prebuild），所以四件原生改动全是手写的 —— 见 docs/widget-plan.html
-    第七节「不 prebuild 怎么写进这条路」的走法 A。
+      minWidth / minHeight      「**默认**尺寸」= 刚放到桌面时占多大。
+                                不是「最小尺寸」。（官方原文：the default size
+                                of the widget when added to a host）
+      minResizeWidth/Height     「用户可以缩到多小」——**大于** minWidth/minHeight
+                                时被直接忽略；水平/垂直 resize 没开时也被忽略。
+      maxResizeWidth/Height     「建议的上限」——**小于** minWidth/minHeight 时
+                                被直接忽略；不是网格倍数时会被**向上取整**到格子。
+                                且这几个是 **Android 12 才引入**的，11 及以下读不到。
+      resizeMode                horizontal / vertical / none，可写 `horizontal|vertical`。
 
-  ★★ 尺寸为什么要「锁死」而不是让用户随便拉：
-    本期只做了 **一份** 4×2 布局。若放任拉成 2×2，130dp 的宽度里
-    名称与状态胶囊必然折行或被裁掉，而**不会报错** —— 看起来像样式出问题。
-    所以尺寸**六个值全部贴在目标尺寸上**（276 × 220），加 resizeMode="none"：
-      · 老版本（≤ Android 11）看 min/maxResize，六个值一致 ⇒ 只有一个尺寸可选
-      · Android 12+ 看 targetCellWidth/Height，正好 4×2
-      · 布局本身用 layout_weight 收余量 —— 真被拉大了也只是多出空白，不会错位
-    （注：官方文档写明「maxResizeWidth 小于 minWidth 时会被忽略」，
-     所以这里 max ≥ min，方向不能反。六个值相等时两边都成立。）
+  ★★★ 2026-10-14 真机第二轮（用户反馈「22 条只显示 3 条、下面一大片空白，
+    也不能上滑」）：上一版把**六个值全部贴成 276 × 220** 并写了 resizeMode="none"，
+    本意是「只有一份 4×2 布局，别让用户拉成别的比例以免挤坏」——
+    代价是**把 resize 从两个方向都焊死了**，用户拉不动，
+    而卡片里明明有 20 件待办却只画得出 3 行（行数还被 WIDGET_MAX_ROWS 钉死）。
+    现在改成：
+      · resizeMode = "vertical"    —— 只开一个方向，取舍见下面那段
+      · minHeight = 220dp          —— 默认仍是 4×2（**放置时**的尺寸）
+      · minResizeHeight = 130dp    —— 能缩到「一行」
+      · maxResizeHeight = 460dp    —— 能拉到约 4 格高，够 8 行；**不能小于 minHeight**，
+                                      否则整条被忽略（见上面第 3 条）
 
-  ★★★ 高度为什么从 110dp 提到 220dp（2026-10-14 真机改正）：
+  ★ 高度为什么是 130 / 460 这两个数：它们不是拍的，是「行数」算出来的。
+    固定开销 82dp（内边距 28 + 页眉 17 + 两条分隔线与间距 15 + 页脚 22）、
+    每行含行距占 44dp（行高 40 + 间距 4）：
+      · 130 = 82 + 44        → 一行
+      · 460 ≈ 82 + 8 × 44    → 八行（再往上加就没有更多内容可放了）
+    这两个常量在 `GewuWidgetRender.kt`（FIXED_OVERHEAD_DP / ROW_PITCH_DP /
+    MAX_ROWS_CAPACITY），由 `tests/widget-theme-parity.test.mjs` **从布局 XML 现算出来**
+    对账 —— 改了行高、内边距或字号，那条测试立刻变红。
+    反过来，把 minResizeHeight 写小（比如 110dp）**不会报错**：
+    用户能拉到 110dp，而那个高度里一行都放不下，卡片看起来像坏了。
+
+  ★★ 为什么只开垂直、不开水平（设计取舍，不是偷懒）：
+    · 这条卡片是「待办看板」，**价值在于行数**，而行数只由高度决定；
+      横向拉宽/收窄不会多显示一条，只会让每一行更空、或者把内容挤到折行。
+    · 宽度收窄的失败方式是这里最坏的一类：页脚那句「还有 19 件 · 截至今天 18:39」
+      加上右侧「打开格物」在 2 格宽（130dp）里放不下，会**静默 ellipsize** ——
+      不报错、不崩溃，只是文字被截成半句，看起来像排版事故。
+    · 所以宽度保持 minWidth = 276dp，并且**刻意不写** minResizeWidth /
+      maxResizeWidth —— resizeMode 没开水平时它们一定被忽略（官方语义），
+      写了只会让人以为「这里能调宽度」。将来真要开放水平，改两处即可：
+      resizeMode 加 `horizontal`，并补上 minResizeWidth（必须 ≤ minWidth 才生效）。
+
+  ★★★ 高度为什么曾经从 110dp 提到 220dp（2026-10-14 真机第一轮）：
     110dp 是**按 1 行算的**（118×1−16 = 102），而这份布局承诺的是**三行** ——
-    真机上桌面确实只给了 136dp 高，三行 40dp 加页眉页脚需要约 220dp，
-    于是「最多三行」变成「看得见一行」，而**没有任何东西会报错**：
-    布局合法、构建通过、卡片看起来也「有内容」。
-    → 高度必须按设计尺寸给。改了之后**已经在桌面上的那个 widget 不会自己变高**
-      （launcher 保留实例尺寸），要删掉重新添加一次。
+    真机上桌面确实只给了 136dp 高，于是「最多三行」变成「看得见一行」，
+    而**没有任何东西会报错**：布局合法、构建通过、卡片看起来也「有内容」。
+    → 「默认尺寸」必须按设计尺寸给。改了之后**已经在桌面上的那个 widget
+      不会自己变高**（launcher 保留实例尺寸），要删掉重新添加一次。
 
   ★ updatePeriodMillis = 1800000（30 分钟）：
     这是系统的**下限**，写更小的值会被顶回 30 分钟，写 0 等于关掉周期刷新。
@@ -42,6 +69,10 @@
 
   ★ widgetCategory=home_screen：只管桌面，不上锁屏（锁屏 widget 在
     Android 5 之后就被系统移除了，写了也没用）。
+
+  ★★ 这一份是**手写**的产物：库的配置插件不会在 prebuild 时替我们写它
+    （本项目不跑 prebuild），所以这几处原生改动全是手写的 —— 见 docs/widget-plan.html
+    第七节「不 prebuild 怎么写进这条路」的走法 A。
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:initialLayout="@layout/widget_gewu"
@@ -51,10 +82,8 @@
     android:targetCellHeight="2"
     android:minWidth="276dp"
     android:minHeight="220dp"
-    android:minResizeWidth="276dp"
-    android:minResizeHeight="220dp"
-    android:maxResizeWidth="276dp"
-    android:maxResizeHeight="220dp"
-    android:resizeMode="none"
+    android:minResizeHeight="130dp"
+    android:maxResizeHeight="460dp"
+    android:resizeMode="vertical"
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="1800000" />

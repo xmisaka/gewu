@@ -38,8 +38,14 @@ internal const val WIDGET_TAG = "GewuWidget"
 /** ★ 与 JS 侧 `lib/widget/snapshot.ts` 的 WIDGET_SNAPSHOT_FILE 相同，改一处要两处一起改 */
 private const val SNAPSHOT_FILE = "widget-snapshot.json"
 
-/** ★ 与 JS 侧 `WIDGET_SNAPSHOT_VERSION` 相同。对不上就当没有 —— 两侧同版本发布，不做兼容 */
-private const val SNAPSHOT_VERSION = 1
+/**
+ * ★ 与 JS 侧 `WIDGET_SNAPSHOT_VERSION` 相同。对不上就当没有 —— 两侧同版本发布，不做兼容。
+ *
+ * v1 → v2（2026-10-14，为「长按改尺寸」）：页脚左句从一句变成**按显示行数分档的数组**。
+ * 版本号必须一起升，理由见 JS 侧 `snapshot.ts` 同名常量的注释 —— 缩略版：
+ * 新代码去读旧 JSON，最好的结果也只是页脚空一格，而那看起来像样式坏了。
+ */
+private const val SNAPSHOT_VERSION = 2
 
 /** 快照里的一个状态色槽位。**只认这两个**，多出来的按 amber 画（见 toneOf） */
 private const val TONE_CLAY = "clay"
@@ -68,9 +74,17 @@ internal data class WidgetColors(
 internal data class WidgetSnapshot(
     val generatedAt: Long,
     val countLabel: String,
-    /** 正常态页脚左句的两个完整版本（同日 / 隔日），由渲染层按「生成日是不是今天」二选一 */
-    val footLeftToday: String,
-    val footLeftDated: String,
+    /**
+     * 正常态页脚左句，**按「实际画了几行」分档**，索引 = 显示行数，值是整句。
+     *
+     * ★ 两套并列：这里是**两个**「生成时不知道」的维度叠在一起 ——
+     *   画了几行 × 生成日是不是今天。渲染层先选一套、再取下标。
+     * ★ 为什么不能让这边自己拼「还有 N 件」：RemoteViews 不会拼字符串，
+     *   一旦在这边拼，这句话就有了第二份实现，而两份分叉时没有任何提示。
+     *   这与 `isStampToday` 是同一个套路，见下面那段注释。
+     */
+    val footLeftByShownToday: List<String>,
+    val footLeftByShownDated: List<String>,
     val emptyLead: String,
     val emptySub: String,
     val emptyNext: String,
@@ -82,14 +96,32 @@ internal data class WidgetSnapshot(
     /**
      * 生成日与此刻是不是同一天。
      *
-     * ★★ 这是**原生侧唯一做的判断**，而且是刻意的：
-     *   快照可能是昨天写的，而 widget 到明天才被系统重画（周期兜底 30 分钟一次）。
-     *   若把整句「截至今天 09:12」焊进快照，那时候它就在说谎 ——
-     *   而时间戳存在的**唯一理由**就是把「这份数据有多旧」暴露出来。
-     *   所以两边各准备一个完整版本，这里只做一次同日比较、二选一，
+     * ★★ 这是原生侧**两处判断**中的第一处（另一处是「尺寸 → 行数」，
+     *   见 `GewuWidgetRender.rowsThatFit`）。两处的共同点：
+     *   **它们在写快照的那一刻根本不可能知道**，所以只能留到这里做。
+     *
+     * 这一处的理由：快照可能是昨天写的，而 widget 到明天才被系统重画
+     *   （周期兜底 30 分钟一次）。若把整句「截至今天 09:12」焊进快照，
+     *   那时候它就在说谎 —— 而时间戳存在的**唯一理由**就是把
+     *   「这份数据有多旧」暴露出来。
+     * 所以两边各准备一个完整版本，这里只做一次同日比较、二选一，
      *   **不拼句子、不格式化日期**（格式化的结果是 JS 给的）。
      */
     fun isStampToday(now: Long): Boolean = isSameDay(generatedAt, now)
+}
+
+/**
+ * 按「实际画了几行」取页脚左句。
+ *
+ * ★ 三重兜底，因为这一格**空着比写错更难查**：桌面上少一句话，
+ *   看起来像布局坏了，而没人会想到是数组下标越界。
+ *   · 下标越界（数据在两次查询之间变动）→ 退到最后一档；
+ *   · 数组整个是空的（不该发生，JS 侧解析会拒收）→ 退回空串。
+ * ★ 空串也是合法结果：空态那几句走的是别的字段，这条只在正常态用。
+ */
+internal fun footLeftFor(byShown: List<String>, shown: Int): String {
+    if (byShown.isEmpty()) return ""
+    return byShown.getOrNull(shown) ?: byShown.last()
 }
 
 private fun isSameDay(a: Long, b: Long): Boolean {
@@ -126,8 +158,8 @@ internal fun parseWidgetSnapshot(o: JSONObject): WidgetSnapshot? {
     val rowsJson = o.optJSONArray("rows") ?: return null
 
     val countLabel = o.requiredString("countLabel") ?: return null
-    val footLeftToday = o.requiredString("footLeftToday") ?: return null
-    val footLeftDated = o.requiredString("footLeftDated") ?: return null
+    val footLeftByShownToday = o.requiredStringArray("footLeftByShownToday") ?: return null
+    val footLeftByShownDated = o.requiredStringArray("footLeftByShownDated") ?: return null
     val emptyLead = o.requiredString("emptyLead") ?: return null
     val emptySub = o.requiredString("emptySub") ?: return null
     val emptyNext = o.requiredString("emptyNext") ?: return null
@@ -137,8 +169,8 @@ internal fun parseWidgetSnapshot(o: JSONObject): WidgetSnapshot? {
     return WidgetSnapshot(
         generatedAt = o.optLong("generatedAt", 0L),
         countLabel = countLabel,
-        footLeftToday = footLeftToday,
-        footLeftDated = footLeftDated,
+        footLeftByShownToday = footLeftByShownToday,
+        footLeftByShownDated = footLeftByShownDated,
         emptyLead = emptyLead,
         emptySub = emptySub,
         emptyNext = emptyNext,
@@ -154,6 +186,29 @@ private fun JSONObject.requiredString(key: String): String? {
     if (!has(key)) return null
     val value = opt(key)
     return if (value is String) value else null
+}
+
+/**
+ * 一个字符串数组字段：存在、是数组、**每一项都是字符串**，才算数。
+ *
+ * ★ 空数组也**不收**：页脚那一档会取不到，卡片上就少一句话 ——
+ *   而「少一句话」看起来像排版坏了，没人会想到是数组是空的。
+ *   宁可整份走「还没有快照」那个说得清的提示态。
+ * ★ 逐项校验而不是只看长度：`[null]` 会让 setText 收到一个空值，
+ *   结果同样是页脚空一格，而且更难查（长度看起来是对的）。
+ * ★ 与 JS 侧 `parseWidgetSnapshot` 的校验一一对应，改一处要两处一起改。
+ */
+private fun JSONObject.requiredStringArray(key: String): List<String>? {
+    if (!has(key)) return null
+    val arr = optJSONArray(key) ?: return null
+    if (arr.length() == 0) return null
+    val out = ArrayList<String>(arr.length())
+    for (i in 0 until arr.length()) {
+        val value = arr.opt(i)
+        if (value !is String) return null
+        out.add(value)
+    }
+    return out
 }
 
 private fun JSONArray.toRows(): List<WidgetRow> {

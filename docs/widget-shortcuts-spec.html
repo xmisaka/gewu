@@ -208,7 +208,12 @@ footer{margin-top:72px;padding-top:22px;border-top:1px solid var(--line);font-fa
 <section class="sec">
   <div class="sec-head"><span class="sec-num">一</span><h2>甲版 · 待办看板</h2><span class="note">加厚方向：信息密度</span></div>
 
-  <p>主推 <b>4×2 = 276×220dp</b>。它装得下三行「名称 + 位置 + 状态胶囊」和一行时间戳；<b>2×2 = 130×220dp</b> 保留为降级形态，砍掉胶囊、名称降到 13sp（细节同方案页，此处不再重复）。</p>
+  <p>默认 <b>4×2 = 276×220dp</b>，装得下三行「名称 + 位置 + 状态胶囊」和一行时间戳。
+  <b>★ 卡片可以长按拖动改尺寸（只开垂直方向）</b>：拉高一档就多显示一条待办，
+  最多 8 行；缩到最小是「页眉 + 一行 + 页脚」（130dp）。<br>
+  原方案的 <b>2×2 降级形态已放弃</b> —— 130dp 的宽度里页脚那句 + 「打开格物」必然折行或被裁，
+  而这是<b>静默 ellipsize</b>（不报错，看起来像排版事故）。宁可不让用户把宽度拉窄。
+  尺寸与行数的换算规则见下方「真机第二轮」。</p>
 
   <h3>要一起交的第四态：没有待办的时候</h3>
   <p>方案页只画了「有三件待办」。但真实使用中<b>多数时间可能是没有待办的</b>，而一块空白卡片在桌面上不会读成「一切正常」，会读成「这东西坏了」。所以空态不是可选项，是甲版的一半。</p>
@@ -258,7 +263,7 @@ footer{margin-top:72px;padding-top:22px;border-top:1px solid var(--line);font-fa
         </div>
       </div>
     </div>
-    <figcaption>甲版两个状态，按真实参数绘制（widget 内 1px = 1dp，外层放大 1.25 倍仅为展示）。左：有待办，三行是上限，第 4 件之后只剩一个数字。右：没有待办 —— 一张空的方格会读成「坏了」，所以它必须自己说话。</figcaption>
+    <figcaption>甲版两个状态，按真实参数绘制（widget 内 1px = 1dp，外层放大 1.25 倍仅为展示）。左：有待办 —— 默认尺寸下画三行，第 4 件之后只剩一个数字；<b>卡片拉高就会多画几行</b>（最多 8 行）。右：没有待办 —— 一张空的方格会读成「坏了」，所以它必须自己说话。</figcaption>
     <div class="ds">空态的三句话各有分工：主句给结论（都还好），副句给依据（为什么说都还好），底部给下一次需要抬头看的日子。没有副句的「都还好」是空话 —— 用户无法判断这是真没事还是没数据。若库里根本没有带保质期的物品，副句换成引导语「录入时填上保质期，这里就有用了」。</div>
   </div>
 
@@ -508,7 +513,7 @@ footer{margin-top:72px;padding-top:22px;border-top:1px solid var(--line);font-fa
   <div class="tl done">
     <div class="n"><div class="t">1 · 快照桥 <span class="st ok">已完成</span></div><div class="d">纯 TS：算 JSON、落盘。不碰原生。<code>src/lib/widget/snapshot.ts</code> + <code>lib/widget/palette.ts</code> + <code>lib/widget/publish.ts</code>，<code>tests/widget-snapshot.test.mjs</code>（23 条）+ <code>tests/widget-theme-parity.test.mjs</code>（<b>13 条</b>）</div></div>
     <div class="n"><div class="t">2 · 最小真机验证 <span class="st ok">已完成</span></div><div class="d">三条 shortcut 已在真机点过：<b>三条全通</b>，含冷启动、后台唤起与 <code>?focus=search</code> 的聚焦。当时没有设备，是用手点的，不是 adb（见偏差说明）</div></div>
-    <div class="n"><div class="t">3 · 甲版四态 <span class="st ok">已完成 · 真机验过</span></div><div class="d">正常 / 空态 / 无快照三张布局 + 行布局；<b>整卡位图圆角</b>（原「四角位图」方案是错的，见下）、点击区、两个版本的时间戳。渲染走<b>手写 Kotlin + RemoteViews</b>（见偏差说明）。真机第一轮踩出四个 bug，全部修掉（见下方「真机第一轮」）</div></div>
+    <div class="n"><div class="t">3 · 甲版四态 <span class="st ok">已完成 · 真机验过</span></div><div class="d">正常 / 空态 / 无快照三张布局 + 行布局；<b>整卡位图圆角</b>（原「四角位图」方案是错的，见下）、点击区、两个版本的时间戳。渲染走<b>手写 Kotlin + RemoteViews</b>（见偏差说明）。真机第一轮踩出四个 bug，全部修掉（见下方「真机第一轮」）。<b>第二轮把「行数写死」改成「行数随尺寸走」</b>，卡片可长按拖动改尺寸（见「真机第二轮」）</div></div>
     <div class="n"><div class="t">4 · 补齐三条 <span class="st ok">已完成</span></div><div class="d">三条 shortcut、3 个图标、<code>focus=search</code> 那处改动 —— <b>提前做了</b>，见下方偏差说明</div></div>
     <div class="n"><div class="t">5 · 差分验证 <span class="st ok">已完成</span></div><div class="d">与上一版交付包比权限计数与体积。<b>权限 12 → 12，与线上 r2 逐条一致、零新增</b>；体积 r2 → r7 <b>+63,664 字节</b></div></div>
   </div>
@@ -538,10 +543,22 @@ footer{margin-top:72px;padding-top:22px;border-top:1px solid var(--line);font-fa
         <tr><td class="k"><code>r3</code></td><td>50,104,704</td><td><code>732a456909ae1311b2d70357593ee8df</code></td><td>只加了三条长按快捷方式（<b>+2,564</b>）</td></tr>
         <tr><td class="k"><code>r4</code></td><td>50,166,168</td><td><code>8d39e5545c7c39ef7bf595825c06a1d7</code></td><td>再加方案甲小组件 + 快捷方式改名（相对 <code>r3</code> <b>+61,464</b>）。<b>已作废</b>：装到桌面直接报「载入窗口小部件时出现问题」</td></tr>
         <tr><td class="k"><code>r5</code></td><td>50,166,072</td><td><code>6df7040ed2946285c4f1b7a9c63dd2bd</code></td><td>修 ①（裸 <code>&lt;View&gt;</code> → <code>FrameLayout</code>）+ ②（全限定标签名）。桌面能显示了，但圆角是尖的、只看得见一行</td></tr>
-        <tr><td class="k"><code>r7</code></td><td><b>50,165,804</b></td><td><code>590459f7c8a243328eb195717d76dd6e</code></td><td>修 ③（整卡 dp 位图圆角）+ ④（六个尺寸全贴 276×220dp）＋ 快捷方式 short/long 标签成对。<b>真机 <code>InflateException</code> / <code>ActionException</code> 计数均为 0</b></td></tr>
+        <tr><td class="k"><code>r7</code></td><td>50,165,804</td><td><code>590459f7c8a243328eb195717d76dd6e</code></td><td>修 ③（整卡 dp 位图圆角）+ ④（六个尺寸全贴 276×220dp）＋ 快捷方式 short/long 标签成对。<b>真机 <code>InflateException</code> / <code>ActionException</code> 计数均为 0</b></td></tr>
+        <tr><td class="k"><code>r8</code></td><td><b>50,166,052</b></td><td><code>0bdd64ddfb720475d23171c02d4baf92</code></td><td>修「行数写死 ＋ resize 焊死」：<code>resizeMode="vertical"</code>、行数随尺寸走、页脚改分档数组、快照版本 <code>1→2</code>。相对 <code>r7</code> <b>+248 字节</b>，权限仍 <b>12→12</b></td></tr>
       </tbody>
     </table>
-    <p>归档在 <code>_build/baseline-v230-r{2,3,4,5,7}.apk</code>（<code>r6</code> 被 <code>r7</code> 取代，未归档）。构建日志 <code>_build/widget-build-r7.log</code>：<code>BUILD SUCCESSFUL in 1m 59s</code>。</p>
+    <p>归档在 <code>_build/baseline-v230-r{2,3,4,5,7,8}.apk</code>（<code>r6</code> 被 <code>r7</code> 取代，未归档）。
+    构建日志 <code>_build/widget-build-r{7,8}.log</code>：<code>BUILD SUCCESSFUL in 1m 59s</code> / <code>3m 57s</code>。</p>
+    <p><b>★ <code>r8</code> 是第一个真正重打了 JS bundle 的包</b>：前面几版只改 Kotlin / XML / 字符串，
+    Metro 那个任务一直 <code>UP-TO-DATE</code>，bundle 是从更早那版<b>复用</b>的
+    （<code>r4</code>～<code>r7</code> 的构建日志里根本没有 <code>Android Bundled … (N modules)</code> 这一行）。
+    所以「改 JS 有没有进包」这件事，只有从 <code>r8</code> 起才有意义。</p>
+    <p><b>bundle 差分（<code>r7</code> → <code>r8</code>）</b>：4,542,616 → 4,542,888 字节（<b>+272</b>），sha256 不同。
+    字段名逐项对账：<code>footLeftByShownToday</code> / <code>…Dated</code> <b>0 → 1</b>（正向）、
+    <code>footLeftToday</code> <b>1 → 0</b>、<code>restCount</code> <b>1 → 0</b>（反向）、
+    对照项 <code>countLabel</code> <b>1 → 1</b> —— 三类都咬得住。
+    （<code>WIDGET_MAX_ROWS</code> 两边都是 1：它是常量<b>名</b>，值 3→8 在字节码里是数字，搜不到；
+    那个值由真机日志里「备货 N」一行验证 —— 这是更强的证据。）</p>
     <p><b>★ 权限差分：12 → 12，与线上 <code>r2</code> 逐条一致 —— 零新增。</b>这是「甲版不碰图片通路」的直接兑现（<code>aapt2 dump badging</code> 实测，不是读源码推的）。</p>
     <p><b>版本号仍是 <code>2.3.0 / vc 27</code></b>，与线上 <code>r2</code> 同号 —— 因此这个包<b>只能拿来真机联调，不能当作更新发出去</b>。同号换包的下游代价见 <code>roadmap.md</code>：缓存过旧字节的客户端不会知道有新版本。要发得先升版本号。</p>
   </div>
@@ -559,6 +576,58 @@ footer{margin-top:72px;padding-top:22px;border-top:1px solid var(--line);font-fa
     <p><b>三条快捷方式的名字</b>（用户报的第二个问题）：改的只有 <code>shortcutShortLabel</code>，而 <b>launcher 的长按菜单优先读 <code>shortcutLongLabel</code></b> —— 于是代码、测试、构建、包里字符串池<b>全是绿的</b>，只有菜单上的字没变。→ 六条字符串做成<u>故意相同</u>的成对值（<code>录一件</code> / <code>待办</code> / <code>找东西</code>），并加一条测试钉住「short 与 long 成对且一致」。</p>
   </div>
 
+  <div class="box stop">
+    <h4>真机第二轮（2026-10-14 18:42）：22 条待办只画 3 行，卡片也拖不动</h4>
+    <p>用户报：「<b>22 条待办，只显示 3 条，下面有很大空白，也不能上滑查看</b>」，附桌面截图 ——
+    卡片写着「共 22 件」，只画了 3 行，中间约四分之一高度的空白，页脚「还有 19 件 · 截至今天 18:39」。</p>
+
+    <p><b>根因两条，而且是叠在一起的</b>：</p>
+    <ul>
+      <li><b>① 桌面画几行被 JS 侧写死</b>（<code>WIDGET_MAX_ROWS = 3</code>）——
+      卡片尺寸怎么变都不影响行数，所以「拉大」只会多出空白，不会有第 4 条。</li>
+      <li><b>② 上一轮把 resize 焊死了</b>：为了「六个尺寸自洽」把它们<b>全部贴成 276×220dp</b>
+      并写了 <code>resizeMode="none"</code>，用户<b>长按根本拖不动</b>。<br>
+      ★ 官方语义与名字相反，这一轮才逐条查准：<code>minWidth/minHeight</code> 是「<b>默认</b>尺寸」，
+      不是最小值；<code>minResizeHeight</code> <b>大于</b> <code>minHeight</code> 时<b>整条被忽略</b>；
+      <code>maxResizeHeight</code> <b>小于</b> <code>minHeight</code> 时同样被忽略（且 Android 12 才引入）。
+      <b>六个值相等 = 只有一个尺寸可选</b> —— 等于没开 resize。</li>
+    </ul>
+
+    <p><b>「不能上滑」不是 bug，是设计取舍</b>：这张卡片是 RemoteViews <b>静态列表</b>，
+    不是 <code>ListView</code>（真正能滚动的列表要另接 <code>RemoteViewsService</code> +
+    <code>RemoteViewsFactory</code>，是另一套东西）。它的定位是<b>摘要</b>：
+    超出部分由页脚「还有 N 件」交代、点整张卡进 App 看全部。
+    → 用户要的「看更多」由<b>把卡片拉高</b>来满足，所以<b>行数必须跟着尺寸走</b>。</p>
+
+    <p><b>修法</b>（三处，缺一不可）：</p>
+    <table>
+      <thead><tr><th style="width:32%">层</th><th>改动</th></tr></thead>
+      <tbody>
+        <tr><td class="k"><code>res/xml/gewu_widget_info.xml</code></td><td><code>resizeMode="vertical"</code>；<code>minResizeHeight=130dp</code> / <code>maxResizeHeight=460dp</code>；<b>删掉</b> <code>min/maxResizeWidth</code>（没开水平时必被忽略，留着只会让人以为这里能调宽度）</td></tr>
+        <tr><td class="k"><code>src/lib/widget/snapshot.ts</code></td><td><code>WIDGET_MAX_ROWS</code> 3 → <b>8</b>（语义变成「备货量」）；页脚从<b>一句</b>改成<b>按行数分档的数组</b> <code>footLeftByShownToday[]</code> / <code>…Dated[]</code>；删 <code>restCount</code>；快照版本 <code>1 → 2</code></td></tr>
+        <tr><td class="k"><code>GewuWidgetRender.kt</code></td><td>新增 <code>rowsThatFit(heightDp)</code> = <code>(高 − 82) / 44</code>，夹在 1…8；<code>list()</code> 按它截断行数、按下标取页脚</td></tr>
+      </tbody>
+    </table>
+
+    <p>★★ <b>为什么页脚必须变成数组</b>：那句「还有 N 件」的 N = 总件数 − <b>实际画出来的行数</b>，
+    而「画几行」在写快照那一刻<b>物理上不可知</b>（用户随时会长按拖动，快照只在数据/主题变动时重写）。
+    这与「今天 / 不是今天」是<u>同一个套路</u> ——
+    <b>把「生成时不知道的事」展开成有限个完整版本</b>，
+    原生只做一次「选哪一套」+ 一次「取第几档」，全程不拼字符串（RemoteViews 也不会拼）。</p>
+
+    <p><b>为什么只开垂直方向</b>：待办看板的价值在<b>行数</b>，而行数只由高度决定。
+    横向收窄不会多显示一条，只会把页脚那句 + 「打开格物」挤到<b>静默 ellipsize</b>
+    —— 不报错、不崩溃，只是文字被截成半句，看起来像排版事故。</p>
+
+    <p><b>三个尺寸的来历</b>（不是拍的）：固定开销 <b>82dp</b>、每行占 <b>44dp</b>（行高 40 + 间距 4）
+    → 1 行 126dp / 3 行 214dp / 8 行 434dp。故 <code>minResizeHeight=130</code>（装得下 1 行）、
+    <code>maxResizeHeight=460</code>（装得下 8 行还有富余）。
+    <code>tests/widget-theme-parity.test.mjs</code> 把它<b>从布局 XML 现算</b>出来，与 Kotlin 的
+    <code>FIXED_OVERHEAD_DP</code> / <code>ROW_PITCH_DP</code> / <code>MAX_ROWS_CAPACITY</code>
+    和 JS 的 <code>WIDGET_MAX_ROWS</code> <b>三方对账</b> —— 任何一处单独改动都会变红。
+    新增的每条守卫都做过<b>变异测试</b>（把实现改坏，确认它真的会红）。</p>
+  </div>
+
   <div class="box">
     <h4>真机验证：结论</h4>
     <p>原先「至今没验证过」的两点，现在都过了：</p>
@@ -569,16 +638,25 @@ footer{margin-top:72px;padding-top:22px;border-top:1px solid var(--line);font-fa
     <p class="bad"><b>★ 取证姿势：<code>adb logcat -d | grep GewuWidget</code>，千万不要叠 <code>-a</code></b> —— 叠了输出会变成空的，表现成「这个 tag 一行日志都没有」，与事实完全相反（去掉 <code>-a</code> 有 53 行）。为这个差点把根因判成「日志被 R8 删了」。<br>
     另一条：<code>adb exec-out screencap -p</code> 会先吐一行 <code>[Warning] Multiple displays were found…</code> 混进 PNG，要按 <code>\x89PNG</code> 签名与 <code>IEND</code> 截干净。<br>
     <b>★ 加小组件 / 点快捷方式这两步没法脚本化</b>：MIUI 拦 <code>adb shell input</code>（<code>Injecting input events requires INJECT_EVENTS</code>），连唤醒屏幕都做不到，必须用户手点。</p>
-    <p><b>还差最后两步</b>：① 用户手点，把桌面上的小组件<b>删掉重新添加</b>（否则拿不到 220dp 的高度，三行显示不全）；② 圆角的最后一眼——内容与尺寸已用截图 + 像素测量验过，圆角那一步被「屏幕已锁、adb 唤不醒」打断了。另加一项：<b>版本号未裁决</b>，<code>r7</code> 与线上 <code>r2</code> 同号，要发必须先升。</p>
+    <p><b>★ 圆角已确认</b>（靠真机第二轮的桌面截图）：那张截图里卡片<b>四角是圆的</b>，
+    说明 ③ 的修复在真机上生效了 —— 这一项可以关掉。</p>
+    <p><b>还差的</b>：① 卡片拉高之后<b>行数是否真的跟着变</b> —— 只能用户手点
+    （MIUI 拦 <code>adb shell input</code>，拖不动也点不了）；
+    ② <b>版本号裁决</b>：<code>r7</code> / <code>r8</code> 与线上 <code>r2</code> 同号
+    （<code>2.3.0</code> / vc 27），要发必须先升 —— 未定。</p>
   </div>
 </section>
 
 <footer>
   格物 · 落地规格 · 2026-10-14 起草<br>
   上游方案（三版对比）见 <code>docs/widget-plan.html</code>，本页是它的收敛结果，方案页保留为决策记录。<br>
-  尺寸按官方格子公式核算；快捷方式上限与「不需权限」以 Android 开发者文档为准。<br>
-  <b>已真机验证：</b>三条长按快捷方式（含冷启动与 <code>?focus=search</code> 的落地）。
-  <b>未验证：</b>小组件的「快照能不能被 provider 读到」与「launcher 侧 apply 会不会抛」这两点 —— 见上方那个框。
+  尺寸按官方格子公式核算；快捷方式上限与「不需权限」以 Android 开发者文档为准；<br>
+  <code>resizeMode</code> / <code>minResize*</code> / <code>maxResize*</code> 的语义与「被忽略的条件」逐条查过官方文档
+  （这几个名字和实际含义是反的：<code>minWidth/Height</code> 说的是<b>默认</b>尺寸）。<br>
+  <b>已真机验证：</b>三条长按快捷方式（含冷启动与 <code>?focus=search</code> 的落地）；小组件的快照通路、
+  launcher 侧 apply 不抛、以及整卡位图的圆角（桌面截图可见）。<br>
+  <b>未验证：</b>卡片拉高之后<b>行数是否真的跟着变</b> —— 这一步只能用户手点
+  （MIUI 拦 <code>adb shell input</code>，拖不动也点不了），见上方「真机第二轮」。
 </footer>
 
 </div>

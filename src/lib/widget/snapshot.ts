@@ -23,15 +23,25 @@
  *   原生侧用的是 RemoteViews —— 它**没有条件判断能力**，只能「取一份数据照着摆」。
  *   如果把「有待办 / 没有待办该说哪句话」留给原生，那条规则就会在 Kotlin 里长出
  *   第二份实现，而它与这里的副本分叉时同样不会报错。
- *   → 快照里带的是**已经算好的整句话**（`countLabel` / `emptyLead` / `footLeftToday`…），
+ *   → 快照里带的是**已经算好的整句话**（`countLabel` / `emptyLead` / `footLeftByShownToday`…），
  *     原生只做 `setText()`。
  *
- * ★★ 唯一的例外是「今天 / 不是今天」：那件事**在生成快照时根本不知道**。
+ * ★★ 例外一：「今天 / 不是今天」—— 那件事**在生成快照时根本不知道**。
  *   快照可能是昨天写的，而 widget 到明天才被系统重画 —— 若把整句
  *   「截至今天 09:12」焊进快照，那时候它就在说谎。而时间戳存在的**唯一理由**
  *   就是把「这份数据有多旧」暴露出来，写死等于把这个功能取消掉。
  *   → 所以这一句准备**两个完整版本**（`…Today` / `…Dated`），
  *     原生只做**一次同日比较**然后二选一，绝不在那边拼句子、更不格式化日期。
+ *
+ * ★★ 例外二：「这一屏画得下几行」—— 同样是生成时无从得知的一件事。
+ *   widget 可以**长按拖动改尺寸**，而快照只在数据/主题变动时重写，
+ *   所以「用户此刻把卡片拉到了多高」在写盘的那一刻根本不存在。
+ *   原生拿到 `AppWidgetOptions` 才知道，由那边的一个纯算术
+ *   （`GewuWidgetRender.rowsThatFit`）算出能画几行。
+ *   难点在于：**行数会反过来改掉页脚那句话**（「还有 19 件」里的 19）。
+ *   → 照例外一的办法办：把「按显示行数」分档的每一句**都算好带过去**，
+ *     原生只做「按下标取一句」。`WIDGET_MAX_ROWS` 是档位数（备货上限），
+ *     不是「桌面上一定显示这么多行」。
  */
 
 import { describeExpiryTag, formatDateDayMonthCN, toDateString } from '../date';
@@ -39,20 +49,35 @@ import { locationPhrase } from '../notify/plan';
 import { stockLabel, stockState } from '../stock';
 import type { ExpiringGroup } from '../types';
 
-/** 快照的结构版本。原生侧只认这一个值，格式改了要一起改（两侧同版本发布，不做兼容） */
-export const WIDGET_SNAPSHOT_VERSION = 1;
+/**
+ * 快照的结构版本。原生侧只认这一个值，格式改了要一起改（两侧同版本发布，不做兼容）
+ *
+ * ★ v1 → v2（2026-10-14，为「长按改尺寸」而改）：
+ *   页脚左句从**一句**变成了**按显示行数分档的数组**
+ *   （`footLeftToday` → `footLeftByShownToday`），`restCount` 随之删掉 ——
+ *   那个字段现在没有单一定义（「还剩几件」取决于画了几行）。
+ *   版本号必须跟着升：旧版快照在新原生侧会被整份判为「不认识」退回提示态，
+ *   而**这正好是想要的行为** —— 新 Kotlin 去读一个没有分档数组的 JSON，
+ *   最好的结果也只是页脚一格空着，那看起来像样式坏了。
+ *   升版本让它干脆退回「还没有快照」，一轮同步之后自愈。
+ */
+export const WIDGET_SNAPSHOT_VERSION = 2;
 
 /** 快照在 App 私有目录里的文件名。原生侧 `GewuWidgetSnapshot` 里有一份同样的字面量，改一处要两处一起改 */
 export const WIDGET_SNAPSHOT_FILE = 'widget-snapshot.json';
 
 /**
- * 桌面上最多列几行。
+ * 快照里最多带几行 —— 是**备货上限**，不是「桌面上一定显示几行」。
  *
- * 4×2 = 276×220dp 减去内边距与页眉页脚，正好放得下三行 40dp 的条目。
- * 第 4 件之后只报数字（「还有 N 件」）—— 硬塞第四行会把页脚顶出可视区，
- * 而那是 widget 上唯一说明「数据是哪一刻的」的地方，不能牺牲。
+ * ★ 真正画几行由原生按当前尺寸算（`GewuWidgetRender.rowsThatFit`）：
+ *   卡片被拉高就多画几行，拉矮就少画几行，`shown = min(算出来的, 这里备的货)`。
+ * ★ 取 8 是因为它对应卡片能拉出的最大高度：8 × 44 + 82 ≈ 434dp，
+ *   而 `maxResizeHeight` 给的是 460dp —— 再往上加也没有更多内容可放了，
+ *   富余的那 26dp 表现为页脚上方一点留白，是自然的分隔感，不是缺陷。
+ * ★ 这个数只影响**快照多大**（8 行 JSON 约 1KB，可以忽略），
+ *   把卡片拉爆也不会让桌面变慢。
  */
-export const WIDGET_MAX_ROWS = 3;
+export const WIDGET_MAX_ROWS = 8;
 
 /**
  * 状态色槽位。
@@ -127,9 +152,18 @@ export interface WidgetSnapshot {
   /** 页眉右侧：正常态「共 4 件」，空态「0 件」 */
   countLabel: string;
 
-  /** 正常态页脚左句，**两个完整版本**（同日 / 隔日），原生二选一 */
-  footLeftToday: string;
-  footLeftDated: string;
+  /**
+   * 正常态页脚左句，**按「实际画了几行」分档**，索引 = 显示行数，值是整句。
+   *
+   * ★ 两套并列，是因为这里叠了**两个**「生成时不知道」的维度（见文件头）：
+   *   档位（画了几行）×  日期（今天 / 隔日）。
+   *   原生先按 `isStampToday` 选一套，再按下标取一句，全程不拼字符串。
+   * ★ 长度恒为 `WIDGET_MAX_ROWS + 1`（下标 0…WIDGET_MAX_ROWS）。
+   *   下标 0 那一档是给「一行都没画」占位的，正常态用不到（空态那几句走别的字段），
+   *   但留着一个恒等长度的数组，比让原生去猜边界要好。
+   */
+  footLeftByShownToday: string[];
+  footLeftByShownDated: string[];
 
   /** 空态主句（给结论） */
   emptyLead: string;
@@ -142,8 +176,6 @@ export interface WidgetSnapshot {
   stampDated: string;
 
   rows: WidgetRow[];
-  /** 前几行之外还剩几件。0 表示「上面就是全部」 */
-  restCount: number;
 
   /* ---------------- 以下三项**不上屏**，只做审计 ---------------- */
 
@@ -151,10 +183,13 @@ export interface WidgetSnapshot {
    * 待办件数，与标签栏角标同一个口径（跨组去重后）。
    *
    * ★ 上屏的那句话是 `countLabel`，这里再带一份原始数字**不是为了显示**，
-   *   而是为了让「桌面上写着共 4 件、点进去只有 3 行」这类反馈能在
+   *   而是为了让「桌面上写着共 22 件、却只画了 3 行」这类反馈能在
    *   不碰数据库的情况下先分辨：是**算错了**（原始数字就不对），
-   *   还是**只画了前三行**（数字对、`restCount` 大于 0）。
+   *   还是**画得下但没有画**（数字对、`rows` 装得下却没画完）。
    *   这两件事的修法完全不同。
+   * ★ 2026-10-14 那次「22 条只显示 3 条」的反馈，正是靠这个字段先排除掉了
+   *   「数据没查全」——`attentionCount=22` 而 `rows.length=8`，
+   *   说明取数是好的，问题在渲染层把行数写死了。
    */
   attentionCount: number;
   /** 库里未删除的物品总数，空态副句的依据 */
@@ -260,11 +295,6 @@ export function buildWidgetSnapshot(input: {
   const rows = buildWidgetRows(input.groups, input.maxRows);
   const { attentionCount, totalItems, nextExpiry } = input;
 
-  /* 「还有 N 件」用**去重后的总数**减掉已经画出来的行数。
-     ★ 不减 `attentionCount` 与各分组条数之差：分组之间会重复计同一件，
-       那样算出来的数字会比用户点进去看到的行数多。 */
-  const restCount = Math.max(0, attentionCount - rows.length);
-
   const time = clockLabel(input.generatedAt);
   /* ★ 两个日期文案都是 `formatDateDayMonthCN` 的产品，但**服务的场合不同**，
      名字必须分开：`nextDateLabel` 是「下一件什么时候到期」，`stampDateLabel`
@@ -284,7 +314,24 @@ export function buildWidgetSnapshot(input: {
      只有「都还好」而没有依据，用户分不清是真没事还是没数据。 */
   const countLabel = empty ? '0 件' : `共 ${attentionCount} 件`;
 
-  const restPhrase = `还有 ${restCount} 件`;
+  /* ★★ 页脚左句**按「画了几行」分档**，每一档都是一个完整句子。
+     为什么不能只算一句：画几行取决于用户把卡片拉到了多高，
+     而那是**写这份快照时不存在的信息**（见文件头的「例外二」）。
+     为什么不用「基础句 + 数字」让原生去拼：RemoteViews 不会拼字符串，
+     一旦把拼接放进 Kotlin，这句话就有了第二份实现，而两份分叉时没有任何提示。
+     ★ 「还有 N 件」的 N = **去重后的待办总数 − 实际画出来的行数**。
+       不去减「各分组条数之和」：分组之间会重复计同一件（一件过期的酱油
+       同时出现在「该补货了」和「已过期」里），那样算出来的数会比
+       用户点进去看到的行数大。
+     ★ `Math.max(0, …)` 不能省：数据在两次查询之间变动时（原生取的下标
+       比实际行数大），会算出「还有 -1 件」这种句子。 */
+  const footLeftByShownToday: string[] = [];
+  const footLeftByShownDated: string[] = [];
+  for (let shown = 0; shown <= WIDGET_MAX_ROWS; shown += 1) {
+    const restPhrase = `还有 ${Math.max(0, attentionCount - shown)} 件`;
+    footLeftByShownToday.push(empty ? '' : `${restPhrase} · ${stampToday}`);
+    footLeftByShownDated.push(empty ? '' : `${restPhrase} · ${stampDated}`);
+  }
 
   const emptyLead = empty ? '都还好，没有要处理的' : '';
   const emptySub = empty
@@ -302,8 +349,8 @@ export function buildWidgetSnapshot(input: {
 
     countLabel,
 
-    footLeftToday: empty ? '' : `${restPhrase} · ${stampToday}`,
-    footLeftDated: empty ? '' : `${restPhrase} · ${stampDated}`,
+    footLeftByShownToday,
+    footLeftByShownDated,
 
     emptyLead,
     emptySub,
@@ -312,7 +359,6 @@ export function buildWidgetSnapshot(input: {
     stampDated,
 
     rows,
-    restCount,
 
     attentionCount,
     totalItems,
@@ -338,8 +384,18 @@ export function parseWidgetSnapshot(raw: string | null | undefined): WidgetSnaps
     if (!parsed || typeof parsed !== 'object') return null;
     if (parsed.v !== WIDGET_SNAPSHOT_VERSION) return null;
     if (!Array.isArray(parsed.rows) || !parsed.colors) return null;
-    for (const key of ['countLabel', 'footLeftToday', 'footLeftDated', 'emptyLead', 'emptySub', 'emptyNext', 'stampToday', 'stampDated'] as const) {
+    for (const key of ['countLabel', 'emptyLead', 'emptySub', 'emptyNext', 'stampToday', 'stampDated'] as const) {
       if (typeof parsed[key] !== 'string') return null;
+    }
+    /* ★ 页脚分档数组必须是**非空**的字符串数组。
+       空数组会让原生一档都取不到 —— 那正是「页脚那一格空白、看起来像样式坏了」
+       的来源。宁可整份判为不认、退回「还没有快照」那个说得清的提示态，
+       也不要画一张缺了一句话的卡片。
+       （逐项校验而不是只看长度：`[null]` 会让 Kotlin 侧 setText 到一个空值。） */
+    for (const key of ['footLeftByShownToday', 'footLeftByShownDated'] as const) {
+      const arr = parsed[key];
+      if (!Array.isArray(arr) || arr.length === 0) return null;
+      if (!arr.every((item) => typeof item === 'string')) return null;
     }
     return parsed;
   } catch {
