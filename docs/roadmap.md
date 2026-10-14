@@ -2459,6 +2459,8 @@ AppCompat 的 LayoutInflater 工厂会把简单名换成自己的子类，而 `A
 | 体积 | r2 线上 50,102,140 → r7（**+63,664 字节**） |
 | 版本 | 仍是 `2.3.0` / vc 27 —— 与线上 r2 同号，**不能当更新发出去** |
 | 真机 | 已装 r7；`InflateException` / `ActionException` **计数均为 0**；尺寸探测 `minW=256 minH=128`（宽高比 2:1，与卡片实际比例 1.98 几乎一致 → 圆角不会被拉椭圆）；三条快捷方式的 short/long 标签在包内资源表里都是「录一件 / 待办 / 找东西」 |
+| 提交 | `534f92c feat(widget): 桌面小组件（方案甲 4×2 待办看板）+ 三条长按快捷方式`（此前这批活一行都没进版本库）；已推 `main` |
+| 文档 | `widget-shortcuts-spec.html`（真机结论 + 包表扩到 r2/r3/r4/r5/r7 + 测试数 8→13）、`widget-plan.html`（实现进度补 r7）均已回写，两份都过了 HTML 结构自检 |
 
 ★ **真机取证据的正确姿势：`adb logcat -d | grep GewuWidget`。**
 `adb logcat -d` **不能叠 `-a`** —— 叠了输出会变成空的，表现成「这个 tag 一行日志都没有」，
