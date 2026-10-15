@@ -22,7 +22,7 @@ import { Loading, MetricStrip, PlainTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { DARK_THEME_KEY, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_ITEM_URL, SITE_URL, siteUrlWithSkin } from '@/constants/site';
+import { AFDIAN_URL, SITE_URL, siteUrlWithSkin } from '@/constants/site';
 import { isThemeLocked, type SupporterFeature } from '@/lib/entitlement';
 import { clampLeadDays, describeLeadDays, describeNextNotification, isPresetLeadDays } from '@/lib/notify/plan';
 import { useNotify } from '@/lib/store/notify';
@@ -765,14 +765,15 @@ export default function MineScreen() {
                   他该看的是下面那行「支持者状态」。
                   （唯一没承接的是「买一份送人」：码是一次买断、不绑设备，
                     转赠技术上做得到，但要做成正经的「送一份」得另设一套机制，不在这一版。）
-                  ★ 2026-10-15 改回爱发电商品页。这一行只给**还没买**的人，
+                  ★ 2026-10-15 改回爱发电。这一行只给**还没买**的人，
                     微信那条路没在这里重开 —— 本页最下面那张「联系我」卡片就是它，
-                    同一页摆两个找我的入口只会让人犹豫点哪个。 */}
+                    同一页摆两个找我的入口只会让人犹豫点哪个。
+                  ★ 落点是**主页**不是商品页：商品页对未登录访客是登录墙（见 `site.ts`）。 */}
               {!entitled ? (
                 <SettingRow
                   label="去爱发电支持"
                   value="¥36 一次买断"
-                  onPress={() => void Linking.openURL(AFDIAN_ITEM_URL).catch(() => undefined)}
+                  onPress={() => void Linking.openURL(AFDIAN_URL).catch(() => undefined)}
                 />
               ) : null}
               <SettingRow

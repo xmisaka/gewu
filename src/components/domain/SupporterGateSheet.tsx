@@ -17,7 +17,7 @@ import { useState } from 'react';
 import { Linking, Modal, Pressable, View } from 'react-native';
 
 import { GUTTER, Palette, Radius, Space, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_ITEM_URL, LICENSE_HOWTO } from '@/constants/site';
+import { AFDIAN_URL, LICENSE_HOWTO } from '@/constants/site';
 import { SUPPORTER_FEATURES, type SupporterFeature } from '@/lib/entitlement';
 import { makeStyles } from '@/lib/theme';
 import { Button } from '../ui/controls';
@@ -69,14 +69,15 @@ export function SupporterGateSheet({ visible, feature, themeIntent, onClose }: S
   };
 
   /**
-   * 去爱发电下单 —— 购买的主路径（2026-10-15 恢复）。
+   * 去爱发电主页 —— 购买的主路径（2026-10-15 恢复）。
    *
    * ★ 打开失败不弹错误：地址已经写在按钮上，极少数打不开浏览器的机型上，
    *   用户自己会走下面那条「加我微信」（两者是刻意并列的备用关系）。
+   * ★ 落点是**主页**不是商品页：商品详情页对未登录访客给的是登录墙（见 `site.ts`）。
    */
   const openAfdian = () => {
     close();
-    void Linking.openURL(AFDIAN_ITEM_URL).catch(() => undefined);
+    void Linking.openURL(AFDIAN_URL).catch(() => undefined);
   };
 
   /** 去激活页；带意图时用 params 传，激活成功后那边就地生效 */
@@ -155,7 +156,9 @@ export function SupporterGateSheet({ visible, feature, themeIntent, onClose }: S
                 <Meta color={Palette.brand}>看全部权益（免费档 vs 支持者档）→</Meta>
               </Pressable>
 
-              {/* ★ 2026-10-15：主按钮改回爱发电商品页（创作者认证已通过，下单自动发码）。
+              {/* ★ 2026-10-15：主按钮改回爱发电（创作者认证已通过，下单自动发码）。
+                  ★ 落点从商品页改成**主页** —— 商品页对未登录访客是登录墙，
+                    而点「去支持」的人里有一半没有爱发电账号（见 `site.ts` 那段）。
                   ★ 微信**并列**在下面，是备用：爱发电打不开、或想直接找我的人走它。
                     两者是「主 + 备」而非二选一 —— 微信这条路不依赖任何可能为空的地址。 */}
               <Button label="去爱发电支持" onPress={openAfdian} />

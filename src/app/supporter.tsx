@@ -22,7 +22,7 @@ import { ContactSection } from '@/components/domain/ContactSection';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta } from '@/components/ui/typography';
 import { GUTTER, LIGHT_THEME_KEYS, Palette, Radius, Space, Type, type ThemeKey } from '@/constants/theme';
-import { AFDIAN_ITEM_URL, LICENSE_RECOVER } from '@/constants/site';
+import { AFDIAN_URL, LICENSE_RECOVER } from '@/constants/site';
 import { formatDateCN } from '@/lib/date';
 import { useEntitlement } from '@/lib/store/entitlement';
 import { makeStyles, useTheme } from '@/lib/theme';
@@ -207,7 +207,8 @@ export default function SupporterScreen() {
                         value="¥36 一次买断"
                         onPress={() => router.push('/pro')}
                       />
-                      {/* ★ 2026-10-15 这一行改回「去爱发电支持」、点开商品页（下单自动发码）。
+                      {/* ★ 2026-10-15 这一行改回「去爱发电支持」（下单自动发码）。
+                          ★ 落点是**主页**不是商品页：商品页对未登录访客是登录墙（见 `site.ts`）。
                           ★ 微信那条路本页仍活着，就在下面那张「联系我」卡片里 ——
                             不在这里再摆一行，同一个页面摆两个找我的入口只会让人犹豫。
                           ★ `last` 在这一行：下半句是卡片底边的横线，忘了挪会多出一条，且不报错 */}
@@ -215,7 +216,7 @@ export default function SupporterScreen() {
                         label="去爱发电支持"
                         value="¥36 一次买断"
                         last
-                        onPress={() => void Linking.openURL(AFDIAN_ITEM_URL).catch(() => undefined)}
+                        onPress={() => void Linking.openURL(AFDIAN_URL).catch(() => undefined)}
                       />
                     </Card>
                   </Gutter>

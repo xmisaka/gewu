@@ -27,7 +27,7 @@ import { Button, IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Heading, Label, Meta, Title } from '@/components/ui/typography';
 import { GUTTER, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES } from '@/constants/theme';
-import { AFDIAN_ITEM_URL } from '@/constants/site';
+import { AFDIAN_URL } from '@/constants/site';
 import {
   FREE_BASELINE,
   isThemeLocked,
@@ -74,9 +74,10 @@ export default function ProScreen() {
 
   const [wechatOpen, setWechatOpen] = useState(false);
 
-  /** 去爱发电下单（购买主路径）。打开失败不弹错误 —— 下面并列的「加我微信」就是备用。 */
+  /** 去爱发电主页（购买主路径）。打开失败不弹错误 —— 下面并列的「加我微信」就是备用。
+   *  ★ 落点是**主页**不是商品页：商品详情页对未登录访客给的是登录墙（见 `site.ts`）。 */
   const openAfdian = () => {
-    void Linking.openURL(AFDIAN_ITEM_URL).catch(() => undefined);
+    void Linking.openURL(AFDIAN_URL).catch(() => undefined);
   };
 
   return (
@@ -103,7 +104,8 @@ export default function ProScreen() {
           <Button label="返回" tone="secondary" onPress={() => router.back()} />
         ) : (
           <>
-            {/* ★ 2026-10-15：主按钮改回爱发电商品页（创作者认证通过、下单自动发码）。
+            {/* ★ 2026-10-15：主按钮改回爱发电（创作者认证通过、下单自动发码）。
+                ★ 落点从商品页改成**主页** —— 商品页对未登录访客是登录墙（见 `site.ts`）。
                 ★ 微信**并列**成次按钮，是备用 —— 爱发电打不开、或想直接找我的人走它。
                   两者不是二选一：主路径是一次能自助完成的下单，备路径是人工兜底。 */}
             <Button label="去爱发电支持 · ¥36" onPress={openAfdian} />
