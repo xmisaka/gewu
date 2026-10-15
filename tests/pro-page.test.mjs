@@ -53,6 +53,23 @@ test('★ AI 那项与「Key 是你自己的」同屏 —— 分开写会被读�
   assert.ok(/不按量收费/.test(proSource), 'pro.tsx 里没交代不按量收费');
 });
 
+test('★★ 「批量识图」必须出现在支持者功能说明与权益对比里（漏一处就是静默少一项）', () => {
+  /* AI 一族有四个入口，批量识图是最省事的那个。它曾经只活在录入页右上角一枚图标里，
+     权益文案一个字都没提 —— 结果是没人知道它属于支持者档。三处文案各写一遍，必然漂。 */
+  assert.ok(
+    SUPPORTER_FEATURES.ai.proSide.includes('批量识图'),
+    '`SUPPORTER_FEATURES.ai.proSide`（支持者功能说明）漏了「批量识图」',
+  );
+  assert.ok(
+    SUPPORTER_FEATURES.ai.sheetBody.includes('批量识图'),
+    '`SUPPORTER_FEATURES.ai.sheetBody`（门控浮层正文）漏了「批量识图」',
+  );
+  assert.ok(
+    /批量识图/.test(proSource),
+    'pro.tsx 的权益对比（AI 那一行的子项）没写「批量识图」—— 对比表是决策的地方，少一项等于那一项不存在',
+  );
+});
+
 /* ==================== 2. 三处入口 + 路由注册 ==================== */
 
 test('★ 三个入口都汇聚到权益页（漏一处，那个语境下就又看不到权益了）', () => {

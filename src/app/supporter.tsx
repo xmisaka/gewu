@@ -15,15 +15,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { Button, IconButton, SettingRow } from '@/components/ui/controls';
-import { AddWechatSheet } from '@/components/domain/AddWechatSheet';
 import { ContactSection } from '@/components/domain/ContactSection';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta } from '@/components/ui/typography';
 import { GUTTER, LIGHT_THEME_KEYS, Palette, Radius, Space, Type, type ThemeKey } from '@/constants/theme';
-import { LICENSE_RECOVER } from '@/constants/site';
+import { AFDIAN_ITEM_URL, LICENSE_RECOVER } from '@/constants/site';
 import { formatDateCN } from '@/lib/date';
 import { useEntitlement } from '@/lib/store/entitlement';
 import { makeStyles, useTheme } from '@/lib/theme';
@@ -53,8 +52,6 @@ export default function SupporterScreen() {
   const [error, setError] = useState<string | null>(null);
   /** 刚在本页激活成功 —— 先把结果亮给用户看，别立刻跳到状态页把反馈吞掉 */
   const [justActivated, setJustActivated] = useState(false);
-  /** 「加我微信」面板 */
-  const [wechatOpen, setWechatOpen] = useState(false);
 
   const run = async () => {
     if (!draft.trim() || busy) return;
@@ -169,7 +166,8 @@ export default function SupporterScreen() {
                   </Card>
 
                   <Meta tone="ink4" style={styles.afterNote}>
-                    验签在本机完成，不上传任何东西，也不需要联网。支持者皮肤、统计洞察、AI 与语音入口现在都已解锁。
+                    验签在本机完成，不上传任何东西，也不需要联网。支持者皮肤、统计洞察，
+                    以及 AI 那四个入口（拍照识物 / 批量识图 / 问一问 / 语音录入）现在都已解锁。
                   </Meta>
                   <Meta color={Palette.clay} style={styles.afterNote}>
                     这串码只属于你：请勿发到群里、论坛或二手平台。码内嵌有你的订单标识，一旦流出可以追溯到来源。
@@ -209,14 +207,15 @@ export default function SupporterScreen() {
                         value="¥36 一次买断"
                         onPress={() => router.push('/pro')}
                       />
-                      {/* ★ 这一行原来叫「去爱发电支持」、点开商品页。
-                          换成打开加微信面板后，`last` 也跟着从上一行挪到这一行
-                          —— 忘了挪的话，卡片底部会多出一条横线，且不报错 */}
+                      {/* ★ 2026-10-15 这一行改回「去爱发电支持」、点开商品页（下单自动发码）。
+                          ★ 微信那条路本页仍活着，就在下面那张「联系我」卡片里 ——
+                            不在这里再摆一行，同一个页面摆两个找我的入口只会让人犹豫。
+                          ★ `last` 在这一行：下半句是卡片底边的横线，忘了挪会多出一条，且不报错 */}
                       <SettingRow
-                        label="加我微信"
-                        value="扫码或分享链接"
+                        label="去爱发电支持"
+                        value="¥36 一次买断"
                         last
-                        onPress={() => setWechatOpen(true)}
+                        onPress={() => void Linking.openURL(AFDIAN_ITEM_URL).catch(() => undefined)}
                       />
                     </Card>
                   </Gutter>
@@ -310,10 +309,9 @@ export default function SupporterScreen() {
                     </Meta>
                     <View style={styles.rowValue}>
                       <Body>{LICENSE_RECOVER}</Body>
-                      {/* ★ 这行以前在「爱发电订单页里也能重看」和「「我的」页最下面有我的二维码」
-                          之间切。爱发电退场后只剩一种说法 —— 而且它更接近实情：
-                          码是微信上发的，能帮你重看的只有我这边，用户手上那份得靠他自己存。 */}
-                      <Meta tone="ink4">「我的」页最下面有我的二维码</Meta>
+                      {/* ★ 2026-10-15 爱发电回归后，首选是**订单页重看**（自助、即时、不依赖我在不在线）；
+                          微信降为兜底 —— 实在找不到再加我。本页最下面就有二维码。 */}
+                      <Meta tone="ink4">订单页能自助重看；找不到再加我，「我的」页最下面有二维码</Meta>
                     </View>
                   </View>
                 </Card>
@@ -357,8 +355,6 @@ export default function SupporterScreen() {
           <Button label="返回" tone="secondary" onPress={() => router.back()} />
         )}
       </View>
-
-      <AddWechatSheet visible={wechatOpen} onClose={() => setWechatOpen(false)} />
     </Screen>
   );
 }

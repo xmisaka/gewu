@@ -20,13 +20,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AddWechatSheet } from '@/components/domain/AddWechatSheet';
 import { Button, IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Heading, Label, Meta, Title } from '@/components/ui/typography';
 import { GUTTER, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES } from '@/constants/theme';
+import { AFDIAN_ITEM_URL } from '@/constants/site';
 import {
   FREE_BASELINE,
   isThemeLocked,
@@ -53,9 +54,18 @@ const FEATURE_ORDER: readonly SupporterFeature[] = ['theme', 'ai', 'stats'];
 /** 已解锁清单右侧的一句短提示。只在这张清单里用，不搬去别处 */
 const UNLOCKED_HINT: Record<SupporterFeature, string> = {
   theme: '六套浅色',
-  ai: '识物 / 问答 / 语音',
+  ai: '识物 / 批量 / 问答 / 语音',
   stats: '五项指标',
 };
+
+/**
+ * 权益对比表里「AI 功能」那一行的四个子项。
+ *
+ * ★ 与 `SUPPORTER_FEATURES.ai.proSide`（三项详解卡里那行）讲的是同一件事 ——
+ *   两处都在列举 AI 到底有哪几个入口，改一处必须同时看另一处，
+ *   否则对比表里少一个「批量识图」而明细卡里有，而且不报错。
+ */
+const AI_ENTRY_HINT = '识物 · 批量识图 · 问答 · 语音';
 
 export default function ProScreen() {
   const styles = useStyles();
@@ -63,6 +73,11 @@ export default function ProScreen() {
   const { entitled, entitlement } = useEntitlement();
 
   const [wechatOpen, setWechatOpen] = useState(false);
+
+  /** 去爱发电下单（购买主路径）。打开失败不弹错误 —— 下面并列的「加我微信」就是备用。 */
+  const openAfdian = () => {
+    void Linking.openURL(AFDIAN_ITEM_URL).catch(() => undefined);
+  };
 
   return (
     <Screen>
@@ -88,17 +103,23 @@ export default function ProScreen() {
           <Button label="返回" tone="secondary" onPress={() => router.back()} />
         ) : (
           <>
-            {/* ★ 主按钮从「去爱发电支持」换成打开加微信面板 —— 官网上不再引导去爱发电，
-                App 里也不该再把人往外送。
-                ★ 原来那句「商品页没上架时不摆按钮」的判据已经作废：加微信这条路不依赖
-                  任何可能为空的地址，所以按钮恒在，不需要再留一条「去哪拿码」的兜底文案。 */}
-            <Button label="加我微信 · ¥36" onPress={() => setWechatOpen(true)} />
+            {/* ★ 2026-10-15：主按钮改回爱发电商品页（创作者认证通过、下单自动发码）。
+                ★ 微信**并列**成次按钮，是备用 —— 爱发电打不开、或想直接找我的人走它。
+                  两者不是二选一：主路径是一次能自助完成的下单，备路径是人工兜底。 */}
+            <Button label="去爱发电支持 · ¥36" onPress={openAfdian} />
             <Button
-              label="我已有激活码"
+              label="加我微信"
               tone="secondary"
               style={styles.secondary}
-              onPress={() => router.push('/supporter')}
+              onPress={() => setWechatOpen(true)}
             />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="我已有激活码"
+              onPress={() => router.push('/supporter')}
+              style={styles.later}>
+              <Meta tone="ink3">我已有激活码</Meta>
+            </Pressable>
           </>
         )}
       </View>
@@ -154,9 +175,17 @@ function PitchView() {
               {FEATURE_ORDER.map((key) => (
                 <View key={key} style={styles.colRow}>
                   <Ionicons name="add" size={12} color={Palette.brand} />
-                  <Meta color={Palette.brand} style={styles.colText}>
-                    {SUPPORTER_FEATURES[key].name}
-                  </Meta>
+                  <View style={styles.colStack}>
+                    <Meta color={Palette.brand}>{SUPPORTER_FEATURES[key].name}</Meta>
+                    {/* ★ AI 那一行把四个入口摊开写在对比表里：只写「AI 功能」四个字，
+                        用户看不出「批量识图」也在里面 —— 对比表是决策的地方，
+                        这里少一项，就等于那一项不存在 */}
+                    {key === 'ai' ? (
+                      <Meta tone="ink4" style={styles.colSub}>
+                        {AI_ENTRY_HINT}
+                      </Meta>
+                    ) : null}
+                  </View>
                 </View>
               ))}
             </View>
@@ -368,6 +397,9 @@ const useStyles = makeStyles((Palette) => ({
   colName: { fontSize: 12.5, fontWeight: '600', marginBottom: 2 },
   colRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
   colText: { flex: 1, minWidth: 0, fontSize: 12, lineHeight: 17 },
+  /* 对比表里「一行带子项」的容器（目前只有 AI 那一行）：标题 + 一行更小的注解 */
+  colStack: { flex: 1, minWidth: 0 },
+  colSub: { marginTop: 1, fontSize: 11, lineHeight: 15 },
   compareNote: { marginTop: Space.md, lineHeight: 19 },
 
   /* 三项详解 */
@@ -438,6 +470,7 @@ const useStyles = makeStyles((Palette) => ({
   /* 底栏 */
   storeNote: { lineHeight: 20, textAlign: 'center' },
   secondary: { marginTop: Space.sm },
+  later: { alignSelf: 'center', marginTop: Space.md, padding: Space.xs },
   foot: {
     paddingHorizontal: GUTTER,
     paddingTop: Space.md,

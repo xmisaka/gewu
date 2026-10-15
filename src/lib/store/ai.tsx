@@ -8,7 +8,7 @@
  * 而界面需要**变化时重渲染** —— 填完 Key 回到设置页、用完一次识别，
  * 那几行状态得当场变。模块级变量不会通知 React（换肤那条坑同理）。
  *
- * 未读完库之前一律按「未配置、关着」渲染，不做加载态：
+ * 未读完库之前一律按**默认值**渲染（开关按「开」、Key 按「未配置」），不做加载态：
  * 读一次 meta 是本地毫秒级操作，为它放骨架屏只会让每次冷启动闪一下。
  */
 
@@ -57,18 +57,24 @@ export interface AiValue {
   /** 首次读库是否完成。只用于区分「真的没配」与「还没读出来」，界面通常不用管 */
   ready: boolean;
   /**
-   * 总开关。默认关着 —— 不开就不存在任何联网链路。
+   * 总开关。**默认开着**（2026-10-15 起，见 `config.saveAiEnabled` 的注释）——
+   * 它现在表达的是「用户有没有把这一族**关掉**」，而不是「有没有开过」。
    *
    * ★★ 界面判断「AI 这一族的入口露不露」**读它**，不要读 `active`：
    *   `active` 还要求填了 Key，那是「能不能跑」；入口该不该露只看
-   *   **用户有没有把这一族关掉**。两者的差别正好是两种不同的用户处境 ——
+   *   **用户有没有主动把这一族关掉**。两者的差别正好是两种不同的用户处境 ——
    *     开关开着但没 Key ＝「还没配好」→ 入口**保留**，点下去给引导
    *       （没商店评分兜底时，说清楚比装作没有更重要）；
    *     开关关着 ＝「我不要」→ 麦克风 / 问一问 / 识物**整族收起来**。
    *   把这两件事混成一句判断，症状就是「开关明明关着，界面上还满屏 AI」。
    *
+   * ★ 免费档的入口**也露**：他们看得见、点下去弹门控浮层，但关不掉
+   *   —— 设置页对未激活档整页锁着。「关掉＝这条链路不存在」这句承诺只对
+   *   能碰开关的人成立，而能关掉它的人恰好是能打开它的人。
+   *
    * 覆盖范围：首页与录入页的麦克风、首页的问一问星标、录入页的识物按钮，
-   * 以及 `/voice`、`/ask` 两页的**深链兜底**（少了它，`gewu://ask` 就是一道暗门）。
+   * 以及 `/voice`、`/ask`、`/batch` 三页的**深链兜底**（少了它，`gewu://ask`
+   * 就是一道暗门）。
    */
   enabled: boolean;
   hasKey: boolean;
@@ -120,7 +126,11 @@ function currentMonth(): string {
 
 export function AiProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
-  const [enabled, setEnabledState] = useState(false);
+  /* ★ 初值必须是 true：总开关默认开，而「未读完库之前」这一帧也要跟着默认走。
+     写成 false 会让每次冷启动先按「关」渲染一帧、读完库再冒出来 ——
+     用户看到的是图标闪一下，且不报错。
+     反过来对「主动关掉过的人」也只是冷启动时多露一帧，比全场闪好。 */
+  const [enabled, setEnabledState] = useState(true);
   const [key, setKey] = useState('');
   const [usage, setUsage] = useState<AiUsage>(EMPTY_USAGE);
   const [providerKey, setProviderKeyState] = useState<string>(DEFAULT_PROVIDER);

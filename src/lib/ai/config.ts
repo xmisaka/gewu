@@ -549,9 +549,21 @@ export function hasAiKey(): boolean {
 /**
  * 保存总开关。
  *
- * 默认是**关**的：`runtimeEnabled` 为 null 时按 false 处理。
- * 这一条是方案页 §02「三条铁律」里最重要的一条 —— 不填 Key、不开开关，
- * 就不存在任何联网链路；用户主动打开的那一刻才算知情同意。
+ * ── 2026-10-15：默认从「关」翻成「开」 ──────────────────────────────
+ * 原来默认关着，理由是「不填 Key、不开开关，就不存在任何联网链路」。
+ * 但那条链路的真闸门**是 Key**，不是这个开关 —— 没有 Key 时 `active`
+ * 恒为 false，一次请求也发不出去（见 `client.ts` 的 no-key 分支）。
+ * 开关的真实作用只是「把这一族的界面入口收起来」，是一个**静音键**，
+ * 不是知情同意书。
+ *
+ * 而默认关带来一个查不出来的后果：AI 设置页本身对免费档整页锁着
+ * （`app/ai.tsx` 未激活时只有一句解锁提示），于是免费用户**永远没机会**
+ * 把开关打开 → `enabled` 恒为 false → 首页与录入页的入口整族不渲染。
+ * 两道门叠在一起，用户从没见过这一族功能存在过，而任何一处都不报错。
+ *
+ * 所以：**默认开**，免费档也看得见入口（点下去弹门控浮层），只有**已激活**
+ * 的用户能把这一族关掉。「关掉＝这条链路不存在」那句承诺依然成立 ——
+ * 因为能关掉它的人恰好是能打开它的人。
  */
 export async function saveAiEnabled(on: boolean): Promise<void> {
   runtimeEnabled = on;
@@ -565,9 +577,13 @@ export async function saveAiEnabled(on: boolean): Promise<void> {
   }
 }
 
-/** 开关当前状态；null（从未设置）视为关 */
+/**
+ * 开关当前状态。**null（从未设置）视为开** —— 2026-10-15 翻转，理由见
+ * `saveAiEnabled` 上面那段。判据必须是 `!== false` 而不是 `=== true`：
+ * 写成后者等于把默认值又翻回「关」，而那正是这一版要修的那个 bug。
+ */
 export function isAiEnabled(): boolean {
-  return runtimeEnabled === true;
+  return runtimeEnabled !== false;
 }
 
 /* ------------------------------------------------------------------ 用量落盘 */

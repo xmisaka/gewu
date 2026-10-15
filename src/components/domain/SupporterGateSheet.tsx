@@ -14,10 +14,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, View } from 'react-native';
+import { Linking, Modal, Pressable, View } from 'react-native';
 
 import { GUTTER, Palette, Radius, Space, type ThemeKey } from '@/constants/theme';
-import { LICENSE_HOWTO } from '@/constants/site';
+import { AFDIAN_ITEM_URL, LICENSE_HOWTO } from '@/constants/site';
 import { SUPPORTER_FEATURES, type SupporterFeature } from '@/lib/entitlement';
 import { makeStyles } from '@/lib/theme';
 import { Button } from '../ui/controls';
@@ -66,6 +66,17 @@ export function SupporterGateSheet({ visible, feature, themeIntent, onClose }: S
   const close = () => {
     setShowWechat(false);
     onClose();
+  };
+
+  /**
+   * 去爱发电下单 —— 购买的主路径（2026-10-15 恢复）。
+   *
+   * ★ 打开失败不弹错误：地址已经写在按钮上，极少数打不开浏览器的机型上，
+   *   用户自己会走下面那条「加我微信」（两者是刻意并列的备用关系）。
+   */
+  const openAfdian = () => {
+    close();
+    void Linking.openURL(AFDIAN_ITEM_URL).catch(() => undefined);
   };
 
   /** 去激活页；带意图时用 params 传，激活成功后那边就地生效 */
@@ -144,12 +155,20 @@ export function SupporterGateSheet({ visible, feature, themeIntent, onClose }: S
                 <Meta color={Palette.brand}>看全部权益（免费档 vs 支持者档）→</Meta>
               </Pressable>
 
-              {/* ★ 主按钮原来开的是爱发电商品页，现在改成把面板内容换成加微信（见上面那段注释）。
-                  「商品页没上架就退化成一行文案」的判据一并作废 ——
-                  加微信这条路不依赖任何可能为空的地址。 */}
-              <Button label="加我微信" onPress={() => setShowWechat(true)} />
-              <Button label="我已有激活码" tone="secondary" style={styles.secondary} onPress={goActivate} />
-              <Pressable accessibilityRole="button" onPress={close} style={styles.later}>
+              {/* ★ 2026-10-15：主按钮改回爱发电商品页（创作者认证已通过，下单自动发码）。
+                  ★ 微信**并列**在下面，是备用：爱发电打不开、或想直接找我的人走它。
+                    两者是「主 + 备」而非二选一 —— 微信这条路不依赖任何可能为空的地址。 */}
+              <Button label="去爱发电支持" onPress={openAfdian} />
+              <Button
+                label="加我微信"
+                tone="secondary"
+                style={styles.secondary}
+                onPress={() => setShowWechat(true)}
+              />
+              <Pressable accessibilityRole="button" onPress={goActivate} style={styles.later}>
+                <Meta tone="ink3">我已有激活码</Meta>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={close} style={styles.laterInline}>
                 <Meta tone="ink3">稍后再说</Meta>
               </Pressable>
             </View>
@@ -215,4 +234,7 @@ const useStyles = makeStyles((Palette) => ({
   storeNote: { lineHeight: 20 },
   secondary: { marginTop: Space.sm },
   later: { alignSelf: 'center', marginTop: Space.md, padding: Space.xs },
+  /* 两条文字链挨着排：「我已有激活码」与「稍后再说」是同一层级的次级出口，
+     上间距收窄，免得看起来像两组不同分量的东西 */
+  laterInline: { alignSelf: 'center', marginTop: 0, padding: Space.xs },
 }));

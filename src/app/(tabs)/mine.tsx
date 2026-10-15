@@ -17,13 +17,12 @@ import { LeadDaysSheet } from '@/components/domain/LeadDaysSheet';
 import { ThemePickerModal } from '@/components/domain/ThemePickerModal';
 import { Segmented, SettingRow } from '@/components/ui/controls';
 import { StockKeyModal, stockKeyStatus } from '@/components/domain/StockKeyModal';
-import { AddWechatSheet } from '@/components/domain/AddWechatSheet';
 import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { Loading, MetricStrip, PlainTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { DARK_THEME_KEY, LIGHT_THEME_KEYS, Palette, Radius, Space, THEMES, type ThemeKey } from '@/constants/theme';
-import { SITE_URL, siteUrlWithSkin } from '@/constants/site';
+import { AFDIAN_ITEM_URL, SITE_URL, siteUrlWithSkin } from '@/constants/site';
 import { isThemeLocked, type SupporterFeature } from '@/lib/entitlement';
 import { clampLeadDays, describeLeadDays, describeNextNotification, isPresetLeadDays } from '@/lib/notify/plan';
 import { useNotify } from '@/lib/store/notify';
@@ -83,7 +82,7 @@ export default function MineScreen() {
   const { key: activeKey, lightKey, lightKeyLocked, preferredLightKey, setLightKey, systemDark } =
     useTheme();
   const { entitled } = useEntitlement();
-  const { active: aiActive, hasKey: aiHasKey } = useAi();
+  const { active: aiActive, enabled: aiEnabled } = useAi();
   const { status, local, checkNow, autoCheck, setAutoCheck } = useUpdate();
   const notify = useNotify();
   const activeTheme = THEMES[activeKey];
@@ -98,8 +97,6 @@ export default function MineScreen() {
   const [gateFeature, setGateFeature] = useState<SupporterFeature | null>(null);
   /** 用户在选择器里点到的那套皮肤，带进激活页，激活完就地生效 */
   const [gateTheme, setGateTheme] = useState<ThemeKey | null>(null);
-  /** 「加我微信」面板 */
-  const [wechatOpen, setWechatOpen] = useState(false);
 
   const metaState = useAsyncData(
     async () => {
@@ -418,13 +415,16 @@ export default function MineScreen() {
   /* 「AI 助手」那一行右侧的状态。四种情形对用户的含义完全不同，
      所以不能笼统写成「可用 / 不可用」：
      ★ 「未配置」与「已关闭」必须分开 —— 前者要去填 Key，后者只要把开关打开，
-       写成同一句话会让已经配好的人再去找一遍 Key。 */
+       写成同一句话会让已经配好的人再去找一遍 Key。
+     ★ 2026-10-15：总开关默认改成**开**，于是「已关闭」只可能是**主动关掉**的结果。
+       它现在按**开关本身**判，不再按有没有 Key 判 —— 否则「关了开关又没填过 Key」
+       会被读成「未配置」，把人指去填 Key，而他真正要做的只是打开开关。 */
   const aiRowValue = !entitled
     ? '支持者功能'
-    : aiActive
-      ? '已开启'
-      : aiHasKey
-        ? '已关闭'
+    : !aiEnabled
+      ? '已关闭'
+      : aiActive
+        ? '已开启'
         : '未配置';
   const aiRowTone = aiActive ? 'brand' : 'ink3';
 
@@ -764,12 +764,15 @@ export default function MineScreen() {
                   对一个已经付过钱的人，这是设置页里的一句多余广告 ——
                   他该看的是下面那行「支持者状态」。
                   （唯一没承接的是「买一份送人」：码是一次买断、不绑设备，
-                    转赠技术上做得到，但要做成正经的「送一份」得另设一套机制，不在这一版。） */}
+                    转赠技术上做得到，但要做成正经的「送一份」得另设一套机制，不在这一版。）
+                  ★ 2026-10-15 改回爱发电商品页。这一行只给**还没买**的人，
+                    微信那条路没在这里重开 —— 本页最下面那张「联系我」卡片就是它，
+                    同一页摆两个找我的入口只会让人犹豫点哪个。 */}
               {!entitled ? (
                 <SettingRow
-                  label="加我微信"
+                  label="去爱发电支持"
                   value="¥36 一次买断"
-                  onPress={() => setWechatOpen(true)}
+                  onPress={() => void Linking.openURL(AFDIAN_ITEM_URL).catch(() => undefined)}
                 />
               ) : null}
               <SettingRow
@@ -901,9 +904,10 @@ export default function MineScreen() {
         }}
       />
 
-      {/* ★ 不跟门控浮层叠着开：安卓上两个 Modal 会互相抢返回键
-          （上面 onLockedPick 那段注释记的就是同一个坑） */}
-      <AddWechatSheet visible={wechatOpen} onClose={() => setWechatOpen(false)} />
+      {/* ★ 本页不再挂「加我微信」面板：购买入口改成爱发电商品页之后，
+          微信这条路已经由页面最下面的 `ContactSection`（联系我卡片）承载 ——
+          同一个页面挂两个找我的入口，用户只会犹豫点哪个。
+          ★ 与门控浮层也不叠着开：安卓上两个 Modal 会互相抢返回键。 */}
 
       <StockKeyModal
         visible={keyOpen}

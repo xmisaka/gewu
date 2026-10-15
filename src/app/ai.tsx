@@ -9,6 +9,12 @@
  *      两个页面本身也挡，深链进不去）。**其它功能一个不少** ——
  *      录入、到期、库存、照片、备份、图库找封面都不受这个开关影响。
  *
+ * ★ 2026-10-15：总开关**默认从「关」翻成「开」**（见 `lib/ai/config.ts`
+ *   的 `saveAiEnabled`）。这一页对未激活档整页锁着，所以「默认关」的实际后果
+ *   是免费用户永远打不开它 → 入口整族不渲染 → 谁都没见过这功能。
+ *   现在免费档看得见入口、点下去弹门控浮层；关得掉它的只有能进这一页的人。
+ *   而「没 Key 就发不出任何请求」这条真闸门没有动 —— `active` 仍然要求 Key。
+ *
  * 用量卡是刻意的：让用户随时看见花了多少钱，他才有底气把开关一直开着。
  * 这里恒为 ¥0.00（两个模型都免费），但那个数字仍然由 `estimateMonthlyCost`
  * 算出来而不是写死 —— 将来换一档模型，它会自己变。
@@ -81,7 +87,8 @@ export default function AiSettingsScreen() {
         <Gutter>
           <Card>
             <Body tone="ink2" style={styles.lockedText}>
-              AI 助手需要支持者档。免费档的录入、到期、库存、照片与备份全部照旧，一个不少。
+              AI 助手需要支持者档：拍照识物、批量识图、问一问与语音录入四个入口，一次激活全部解锁。
+              免费档的录入、到期、库存、照片与备份全部照旧，一个不少。
             </Body>
             <Pressable
               accessibilityRole="button"
@@ -105,7 +112,10 @@ export default function AiSettingsScreen() {
         </Meta>
       </View>
 
-      <PageHeader title="AI 助手" subtitle="识物与问一问都在本机算，只有识别那一刻联网" />
+      <PageHeader
+        title="AI 助手"
+        subtitle="拍照识物 · 批量识图 · 问一问 · 语音录入；只有识别那一刻联网"
+      />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <SectionCard title="总开关">
@@ -115,7 +125,7 @@ export default function AiSettingsScreen() {
                 <View style={styles.switchText}>
                   <Body tone="ink2">启用 AI 助手</Body>
                   <Meta tone="ink4" style={styles.switchDesc}>
-                    关闭时不再发出任何 AI 请求，界面上的 AI 入口一并隐藏
+                    管着四个入口：拍照识物 / 批量识图 / 问一问 / 语音录入 —— 关闭后它们一起收起，也不再有 AI 请求
                   </Meta>
                 </View>
                 <Switch
@@ -211,8 +221,8 @@ export default function AiSettingsScreen() {
             </Meta>
             <Meta tone="ink4" style={styles.note}>
               语音走手机自带的识别对话框，不消耗模型调用，也不需要 API Key。
-              ★ 但它与识物、问答同属「智能录入」，共用一个总闸 —— 上面的开关关掉时，
-              三处入口会一起收起来（这条与上面那句旧说明相反，见 ROADMAP 的口径记录）。
+              ★ 但它与识物、批量识图、问答同属「智能录入」，共用一个总闸 —— 上面的开关关掉时，
+              四处入口会一起收起来（这条与上面那句旧说明相反，见 ROADMAP 的口径记录）。
             </Meta>
           </Gutter>
         </SectionCard>
