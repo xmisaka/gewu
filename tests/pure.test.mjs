@@ -19,6 +19,7 @@ import {
   isJustAcquired,
   expiryState,
   describeRemaining,
+  describeWarrantyTag,
   addMonths,
   formatDateCN,
   formatDateDot,
@@ -130,6 +131,16 @@ test('describeRemaining / formatDateCN / formatDateDot 的文案与缺省值', (
   assert.equal(formatDateCN(null), '未设置');
   assert.equal(formatDateDot('2026-09-07'), '2026.09.07');
   assert.equal(formatDateDot(null), '未设置');
+});
+
+test('describeWarrantyTag：措辞必须与「到期」分开，不能两种说法混用', () => {
+  // 同一个 days 值，两句话必须不一样 —— 说成一样的，用户会以为
+  // 保质期与保修期是同一件事被算了两遍
+  assert.equal(describeWarrantyTag(null), '');
+  assert.equal(describeWarrantyTag(-3), '已过保 3 天');
+  assert.equal(describeWarrantyTag(0), '保修今天到期');
+  assert.equal(describeWarrantyTag(30), '保修还剩 30 天');
+  assert.notEqual(describeWarrantyTag(8), describeRemaining(8));
 });
 
 test('addMonths：月末溢出钳到目标月最后一天', () => {

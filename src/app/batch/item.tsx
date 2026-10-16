@@ -117,6 +117,7 @@ function seedFromDraft(d: ItemDraft): BatchEditSeed {
     categoryId: d.categoryId,
     locationId: d.locationId,
     expireDate: d.expireDate,
+    warrantyUntil: d.warrantyUntil ?? null,
     brand: d.brand,
     model: d.model,
     price: d.price,

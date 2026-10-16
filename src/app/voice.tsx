@@ -152,6 +152,8 @@ export default function VoiceScreen() {
         purchaseDate: parsed.purchaseDate,
         price: parsed.price,
         expireDate: parsed.expireDate,
+        // 语音解析不出保修期（「保修到 2028 年」这种说法极少见），一律留空由用户自己填
+        warrantyUntil: null,
         brand: null,
         model: null,
         quantity: parsed.quantity,
@@ -196,6 +198,8 @@ export default function VoiceScreen() {
           purchaseDate: keep(localSeed.purchaseDate, f?.purchaseDate),
           price: keep(localSeed.price, f?.price),
           expireDate: keep(localSeed.expireDate, f?.expireDate),
+          // 模型也不填保修期 —— 它不是这次识别的一部分，保持空
+          warrantyUntil: null,
           brand: keep(null, f?.brand),
           model: keep(null, f?.model),
           quantity: keep(localSeed.quantity, f?.quantity),

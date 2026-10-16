@@ -30,6 +30,7 @@ interface ItemRow {
   purchase_date: string | null;
   price: number | null;
   expire_date: string | null;
+  warranty_until: string | null;
   brand: string | null;
   model: string | null;
   quantity: number | null;
@@ -65,7 +66,7 @@ interface ItemRow {
 const SELECT_VIEW = `
 SELECT
   i.id, i.name, i.category_id, i.location_id, i.purchase_date, i.price,
-  i.expire_date, i.brand, i.model, i.quantity, i.tags, i.note, i.sort_order,
+  i.expire_date, i.warranty_until, i.brand, i.model, i.quantity, i.tags, i.note, i.sort_order,
   i.created_at, i.updated_at, i.deleted_at,
   c.name  AS category_name,
   l.name  AS location_name,
@@ -105,6 +106,7 @@ function toItem(row: ItemRow): Item {
     purchaseDate: row.purchase_date,
     price: row.price,
     expireDate: row.expire_date,
+    warrantyUntil: row.warranty_until ?? null,
     brand: row.brand,
     model: row.model,
     quantity: row.quantity ?? null,
@@ -124,6 +126,9 @@ function toItem(row: ItemRow): Item {
 function toItemView(row: ItemRow, on: DateString): ItemView {
   const base = toItem(row);
   const { state, days } = expiryState(base.expireDate, on);
+  // 保修走**同一个**派生函数（同一套 30 天阈值），但读的是自己的那一列 ——
+  // 两件事各自算各自的，谁也不会把谁的状态带过去。
+  const warranty = expiryState(base.warrantyUntil, on);
   return {
     ...base,
     categoryName: row.category_name,
@@ -133,6 +138,8 @@ function toItemView(row: ItemRow, on: DateString): ItemView {
     coverThumb: row.cover_thumb ?? null,
     expiry: state,
     daysToExpiry: days,
+    warranty: warranty.state,
+    daysToWarranty: warranty.days,
     stock: stockState(base.quantity),
     holdingDays: holdingDays(base.purchaseDate, on),
     dailyCost: dailyCost(base.price, base.purchaseDate, on),
@@ -329,9 +336,9 @@ export async function createItemsBatch(drafts: ItemDraft[]): Promise<string[]> {
       ids.push(id);
       await db.runAsync(
         `INSERT INTO items
-          (id, name, category_id, location_id, purchase_date, price, expire_date,
+          (id, name, category_id, location_id, purchase_date, price, expire_date, warranty_until,
            brand, model, quantity, tags, note, sort_order, created_at, updated_at, deleted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
         id,
         draft.name.trim(),
         draft.categoryId,
@@ -339,6 +346,7 @@ export async function createItemsBatch(drafts: ItemDraft[]): Promise<string[]> {
         draft.purchaseDate,
         draft.price,
         draft.expireDate,
+        draft.warrantyUntil ?? null,
         draft.brand,
         draft.model,
         draft.quantity,
@@ -371,6 +379,7 @@ export async function updateItem(id: string, patch: Partial<ItemDraft>): Promise
   if (patch.purchaseDate !== undefined) push('purchase_date', patch.purchaseDate);
   if (patch.price !== undefined) push('price', patch.price);
   if (patch.expireDate !== undefined) push('expire_date', patch.expireDate);
+  if (patch.warrantyUntil !== undefined) push('warranty_until', patch.warrantyUntil);
   if (patch.brand !== undefined) push('brand', patch.brand);
   if (patch.model !== undefined) push('model', patch.model);
   if (patch.quantity !== undefined) push('quantity', patch.quantity);
@@ -612,11 +621,14 @@ export async function getStats(): Promise<ItemStats> {
        AND julianday(expire_date) - julianday(?) <= 30`,
     on,
   );
-  /* 「需要关注」= 快到期 ∪ 该补货。和上面那条分开查，不是重复劳动 ——
+  /* 「需要关注」= 快到期 ∪ 该补货 ∪ 保修将到期。和上面那条分开查，不是重复劳动 ——
      expiringCount 是**到期口径**（首页统计卡「即将到期」用它，标签就得是这一个），
      attentionCount 是**待办口径**（提醒页顶部那句、标签栏角标用它）。
      ★ 一条 SQL 里用 OR 写，天然去重：一件既过期又只剩 1 的东西只算一件 ——
-       分两次查再相加就会多出来，而用户会拿这个数去对提醒页里的行数。 */
+       分两次查再相加就会多出来，而用户会拿这个数去对提醒页里的行数。
+     ★ 保修的窗口是**未来 30 天、不含已过保**，与 `listWarrantySoon` 一模一样；
+       两处若写得不一样，角标会比点进去看到的行数多，而多出来的那些正是
+       「家里每一台过保的老电器」—— 一个永远清不掉的数。 */
   const attentionRow = await db.getFirstAsync<{ c: number }>(
     `SELECT COUNT(*) AS c FROM items
      WHERE deleted_at IS NULL
@@ -624,9 +636,14 @@ export async function getStats(): Promise<ItemStats> {
          (expire_date IS NOT NULL AND expire_date <> ''
           AND julianday(expire_date) - julianday(?) <= 30)
          OR (quantity IS NOT NULL AND quantity <= ?)
+         OR (warranty_until IS NOT NULL AND warranty_until <> ''
+             AND julianday(warranty_until) - julianday(?) >= 0
+             AND julianday(warranty_until) - julianday(?) <= 30)
        )`,
     on,
     LOW_STOCK_THRESHOLD,
+    on,
+    on,
   );
   // 两个互斥分组。fineCount 用总数减出来，不再查第三遍 ——
   // 少一次查询，也天然保证「三格合计等于总数」
@@ -680,20 +697,56 @@ export async function listExpiring(): Promise<ExpiringGroup[]> {
 }
 
 /**
+ * 「保修将到期」分组 —— 只看**未来 30 天**。
+ *
+ * ★ 与到期（`listExpiring`）的口径**故意不同**，别顺手合并：
+ *   · 保质期过了＝「该处理了」，所以「已过期」是一组待办；
+ *   · 保修过了＝**什么也做不了**。把已过保的列进来，用户家里每一台老电器
+ *     都会永远挂在这张清单上，而「需要关注」这个数字从此再也清不掉。
+ * ★ 也不给「更远」那一档：保修动辄两三年，半年前就摆出来只是噪音。
+ *   `listExpiring` 会给出「更远」组，那是因为保质期短的物品本来就该被看见全貌。
+ * ★ 与 `getStats().attentionCount` 里那条保修条件的**窗口必须完全一致**
+ *   （未来 30 天），否则角标会比用户点进去数出来的行数多。
+ */
+export async function listWarrantySoon(): Promise<ExpiringGroup[]> {
+  const db = await getDatabase();
+  const on = today();
+  const rows = await db.getAllAsync<ItemRow>(
+    `${SELECT_VIEW}
+     WHERE i.deleted_at IS NULL
+       AND i.warranty_until IS NOT NULL AND i.warranty_until <> ''
+       AND julianday(i.warranty_until) - julianday(?) >= 0
+       AND julianday(i.warranty_until) - julianday(?) <= 30
+     ORDER BY i.warranty_until ASC, i.id ASC`,
+    on,
+    on,
+  );
+  if (rows.length === 0) return [];
+  return [{ key: 'warranty', title: '保修将到期', items: rows.map((r) => toItemView(r, on)) }];
+}
+
+/**
  * 「需要关注」的分组列表 —— **提醒页与桌面小组件共用这一份**。
  *
  * ★ 这条拼装规则（「该补货了」排在最前、且**只在它非空时**才出现）原来只长在
  *   提醒页里。桌面小组件要的是同一个顺序，所以必须搬上来。
  *   抄第二份的代价：某天只改了一边，桌面上那三行的顺序就和点进去看到的不一样 ——
  *   而两边都不会报错。
- * ★ 两组各查一次再拼，而不是把 low 塞进 `listExpiring`：那个函数的名字与职责是
- *   「到期」，混进库存会让它变成一个说不清的东西。
+ * ★ 三组各查一次再拼，而不是把 low / warranty 塞进 `listExpiring`：那个函数的名字
+ *   与职责是「到期」，混进库存与保修会让它变成一个说不清的东西；而且
+ *   `db/notify.ts` 的排期正是拿它当数据源，保修**不该**产生系统通知
+ *   （排期的 `ExpiryCandidate` 里只有 `expireDate`，混进来会排出一批日期为空的提醒）。
+ * ★ 保修组排在最后：它是「顺带看一眼」的信息，紧迫度低于到期与补货。
  */
 export async function listAttentionGroups(): Promise<ExpiringGroup[]> {
-  const [expiring, low] = await Promise.all([listExpiring(), listLowStock()]);
-  return low.length > 0
-    ? [{ key: 'low', title: '该补货了', items: low }, ...expiring]
-    : expiring;
+  const [expiring, low, warranty] = await Promise.all([
+    listExpiring(),
+    listLowStock(),
+    listWarrantySoon(),
+  ]);
+  const head: ExpiringGroup[] =
+    low.length > 0 ? [{ key: 'low', title: '该补货了', items: low }] : [];
+  return [...head, ...expiring, ...warranty];
 }
 
 /** 导入用：一次性取出全部字段（含软删除） */
@@ -912,9 +965,9 @@ export async function insertRaw(item: Item): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
     `INSERT INTO items
-      (id, name, category_id, location_id, purchase_date, price, expire_date,
+      (id, name, category_id, location_id, purchase_date, price, expire_date, warranty_until,
        brand, model, quantity, tags, note, sort_order, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name          = excluded.name,
        category_id   = excluded.category_id,
@@ -922,6 +975,7 @@ export async function insertRaw(item: Item): Promise<void> {
        purchase_date = excluded.purchase_date,
        price         = excluded.price,
        expire_date   = excluded.expire_date,
+       warranty_until = excluded.warranty_until,
        brand         = excluded.brand,
        model         = excluded.model,
        quantity      = excluded.quantity,
@@ -938,6 +992,8 @@ export async function insertRaw(item: Item): Promise<void> {
     item.purchaseDate,
     item.price,
     item.expireDate,
+    // 老备份包里没有这个字段，缺省补 null（与 quantity / sortOrder 加列时同一套处理）
+    item.warrantyUntil ?? null,
     item.brand,
     item.model,
     // 老备份包里没有这个字段，缺省补 null（与 sortOrder 当年加列时的处理一致）

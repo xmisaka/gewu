@@ -5,8 +5,9 @@
  * 因此这一页的定位是「打开就看见」，而不是「追着你跑」——
  * 顶部文案必须诚实说明这一点，否则用户会以为不提醒是坏了。
  *
- * 这一页现在盯两件事：**快过期的**（食品药品耗材）与**快用完的**（能补货的）。
- * 两者共用同一套分组列表与行组件，只是排在最前面的那个组换了个人。
+ * 这一页现在盯三件事：**快过期的**（食品药品耗材）、**快用完的**（能补货的），
+ * 以及**保修快到的**（数码家电）。三者共用同一套分组列表与行组件，
+ * 只是排在最前面的那个组换了个人 —— 而「保修」读的是另一个日期列。
  */
 
 import { useRouter } from 'expo-router';
@@ -26,7 +27,7 @@ import { useNotify } from '@/lib/store/notify';
 import type { ExpiringGroup } from '@/lib/types';
 import { makeStyles } from '@/lib/theme';
 
-/** 分组标题的语义色。与列表胶囊、库存卡同一套：砖红=已过期/用完，琥珀=将到期/将见底 */
+/** 分组标题的语义色。与列表胶囊、库存卡同一套：砖红=已过期/用完，琥珀=将到期/将见底/保修将到 */
 function groupColor(key: ExpiringGroup['key']): string {
   if (key === 'overdue' || key === 'low') return Palette.clay;
   return Palette.amber;
@@ -89,7 +90,7 @@ export default function AlertsScreen() {
         subtitle={
           attentionCount > 0
             ? `共 ${attentionCount} 件需要关注`
-            : '给食品、药品、耗材填上过期时间或数量，这里就会列出来'
+            : '给食品、药品、耗材填上过期时间或数量，给数码家电填上保修截止日，这里就会列出来'
         }
       />
 
@@ -97,7 +98,7 @@ export default function AlertsScreen() {
         <Gutter>
           <Card tone="inset" style={styles.notice}>
             <Meta tone="ink2" style={styles.noticeText}>
-              这一页分两件事盯着：快过期的，和快用完该补货的。
+              这一页盯着三件事：快过期的、快用完该补货的，还有保修快到的。
             </Meta>
             <Meta tone="ink4" style={styles.noticeText}>
               {/* 这句是**对用户的承诺**，功能上了就必须跟着改 ——
@@ -122,7 +123,7 @@ export default function AlertsScreen() {
           <EmptyState
             icon="notifications-outline"
             title="没有需要盯着的物品"
-            description="录入时给食品药品填上过期时间，或者在耗材上填个数量，这里会自动按紧急程度排好。"
+            description="录入时给食品药品填上过期时间、耗材填个数量、数码家电填上保修截止日，这里会自动按紧急程度排好。"
             actionLabel="去录入"
             onAction={() => router.push('/compose')}
           />
@@ -143,6 +144,9 @@ export default function AlertsScreen() {
                     <ItemRow
                       key={item.id}
                       item={item}
+                      /* 保修那一组的行里，标签位要说保修而不是保质期 ——
+                         分组已经决定了这一行在讲哪件事 */
+                      warrantyView={group.key === 'warranty'}
                       onPress={(it) => router.push({ pathname: '/item/[id]', params: { id: it.id } })}
                       /* 「补货 +」只在这一组给。其余组里的物品也能补货，
                          但那是「顺手」，不是这一页让用户来做的事 */

@@ -88,6 +88,18 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    // v4：物品表新增保修截止日（NULL / 空串 = 没记保修）
+    //
+    // 同样刻意不加索引，理由与 v3 的 quantity 完全一致：
+    // 「保修将到期」只在到期页跑一次全表扫，个人规模下不值得多一个索引。
+    to: 4,
+    run: async (db) => {
+      if (!(await hasColumn(db, 'items', 'warranty_until'))) {
+        await db.execAsync('ALTER TABLE items ADD COLUMN warranty_until TEXT;');
+      }
+    },
+  },
 ];
 
 async function hasColumn(db: Database, table: string, column: string): Promise<boolean> {

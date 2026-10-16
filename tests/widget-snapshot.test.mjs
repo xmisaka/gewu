@@ -31,6 +31,7 @@ function item(patch) {
     name: patch.name ?? '物品',
     quantity: patch.quantity ?? null,
     daysToExpiry: patch.daysToExpiry ?? null,
+    daysToWarranty: patch.daysToWarranty ?? null,
     cabinetName: patch.cabinetName ?? null,
     locationName: patch.locationName ?? null,
   };
@@ -168,6 +169,30 @@ test('补货组的胶囊说余量，不说剩几天', () => {
   /* 它同时快到期又说得出余量，但在「该补货了」这一组里，重点是**余量**
      （这一组的名字就是这个意思）。天数留给点进去以后的详情页。 */
   assert.equal(rows[0].statusText, '剩 1');
+});
+
+test('保修组的胶囊说**保修**，绝不能说成「N 天后到期」', () => {
+  /* ★ 这一条守的是最容易犯的那个错：保修与保质期共用一套分组 UI，
+     顺手把 `describeExpiryTag` 用上去不会报错 —— 只会让桌面上写着
+     「6 天后到期」，而用户去处理时发现保质期其实还早得很。
+     注意这件的 daysToExpiry 是 null（压根没填保质期）：真串了的话，
+     胶囊会变成空串，那是更隐蔽的一种错。 */
+  const rows = buildWidgetRows([group('warranty', [item({ name: '电水壶', daysToWarranty: 6 })])]);
+
+  assert.equal(rows[0].statusText, '保修还剩 6 天');
+  assert.equal(rows[0].tone, 'amber', '界面稿定的：复用琥珀，不新增色');
+});
+
+test('保修组排到最后时，桌面那几行仍按组顺序走', () => {
+  const rows = buildWidgetRows([
+    group('overdue', [item({ name: '布洛芬', daysToExpiry: -3 })]),
+    group('warranty', [item({ name: '电水壶', daysToWarranty: 6 })]),
+  ]);
+
+  assert.deepEqual(
+    rows.map((r) => r.name),
+    ['布洛芬', '电水壶'],
+  );
 });
 
 /* ------------------------------------------------------------ 位置短语 */

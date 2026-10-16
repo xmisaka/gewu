@@ -35,7 +35,11 @@ function buildLegacyV2() {
   raw.exec(CREATE_META);
   raw.exec(CREATE_TABLES);
 
-  // 退回到 v1 的形状，再补上 v2 那一步的 ALTER
+  // 退回到 v1 的形状，再补上 v2 那一步的 ALTER。
+  // ★ 本版本的建表脚本里已经有 quantity（v3）与 warranty_until（v4），
+  //   两列都要摘掉，老库才是**真的**老 —— 留着的话，下面「补列」那几条断言
+  //   测的就是一个本来就存在的列，永远绿。
+  raw.exec('ALTER TABLE items DROP COLUMN warranty_until;');
   raw.exec('ALTER TABLE items DROP COLUMN quantity;');
   raw.exec('ALTER TABLE items DROP COLUMN sort_order;');
   raw.exec('ALTER TABLE items ADD COLUMN sort_order INTEGER;');
@@ -80,9 +84,10 @@ function buildLegacyV2() {
   const cols = raw.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
   raw.close();
 
-  // 前置自检：老库必须真的是「没有 quantity、sort_order 在末尾」，
+  // 前置自检：老库必须真的是「没有 quantity / warranty_until、sort_order 在末尾」，
   // 否则下面的断言会变成在测一个不存在的场景
   assert.ok(!cols.includes('quantity'), '前置条件不成立：老库里已经有 quantity 了');
+  assert.ok(!cols.includes('warranty_until'), '前置条件不成立：老库里已经有 warranty_until 了');
   assert.equal(cols[cols.length - 1], 'sort_order', '前置条件不成立：sort_order 没排在末尾');
 }
 
@@ -103,7 +108,7 @@ after(() => {
 
 /* ------------------------------------------------------------ 升级 */
 
-test('v2 → v3：老库能打开，版本推进到最新，老数据一条不少', async () => {
+test('v2 → v4：老库能打开，版本推进到最新，老数据一条不少', async () => {
   const db = await getDatabase();
 
   assert.equal(await readMeta(db, 'schema_version'), String(SCHEMA_VERSION));
@@ -112,6 +117,10 @@ test('v2 → v3：老库能打开，版本推进到最新，老数据一条不�
   assert.ok(
     cols.some((c) => c.name === 'quantity'),
     'quantity 列没补上 —— 这一步失败意味着老用户升级后库存功能整个不可用',
+  );
+  assert.ok(
+    cols.some((c) => c.name === 'warranty_until'),
+    'warranty_until 列没补上 —— 意味着老用户升级后一碰 SELECT_VIEW 就是 no such column，库直接打不开',
   );
 
   const list = await items.listItems();
@@ -122,11 +131,14 @@ test('v2 → v3：老库能打开，版本推进到最新，老数据一条不�
   );
 });
 
-test('v2 → v3：老数据的 quantity 一律是 null，不会被误读成「剩 0」', async () => {
+test('v2 → v4：老数据的 quantity / warrantyUntil 一律是 null，不会被误读成「剩 0」或有保修', async () => {
   const list = await items.listItems();
   for (const item of list) {
     assert.equal(item.quantity, null, `${item.id} 的 quantity 应是 null`);
     assert.equal(item.stock, 'none', '老数据不该显示库存胶囊');
+    assert.equal(item.warrantyUntil, null, `${item.id} 的 warrantyUntil 应是 null`);
+    assert.equal(item.warranty, 'none', '老数据不该出现保修标签');
+    assert.equal(item.daysToWarranty, null);
   }
 });
 
@@ -161,6 +173,27 @@ test('迁移幂等：版本号被打回 2 后重开，加列那一步重跑一�
     cols.filter((c) => c.name === 'quantity').length,
     1,
     'quantity 只应有一列 —— 多一列说明判列失效、加了两遍',
+  );
+  assert.equal(await reopened.readMeta(db2, 'schema_version'), String(SCHEMA_VERSION));
+  assert.equal((await items.listItems()).length, 2, '重开不该影响数据');
+});
+
+test('v3 → v4：只有 warranty_until 缺列的老库（v3 用户）也能补上，且不重复加列', async () => {
+  const db = await getDatabase();
+  // 把新列摘掉、版本号打回 3 —— 这就是一个**真的**从 v3 升上来的库。
+  // 与上一条测的 v2 场景不同：那一步同时要补 quantity 与 warranty_until，
+  // 这一步只补 warranty_until，是「只差一列」这条最容易漏掉的路径。
+  await db.execAsync('ALTER TABLE items DROP COLUMN warranty_until;');
+  await db.runAsync('UPDATE meta SET value = ? WHERE key = ?', '3', 'schema_version');
+
+  const reopened = await import('../src/lib/db/index.ts?reopen=2');
+  const db2 = await reopened.getDatabase();
+
+  const cols = await db2.getAllAsync('PRAGMA table_info(items)');
+  assert.equal(
+    cols.filter((c) => c.name === 'warranty_until').length,
+    1,
+    'warranty_until 应恰好补一列 —— 多一列说明判列失效、加了两遍',
   );
   assert.equal(await reopened.readMeta(db2, 'schema_version'), String(SCHEMA_VERSION));
   assert.equal((await items.listItems()).length, 2, '重开不该影响数据');

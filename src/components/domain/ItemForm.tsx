@@ -186,6 +186,7 @@ export type ItemSeed = Pick<
   | 'purchaseDate'
   | 'price'
   | 'expireDate'
+  | 'warrantyUntil'
   | 'brand'
   | 'model'
   | 'quantity'
@@ -201,6 +202,11 @@ interface DraftState {
   purchaseDate: string | null;
   priceText: string;
   expireDate: string | null;
+  /**
+   * 保修截止日。与 `expireDate` 是两个独立字段 ——
+   * 「过期时间」回答东西还能不能用，「保修至」回答坏了还能不能找厂家。
+   */
+  warrantyUntil: string | null;
   brand: string;
   model: string;
   /**
@@ -230,6 +236,7 @@ function seedKeysOf(seed: ItemSeed): Set<string> {
   if (seed.purchaseDate) keys.add('purchaseDate');
   if (seed.price != null) keys.add('price');
   if (seed.expireDate) keys.add('expireDate');
+  if (seed.warrantyUntil) keys.add('warrantyUntil');
   if (seed.brand) keys.add('brand');
   if (seed.model) keys.add('model');
   if (seed.quantity != null) keys.add('quantity');
@@ -250,6 +257,7 @@ function stateFrom(
     purchaseDate: item ? item.purchaseDate : today(),
     priceText: item?.price != null ? String(item.price) : '',
     expireDate: item?.expireDate ?? null,
+    warrantyUntil: item?.warrantyUntil ?? null,
     brand: item?.brand ?? '',
     model: item?.model ?? '',
     quantityText: item?.quantity != null ? String(item.quantity) : '',
@@ -325,6 +333,10 @@ export function ItemForm({
       ...base,
       purchaseDate: start,
       expireDate: months == null ? base.expireDate : addMonths(start, months),
+      /* 保修期属于**原来那件**：新买的一件保修从今天重新算起，
+         照抄原件的截止日就是记错了（和购买日期 / 过期时间同一条理由）。
+         这里没有「按分类带出保修期」这种东西，所以直接清空，交给用户自己填。 */
+      warrantyUntil: null,
     };
   });
 
@@ -346,7 +358,7 @@ export function ItemForm({
   const [coverPath, setCoverPath] = useState<string | null>(null);
   const [locationOpen, setLocationOpen] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
-  const [dateTarget, setDateTarget] = useState<'purchase' | 'expire' | null>(null);
+  const [dateTarget, setDateTarget] = useState<'purchase' | 'expire' | 'warranty' | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   /** 识物来源选择弹层 */
   const [recognizeOpen, setRecognizeOpen] = useState(false);
@@ -705,6 +717,7 @@ export function ItemForm({
         brand: draft.brand.trim() || null,
         model: draft.model.trim() || null,
         quantity: parseQuantityValue(draft.quantityText),
+        warrantyUntil: draft.warrantyUntil,
         tags,
         note: draft.note.trim() || null,
         sortOrder: parseSortValue(draft.sortText),
@@ -1006,8 +1019,26 @@ export function ItemForm({
                 </View>
               ) : null}
 
-              {/* 数量紧挨着过期时间：两者都是「耗材属性」，一起填符合心理模型。
-                  留空即单件、不启用库存 —— 这是老用户的默认档，不填任何东西行为不变。 */}
+              {/* 保修紧挨着过期时间：两行都是「日期」，但**是两件事**，
+                  所以标签写「保修至」而不是又一个「到期」——写成「到期」，
+                  用户会以为是在填同一个日子的第二种说法。 */}
+              <FieldRow label="保修至" ai={aiFields.has('warrantyUntil')}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setDateTarget('warranty')}
+                  style={styles.pickerValue}>
+                  <Body tone={draft.warrantyUntil ? 'ink' : 'ink3'}>
+                    {draft.warrantyUntil ? formatDateCN(draft.warrantyUntil) : '未设置'}
+                  </Body>
+                  <Ionicons name="calendar-outline" size={15} color={Palette.ink4} />
+                </Pressable>
+              </FieldRow>
+              <Meta tone="ink4" style={styles.warrantyHint}>
+                数码、家电坏了能不能免费修，就看这个日期；和上面的过期时间是两回事
+              </Meta>
+
+              {/* 数量是这张卡的收尾。留空即单件、不启用库存 ——
+                  这是老用户的默认档，不填任何东西行为不变。 */}
               <FieldRow label="数量" ai={aiFields.has('quantity')} last>
                 <TextInput
                   value={draft.quantityText}
@@ -1182,13 +1213,24 @@ export function ItemForm({
 
       <DatePickerModal
         visible={dateTarget !== null}
-        value={dateTarget === 'expire' ? draft.expireDate : draft.purchaseDate}
-        title={dateTarget === 'expire' ? '过期时间' : '购买日期'}
+        value={
+          dateTarget === 'expire'
+            ? draft.expireDate
+            : dateTarget === 'warranty'
+              ? draft.warrantyUntil
+              : draft.purchaseDate
+        }
+        title={
+          dateTarget === 'expire' ? '过期时间' : dateTarget === 'warranty' ? '保修至' : '购买日期'
+        }
         onClose={() => setDateTarget(null)}
         onPick={(date) => {
           if (dateTarget === 'expire') {
             set('expireDate', date);
             clearAi('expireDate');
+          } else if (dateTarget === 'warranty') {
+            set('warrantyUntil', date);
+            clearAi('warrantyUntil');
           } else {
             set('purchaseDate', date);
             clearAi('purchaseDate');
@@ -1469,6 +1511,8 @@ const useStyles = makeStyles((Palette) => ({
   },
   multiline: { minHeight: 44, textAlignVertical: 'top', paddingTop: 0 },
   sortHint: { paddingBottom: Space.md, textAlign: 'right' },
+  /* 保修行的说明文字。与 sortHint / quantityHint 同款：右对齐的一行浅灰小字 */
+  warrantyHint: { paddingBottom: Space.md, textAlign: 'right', lineHeight: 17 },
   /* 数量行是这张卡的收尾，说明文字要留出底部内距，不然贴着卡片下缘 */
   quantityHint: { paddingBottom: Space.md, textAlign: 'right', lineHeight: 17 },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },

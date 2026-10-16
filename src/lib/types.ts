@@ -25,6 +25,14 @@ export interface Item {
   price: number | null;
   /** V1 仅录入，不做提醒 */
   expireDate: DateString | null;
+  /**
+   * 保修截止日。
+   *
+   * ★ 与 `expireDate` 是**两个独立的时间属性**，不是一个字段的两种叫法：
+   *   保质期回答「东西还能不能用」，保修回答「坏了还能不能找厂家」。
+   *   v4 迁移补上，老数据一律为 null（＝ 没记保修），行为零变化。
+   */
+  warrantyUntil: DateString | null;
   brand: string | null;
   model: string | null;
   /**
@@ -127,6 +135,14 @@ export interface ItemView extends Item {
   expiry: ExpiryState;
   /** 距离到期天数，负数为已过期 */
   daysToExpiry: number | null;
+  /**
+   * 保修状态。与 `expiry` **同构但各自独立**（同一套阈值与派生函数，
+   * 但读的是 `warrantyUntil`）—— 一件东西完全可能「保质期还早、保修已经过了」。
+   *   none 没记保修 → 界面上不渲染任何保修相关元素
+   */
+  warranty: ExpiryState;
+  /** 距离过保天数，负数为已过保 */
+  daysToWarranty: number | null;
   /** 库存状态，由 quantity 派生。口径与 expiry 一样只在这里算一次 */
   stock: StockState;
   /** 派生指标，任一前提不满足则为 null（→ 整行隐藏） */
@@ -182,8 +198,12 @@ export interface ExpiringGroup {
   /**
    * `low` 是「余量见底」而不是「快到期」，但它和另外三组共用同一套分组列表
    * 与行组件，所以并进同一个联合类型 —— 页面渲染完全走同一条代码路径。
+   *
+   * `warranty` 同理：它读的是保修截止日而不是保质期，但列的也是「有件事快到日子了」，
+   * 所以共用同一套分组 UI。**它与 `overdue`/`soon` 的分组规则不同**：
+   * 只看未来 30 天，**不含已过保**（过了保就没任何事可做了，列进来只会越积越多）。
    */
-  key: 'overdue' | 'soon' | 'later' | 'low';
+  key: 'overdue' | 'soon' | 'later' | 'low' | 'warranty';
   title: string;
   items: ItemView[];
 }

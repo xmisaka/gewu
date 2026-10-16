@@ -17,7 +17,7 @@ import { Loading, PlainTag, StatusTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Display, Label, Meta, Num } from '@/components/ui/typography';
 import { GUTTER, Palette, Space } from '@/constants/theme';
-import { formatDateCN, isJustAcquired } from '@/lib/date';
+import { describeWarrantyTag, formatDateCN, isJustAcquired } from '@/lib/date';
 import { adjustQuantity, getItemView, setQuantity, softDeleteItem } from '@/lib/db/items';
 import { listPhotos, promotePhoto } from '@/lib/db/photos';
 import { formatMoney } from '@/lib/format';
@@ -215,6 +215,13 @@ export default function ItemDetailScreen() {
                 }
               />
             ) : null}
+            {/* 保修标签只在**真的要到了**（30 天内 / 已过保）时才挂。
+                ★ 与上面的到期标签故意不同：保质期不管多远都值得看一眼（食品很快会到期），
+                  而「保修还剩 900 天」是一条纯噪音 —— 它只会把这一行挤满。
+                  具体的保修截止日永远在下面「详细字段」里，不会丢。 */}
+            {item.warranty === 'soon' || item.warranty === 'overdue' ? (
+              <StatusTag state={item.warranty} text={describeWarrantyTag(item.daysToWarranty)} />
+            ) : null}
           </View>
         </View>
 
@@ -349,6 +356,11 @@ export default function ItemDetailScreen() {
               </FormRow>
               <FormRow label="过期时间">
                 <FieldValue text={item.expireDate ? formatDateCN(item.expireDate) : null} />
+              </FormRow>
+              {/* 保修与过期时间各占一行、并排在字段表里 ——
+                  合成一行（「2026年12月31日 / 2028年3月1日」）谁也看不懂哪个是哪个 */}
+              <FormRow label="保修至">
+                <FieldValue text={item.warrantyUntil ? formatDateCN(item.warrantyUntil) : null} />
               </FormRow>
               <FormRow label="品牌">
                 <FieldValue text={item.brand} />

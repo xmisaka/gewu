@@ -10,7 +10,7 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Palette, Radius, Space } from '@/constants/theme';
-import { describeExpiryTag, describePurchase } from '@/lib/date';
+import { describeExpiryTag, describePurchase, describeWarrantyTag } from '@/lib/date';
 import { formatMoney } from '@/lib/format';
 import { stockLabel } from '@/lib/stock';
 import type { ItemView, StockState } from '@/lib/types';
@@ -69,6 +69,16 @@ export interface ItemRowProps {
    * 首页列表上的 −1 是反过来的（误触就少一件，还得去翻撤销）。两者不是一回事。
    */
   onQuickRestock?: (item: ItemView) => void;
+  /**
+   * 这一行挂在「保修将到期」那一组里 —— 标签位说的是**保修**，不是保质期。
+   *
+   * ★ 为什么不能「两种标签都画」：同一行上并排「过期 8 天」和「保修还剩 8 天」，
+   *   用户第一反应是同一件事被算了两遍。分组上下文已经决定了这一行在讲哪件事，
+   *   行里的标签就该跟着它说同一件事。
+   * ★ 也不做成「只要有保修就显示」：那会让首页列表里每一台填了保修的电器
+   *   都多挂一枚胶囊，而首页不是在讲保修。
+   */
+  warrantyView?: boolean;
 }
 
 export const ItemRow = memo(function ItemRow({
@@ -84,6 +94,7 @@ export const ItemRow = memo(function ItemRow({
   canMoveDown = true,
   onOpenStock,
   onQuickRestock,
+  warrantyView,
 }: ItemRowProps) {
   const styles = useStyles();
   const reorderable = !!onMoveUp || !!onMoveDown;
@@ -102,6 +113,8 @@ export const ItemRow = memo(function ItemRow({
      ② 多选模式下整个胶囊不渲染，那时行内只该有勾选框；
      ③ 调顺序时行尾整块让位给箭头，走的是另一条分支。 */
   const stockEnabled = item.quantity !== null && !selecting;
+  /** 标签位读哪一列：由这一行所在的**分组**决定，不由物品自己决定（见 warrantyView） */
+  const tagState = warrantyView ? item.warranty : item.expiry;
   const stockTag = stockEnabled ? (
     <PlainTag
       text={stockLabel(item.quantity)}
@@ -145,8 +158,14 @@ export const ItemRow = memo(function ItemRow({
             )
           ) : null}
           {locationText ? <PlainTag text={locationText} icon="location-outline" /> : null}
-          {item.expiry !== 'none' ? (
-            <StatusTag state={item.expiry} text={describeExpiryTag(item.daysToExpiry)} compact />
+          {/* 标签位只挂一枚：在「保修将到期」那一组里它说保修，其余场合说保质期。
+              两者读的是各自的日期列（`warranty` / `expiry`），谁也不冒充谁 */}
+          {tagState !== 'none' ? (
+            <StatusTag
+              state={tagState}
+              text={warrantyView ? describeWarrantyTag(item.daysToWarranty) : describeExpiryTag(item.daysToExpiry)}
+              compact
+            />
           ) : null}
           {item.photoCount > 1 ? (
             <PlainTag text={`${item.photoCount} 张`} icon="images-outline" />

@@ -44,7 +44,7 @@
  *     不是「桌面上一定显示这么多行」。
  */
 
-import { describeExpiryTag, formatDateDayMonthCN, toDateString } from '../date';
+import { describeExpiryTag, describeWarrantyTag, formatDateDayMonthCN, toDateString } from '../date';
 import { locationPhrase } from '../notify/plan';
 import { stockLabel, stockState } from '../stock';
 import type { ExpiringGroup } from '../types';
@@ -222,6 +222,14 @@ function rowOf(groupKey: ExpiringGroup['key'], item: ExpiringGroup['items'][numb
       statusText: stockLabel(item.quantity),
       tone: stockState(item.quantity) === 'empty' ? 'clay' : 'amber',
     };
+  }
+
+  if (groupKey === 'warranty') {
+    /* ★ 「保修将到期」看的是**保修截止日**，与保质期完全无关。
+       这里**绝不能**顺手用 `describeExpiryTag` —— 它会说成「N 天后到期」，
+       而桌面上那件东西的保质期可能还早得很，用户会照着去处理一件根本没事的东西。
+       颜色仍走琥珀（与「30 天内到期」同一档），界面稿明确写「复用琥珀色、不新增色」。 */
+    return { ...common, statusText: describeWarrantyTag(item.daysToWarranty), tone: 'amber' };
   }
 
   return {

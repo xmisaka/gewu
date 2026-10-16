@@ -46,6 +46,8 @@ function seedFrom(item: ItemView): ItemSeed {
     // 以下一律按「新录入」处理
     purchaseDate: null,
     expireDate: null,
+    // 保修期属于原件；新买的一件从今天重新算起，照抄旧日期就是记错了
+    warrantyUntil: null,
     model: null,
     tags: [],
     note: null,

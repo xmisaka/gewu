@@ -66,11 +66,21 @@ export interface BatchEntry {
   /** 覆盖默认提示（失败原因 / 空结果说明）。null ＝ 让界面按 status 生成 */
   notice: string | null;
 
-  /* ---- 以下三行是「用户可编辑的草稿」，初始值来自识别结果 ---- */
+  /* ---- 以下五行是「用户可编辑的草稿」，初始值来自识别结果 ---- */
   name: string;
   categoryId: string | null;
   locationId: string | null;
   expireDate: DateString | null;
+  /**
+   * 保修截止日。
+   *
+   * ★ 它是**用户的草稿**而不是模型字段：模型能填的字段里没有保修
+   *   （`ExtractedFields` 刻意比表单窄），所以它只会从「详细编辑」那一页带回来。
+   * ★ 必须一路存到 `toDrafts` 才算数：`ItemForm` 上摆着「保修至」这一行，
+   *   而批量流程若在中间把它丢掉，用户在表单里填的日期会**静默消失** ——
+   *   保存成功、清单也清空了，只有那一个值没了。
+   */
+  warrantyUntil: DateString | null;
 
   /** 是否勾选保存。默认勾上 —— 批量的默认意图就是「全都要」 */
   selected: boolean;
@@ -100,6 +110,7 @@ export function newEntry(key: string, photo: BatchPhoto | null): BatchEntry {
     categoryId: null,
     locationId: null,
     expireDate: null,
+    warrantyUntil: null,
     selected: true,
   };
 }
@@ -272,6 +283,8 @@ export function toDrafts(
       purchaseDate: f.purchaseDate,
       price: f.price,
       expireDate: e.expireDate,
+      // 保修期是用户的草稿，不是模型输出；`?? null` 兜住老调用方（测试里那些手搓的条目）
+      warrantyUntil: e.warrantyUntil ?? null,
       brand: f.brand,
       model: f.model,
       quantity: f.quantity,
@@ -289,6 +302,8 @@ export interface BatchEditSeed {
   categoryId: string | null;
   locationId: string | null;
   expireDate: DateString | null;
+  /** 保修截止日 —— 模型填不了它，只有用户在「详细编辑」里会给（见 BatchEntry 的注释） */
+  warrantyUntil: DateString | null;
   brand: string | null;
   model: string | null;
   price: number | null;
@@ -305,7 +320,7 @@ export interface BatchEditSeed {
  *   这里是**用户显式改的** —— 他就是来改这个的，空值也该覆盖（清空也是意图）。
  *   但两者都只动**这一条**：不碰其他条目，也不碰勾选状态。
  *
- * 字段分两处落：`name / categoryId / locationId / expireDate` 是条目自带的草稿，
+ * 字段分两处落：`name / categoryId / locationId / expireDate / warrantyUntil` 是条目自带的草稿，
  * 其余（品牌 / 型号 / 单价 / 数量 / 购买日期 / 标签 / 备注）归模型的 `fields`。
  */
 export function applyEditResult(
@@ -320,6 +335,8 @@ export function applyEditResult(
     categoryId: seed.categoryId,
     locationId: seed.locationId,
     expireDate: seed.expireDate,
+    // 保修期与 expireDate 同属「条目自带的草稿」，不归模型的 fields
+    warrantyUntil: seed.warrantyUntil ?? null,
     fields: {
       ...target.fields,
       brand: seed.brand,

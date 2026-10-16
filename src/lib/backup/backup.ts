@@ -740,6 +740,7 @@ export async function exportItemsCsv(): Promise<{ uri: string; fileName: string;
     //   不要写成 0，那会被读回成「用完了」。
     '数量',
     '过期时间',
+    '保修至',
     '品牌',
     '型号',
     '标签',
@@ -759,6 +760,7 @@ export async function exportItemsCsv(): Promise<{ uri: string; fileName: string;
       item.price ?? '',
       item.quantity ?? '',
       item.expireDate ?? '',
+      item.warrantyUntil ?? '',
       item.brand ?? '',
       item.model ?? '',
       item.tags.join(' / '),

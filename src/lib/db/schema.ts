@@ -9,7 +9,7 @@
 export const DB_NAME = 'gewu.db';
 
 /** schema 版本号；递增时需在 migrate 中补对应步骤 */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const PRAGMAS = [
   'PRAGMA journal_mode = WAL;',
@@ -44,6 +44,12 @@ CREATE TABLE IF NOT EXISTS items (
   purchase_date TEXT,
   price         REAL,
   expire_date   TEXT,
+  -- v4 新增：保修截止日。空 = 没记保修。
+  -- ★ 与 expire_date 是**两个独立的时间属性**，谁也不该替代谁：
+  --   保质期说的是「东西还能不能用」，保修说的是「坏了还能不能找厂家」。
+  -- 放在 expire_date 之后只是为了让新装用户的表可读；老库靠 ALTER TABLE 补列，
+  -- 实际会排在表末尾 —— 列序不同，所以读写一律显式列名。
+  warranty_until TEXT,
   brand         TEXT,
   model         TEXT,
   -- v3 新增：同批同款的剩余件数。

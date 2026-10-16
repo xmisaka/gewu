@@ -52,6 +52,7 @@ async function makeItem(id, patch = {}) {
     purchaseDate: patch.purchaseDate ?? null,
     price: patch.price ?? null,
     expireDate: patch.expireDate ?? null,
+    warrantyUntil: patch.warrantyUntil ?? null,
     quantity: patch.quantity ?? null,
     brand: null,
     model: null,
@@ -388,6 +389,112 @@ test('listExpiring：三段两两互斥，并集等于全部填了过期时间�
   assert.deepEqual(groups.map((g) => g.key), ['overdue', 'soon', 'later']);
   assert.deepEqual(flat, ['over', 'soon', 'far']);
   assert.equal(new Set(flat).size, flat.length, '三段之间不应重复');
+});
+
+/* ------------------------------------------------------------ 保修 */
+
+/** 相对今天偏移若干天的 `YYYY-MM-DD`；三个保修用例共用 */
+function dayOffset(offset) {
+  const on = new Date();
+  const d = new Date(on.getFullYear(), on.getMonth(), on.getDate() + offset);
+  const p = (n) => (n < 10 ? `0${n}` : String(n));
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+test('保修：能写能读，且与保质期各算各的（互不串列）', async () => {
+  await reset();
+
+  // 一件「保质期还早、保修早过了」的东西：两个状态必须同时成立
+  await makeItem('phone', { expireDate: dayOffset(300), warrantyUntil: dayOffset(-20) });
+  await makeItem('kettle', { warrantyUntil: dayOffset(7) });
+
+  const phone = await items.getItemView('phone');
+  assert.equal(phone.expiry, 'fine');
+  assert.equal(phone.warranty, 'overdue', '保修读的是 warranty_until，不是 expire_date');
+  assert.equal(phone.daysToWarranty, -20);
+  assert.equal(phone.daysToExpiry, 300, '两个剩余天数不能互相污染');
+
+  const kettle = await items.getItemView('kettle');
+  assert.equal(kettle.warranty, 'soon');
+  assert.equal(kettle.expiry, 'none', '只填了保修不该凭空产生保质期状态');
+
+  // 改保修日期
+  await items.updateItem('phone', { warrantyUntil: dayOffset(10) });
+  assert.equal((await items.getItemView('phone')).warranty, 'soon');
+
+  // 清空保修 → 状态回 none（界面上整块消失），且不影响保质期
+  await items.updateItem('phone', { warrantyUntil: null });
+  const cleared = await items.getItemView('phone');
+  assert.equal(cleared.warrantyUntil, null);
+  assert.equal(cleared.warranty, 'none');
+  assert.equal(cleared.expiry, 'fine', '清保修不该把保质期一起清掉');
+});
+
+test('保修：只有未来 30 天那一档进「保修将到期」，已过保的不进', async () => {
+  await reset();
+  await makeItem('passed', { warrantyUntil: dayOffset(-1) });
+  await makeItem('edge30', { warrantyUntil: dayOffset(30) });
+  await makeItem('far', { warrantyUntil: dayOffset(31) });
+  await makeItem('none');
+
+  const groups = await items.listWarrantySoon();
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].key, 'warranty');
+  assert.equal(
+    groups[0].title,
+    '保修将到期',
+    '标题不能写成「已过保」—— 它不含已过保的，含了才是标题错',
+  );
+  assert.deepEqual(
+    groups[0].items.map((i) => i.id),
+    ['edge30'],
+    '第 30 天算将到期（与保质期同一套阈值）；已过保与 31 天后的都不进',
+  );
+});
+
+test('getStats / listAttentionGroups：保修并进「待办」口径，但不进「到期」口径', async () => {
+  await reset();
+  await makeItem('passed', { warrantyUntil: dayOffset(-1) });
+  await makeItem('soonWarranty', { warrantyUntil: dayOffset(3) });
+  await makeItem('farWarranty', { warrantyUntil: dayOffset(90) });
+  await makeItem('plain');
+
+  const stats = await items.getStats();
+  /* ★ 保修**不该**混进 expiringCount：首页那张卡的标签就是「即将到期」，
+     而它旁边那三格图例（正常 / 将到期 / 已过期）是按保质期分的，
+     保修混进去会让三者之和不再等于总数。 */
+  assert.equal(stats.expiringCount, 0);
+  assert.equal(
+    stats.attentionCount,
+    1,
+    '只有未来 30 天那件算待办；已过保的「什么也做不了」，不该永远挂在角标上',
+  );
+
+  const groups = await items.listAttentionGroups();
+  assert.deepEqual(
+    groups.map((g) => g.key),
+    ['overdue', 'soon', 'later', 'warranty'],
+    '保修组排在最后：它是「顺带看一眼」的信息，紧迫度低于到期',
+  );
+
+  const ids = new Set();
+  for (const g of groups) {
+    if (g.key === 'later') continue;
+    for (const it of g.items) ids.add(it.id);
+  }
+  assert.equal(stats.attentionCount, ids.size, '角标必须等于提醒页里能数出来的件数');
+});
+
+test('listAttentionGroups：没有保修将到期时整组不出现（不是一组空的）', async () => {
+  await reset();
+  await makeItem('plain');
+
+  const groups = await items.listAttentionGroups();
+  assert.equal(
+    groups.some((g) => g.key === 'warranty'),
+    false,
+    '空分组会在提醒页上留下一行没有内容的标题',
+  );
 });
 
 /* ------------------------------------------------------------ 排序稳定性 */

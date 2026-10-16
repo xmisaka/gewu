@@ -244,6 +244,7 @@ const editSeed = (over = {}) => ({
   categoryId: null,
   locationId: null,
   expireDate: null,
+  warrantyUntil: null,
   brand: null,
   model: null,
   price: null,
@@ -284,6 +285,20 @@ test('applyEditResult：用户显式改的字段全量覆盖（与 applyResult �
   assert.equal(after.expireDate, '2027-01-01');
   assert.equal(after.categoryId, 'c1');
   assert.equal(after.locationId, 'l1');
+});
+
+test('applyEditResult → toDrafts：详细编辑里填的保修期必须一路带进草稿', () => {
+  /* ★ 这条守的是**静默丢值**：ItemForm 上摆着「保修至」这一行，
+     而批量流程若在条目或 toDrafts 那一步漏掉它，用户在详细编辑里填的日期
+     会在保存成功后消失 —— 保存没报错、清单也清空了，只有一个值没了。 */
+  const edited = applyEditResult([make({ key: 'k', name: '电水壶' })], 'k', {
+    ...editSeed({ name: '电水壶' }),
+    warrantyUntil: '2028-03-01',
+  });
+
+  assert.equal(edited[0].warrantyUntil, '2028-03-01', '要落在条目自带的草稿上');
+  assert.equal(toDrafts(edited, {})[0].warrantyUntil, '2028-03-01', '还要带进最终的草稿');
+  assert.equal(toDrafts(edited, {})[0].expireDate, null, '保修期不该串成过期时间');
 });
 
 test('applyEditResult：只动那一条，其他条目纹丝不动', () => {

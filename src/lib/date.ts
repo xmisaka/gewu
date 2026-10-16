@@ -126,6 +126,21 @@ export function describeExpiryTag(daysToExpiry: number | null): string {
   return `${daysToExpiry} 天后到期`;
 }
 
+/**
+ * 保修状态的短文案，给「到期」页的保修分组、详情页的保修标签用。
+ *
+ * ★ 措辞必须与 `describeExpiryTag` 明确区分开，**不许合并**：
+ *   那一句说的是「到期」（保质期），这一句说的是「过保」（保修期）。
+ *   同一个东西的这两件事可以差好几年；两处都写成「过期 8 天」，
+ *   用户会以为是同一个日子被算了两遍。
+ */
+export function describeWarrantyTag(daysToWarranty: number | null): string {
+  if (daysToWarranty == null) return '';
+  if (daysToWarranty < 0) return `已过保 ${Math.abs(daysToWarranty)} 天`;
+  if (daysToWarranty === 0) return '保修今天到期';
+  return `保修还剩 ${daysToWarranty} 天`;
+}
+
 /** 在日期上加减月数，用于按分类模板推算过期时间 */
 export function addMonths(dateStr: DateString, months: number): DateString {
   const d = parseDate(dateStr);

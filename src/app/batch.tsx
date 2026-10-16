@@ -805,6 +805,7 @@ function seedFromEntry(e: BatchEntry): BatchEditSeed {
     categoryId: e.categoryId,
     locationId: e.locationId,
     expireDate: e.expireDate,
+    warrantyUntil: e.warrantyUntil,
     brand: e.fields.brand,
     model: e.fields.model,
     price: e.fields.price,
