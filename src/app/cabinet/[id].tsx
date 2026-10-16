@@ -7,7 +7,7 @@
  */
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 
 import { PhotoThumb } from '@/components/domain/media';
@@ -35,10 +35,34 @@ export default function CabinetDetailScreen() {
   const cabinetState = useAsyncData(() => getCabinetView(id), [id, dataVersion], null as CabinetView | null);
   const itemsState = useAsyncData(() => listItems({ locationId: id }), [id, dataVersion], [] as ItemView[]);
 
+  /**
+   * 一行能摆几枚缩略图 —— 用来算每一格先摊开多少件（**每行几格 × 6**）。
+   *
+   * ★ 上限跟着屏宽走是这一页一直以来的设计，别改成写死的件数。
+   */
   const tilesPerRow = useMemo(() => {
     const usable = width - GUTTER * 2 - Space.lg * 2;
     return Math.max(2, Math.floor((usable + Space.md) / (TILE + Space.md)));
   }, [width]);
+
+  /**
+   * 已展开的格位。
+   *
+   * ★ 没有它，那枚「+N」就只是一块**画着数字的死方块** ——
+   *   用户看得见「还有 9 件」，却点不动、也翻不到（2026-10-16 反馈的正是这条）。
+   * ★ 按**格位 key** 记而不是全局一个布尔：一个柜子里有好几格，
+   *   在一格里点开不该把别的格子一起拉长。
+   */
+  const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set());
+
+  const toggleSlot = useCallback((key: string) => {
+    setExpandedSlots((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   /** 一次查询 + 前端按 location_id 分组，避免每个格位各发一条 SQL */
   const grouped = useMemo(() => {
@@ -157,7 +181,10 @@ export default function CabinetDetailScreen() {
               </Gutter>
             ) : (
               <View style={[styles.tileWrap, { paddingHorizontal: GUTTER - Space.sm }]}>
-                {section.items.slice(0, tilesPerRow * 6).map((item) => (
+                {(expandedSlots.has(section.key)
+                  ? section.items
+                  : section.items.slice(0, tilesPerRow * 6)
+                ).map((item) => (
                   <Pressable
                     key={item.id}
                     accessibilityRole="button"
@@ -174,10 +201,40 @@ export default function CabinetDetailScreen() {
                     </ItemText>
                   </Pressable>
                 ))}
-                {section.items.length > tilesPerRow * 6 ? (
-                  <View style={[styles.tile, styles.tileMore]}>
+
+                {/* 折叠态那枚「+N」。
+                    ★ 它以前是一块**纯展示**的 `View`：用户看得见「还有 9 件」，
+                      却点不开、也没有别的地方能看全（2026-10-16 报的就是这个 bug）。
+                      修法是只把外层换成 `Pressable` 接上展开，**外观一点没动** ——
+                      不留底色、不加提示字，跟在缩略图后面和一格里的其他方块同款。 */}
+                {!expandedSlots.has(section.key) && section.items.length > tilesPerRow * 6 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`查看「${section.name}」的全部 ${section.items.length} 件`}
+                    onPress={() => toggleSlot(section.key)}
+                    style={({ pressed }) => [
+                      styles.tile,
+                      styles.tileMore,
+                      pressed && styles.tileMorePressed,
+                    ]}>
                     <Label tone="ink3">+{section.items.length - tilesPerRow * 6}</Label>
-                  </View>
+                  </Pressable>
+                ) : null}
+
+                {/* 展开态末尾的「收起」。★ 必须给：一个 60 件的格位展开之后，
+                    用户得能折回去，否则这一格会把下面几格推到很远的屏幕外 */}
+                {expandedSlots.has(section.key) && section.items.length > tilesPerRow * 6 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`收起「${section.name}」`}
+                    onPress={() => toggleSlot(section.key)}
+                    style={({ pressed }) => [
+                      styles.tile,
+                      styles.tileMore,
+                      pressed && styles.tileMorePressed,
+                    ]}>
+                    <Label tone="ink3">收起</Label>
+                  </Pressable>
                 ) : null}
               </View>
             )}
@@ -224,7 +281,10 @@ const useStyles = makeStyles((Palette) => ({
   tileWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.md },
   tile: { width: TILE, gap: Space.xs },
   tileName: { fontSize: 11.5, textAlign: 'center' },
+  /* 与原来那枚纯展示的方块**逐字一致**（没有底色） —— 这轮只修「点不动」，
+     视觉不动。`tileMorePressed` 只在按住的那一瞬间出现，静止态看不出区别。 */
   tileMore: { height: TILE, alignItems: 'center', justifyContent: 'center' },
+  tileMorePressed: { backgroundColor: Palette.inset, borderRadius: Radius.input },
   footer: { paddingHorizontal: GUTTER, paddingTop: Space.xxxl, gap: Space.md },
   footerHint: { textAlign: 'center' },
 }));
