@@ -621,6 +621,31 @@ export async function countItems(): Promise<number> {
   return row?.c ?? 0;
 }
 
+/**
+ * 「这是你录进来的第几件」—— 海报编号用。
+ *
+ * ★ 计数**含回收站**（不过滤 `deleted_at`），与 `countItems` 刻意不同：
+ *   按在库数数的话，删掉一件会让后面所有编号往前窜，
+ *   用户会看到自己那张海报上的编号变了。编号是个纪念性的东西，不能漂。
+ * ★ 同毫秒录入的两条靠 `id <=` 兜底排序，否则它们的先后顺序每次查询都可能不同。
+ */
+export async function ordinalOf(id: string): Promise<number | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ created_at: number }>(
+    'SELECT created_at FROM items WHERE id = ?',
+    id,
+  );
+  if (!row) return null;
+  const counted = await db.getFirstAsync<{ c: number }>(
+    `SELECT COUNT(*) AS c FROM items
+     WHERE created_at < ? OR (created_at = ? AND id <= ?)`,
+    row.created_at,
+    row.created_at,
+    id,
+  );
+  return counted?.c ?? null;
+}
+
 export async function getStats(): Promise<ItemStats> {
   const db = await getDatabase();
   const on = today();

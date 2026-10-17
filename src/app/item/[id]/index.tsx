@@ -6,15 +6,17 @@
  * 混进去就会被淹没成一堆灰字里的一行。
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { PhotoStage, PhotoThumb } from '@/components/domain/media';
 import { PhotoViewer } from '@/components/domain/PhotoViewer';
 import { Button, FormRow, IconButton } from '@/components/ui/controls';
 import { Loading, PlainTag, StatusTag } from '@/components/ui/feedback';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
+import { SheetModal } from '@/components/ui/sheet-modal';
 import { Body, Display, Label, Meta, Num } from '@/components/ui/typography';
 import { GUTTER, Palette, Space } from '@/constants/theme';
 import { describeWarrantyTag, formatDateCN, isJustAcquired } from '@/lib/date';
@@ -48,6 +50,8 @@ export default function ItemDetailScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   /** 库存加减正在落库，用于挡住连点 */
   const [stockBusy, setStockBusy] = useState(false);
+  /** 顶栏「更多」面板：编辑、复制、删除收在这里 */
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const itemState = useAsyncData(() => getItemView(id), [id, dataVersion], null as ItemView | null);
   const photoState = useAsyncData(() => listPhotos(id), [id, dataVersion], [] as Photo[]);
@@ -138,6 +142,20 @@ export default function ItemDetailScreen() {
     );
   }
 
+  /* 分享升到顶栏第一位，编辑与删除收进「⋯」。
+     理由不是「四枚太挤」（详情页顶栏没有标题，装得下），而是语义：
+     分享是「给别人看」，删除是「毁掉它」，并排放在同一行容易误触。 */
+  const openShare = () => {
+    router.push({ pathname: '/share/poster', params: { ids: item.id } });
+  };
+
+  /* 关面板再执行动作：Android 上 Modal 与 Alert 同时出现会闪，
+     让面板先收起来，等一帧再弹确认框。 */
+  const later = (run: () => void) => {
+    setMoreOpen(false);
+    setTimeout(run, 240);
+  };
+
   const photos = photoState.data;
   const current = photos[Math.min(activePhoto, Math.max(photos.length - 1, 0))];
 
@@ -146,12 +164,8 @@ export default function ItemDetailScreen() {
       <View style={styles.topBar}>
         <IconButton icon="chevron-back" accessibilityLabel="返回" onPress={() => router.back()} />
         <View style={styles.topActions}>
-          <IconButton
-            icon="create-outline"
-            accessibilityLabel="编辑"
-            onPress={() => router.push({ pathname: '/item/[id]/edit', params: { id: item.id } })}
-          />
-          <IconButton icon="trash-outline" accessibilityLabel="删除" tone="ink3" onPress={onDelete} />
+          <IconButton icon="share-outline" accessibilityLabel="做成海报" tone="brand" onPress={openShare} />
+          <IconButton icon="ellipsis-horizontal" accessibilityLabel="更多" onPress={() => setMoreOpen(true)} />
         </View>
       </View>
 
@@ -434,7 +448,62 @@ export default function ItemDetailScreen() {
         onIndexChange={setActivePhoto}
         onSetCover={setCover}
       />
+
+      <SheetModal visible={moreOpen} onClose={() => setMoreOpen(false)}>
+        <View style={styles.morePanel}>
+          <MoreRow
+            icon="create-outline"
+            label="编辑"
+            onPress={() =>
+              later(() => router.push({ pathname: '/item/[id]/edit', params: { id: item.id } }))
+            }
+          />
+          <MoreRow
+            icon="copy-outline"
+            label="复制为新物品"
+            onPress={() =>
+              later(() => router.push({ pathname: '/item/[id]/duplicate', params: { id: item.id } }))
+            }
+          />
+          <MoreRow icon="trash-outline" label="移入回收站" danger last onPress={() => later(onDelete)} />
+        </View>
+      </SheetModal>
     </Screen>
+  );
+}
+
+/**
+ * 「更多」面板里的一行。
+ *
+ * 图标色分两档：普通动作走墨色，破坏性动作走 clay —— 与全 App 的语义色约定一致，
+ * 不做成整行红底：这一行不是主按钮，它只是「这里有个危险的东西」。
+ */
+function MoreRow({
+  icon,
+  label,
+  onPress,
+  danger,
+  last,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+  last?: boolean;
+}) {
+  const styles = useStyles();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      android_ripple={{ color: Palette.ripple }}
+      style={({ pressed }) => [styles.moreRow, last && styles.moreRowLast, pressed && styles.moreRowPressed]}>
+      <Ionicons name={icon} size={19} color={danger ? Palette.clay : Palette.ink} />
+      <Body color={danger ? Palette.clay : Palette.ink} style={styles.moreLabel}>
+        {label}
+      </Body>
+    </Pressable>
   );
 }
 
@@ -508,4 +577,17 @@ const useStyles = makeStyles((Palette) => ({
   photoHint: { marginTop: Space.sm },
   footer: { paddingHorizontal: GUTTER, paddingTop: Space.xxl, gap: 2 },
   actions: { paddingHorizontal: GUTTER, paddingTop: Space.lg },
+
+  morePanel: { paddingHorizontal: GUTTER, paddingTop: Space.sm },
+  moreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+    paddingVertical: Space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Palette.line,
+  },
+  moreRowLast: { borderBottomWidth: 0 },
+  moreRowPressed: { opacity: 0.6 },
+  moreLabel: { flex: 1, fontSize: 15 },
 }));

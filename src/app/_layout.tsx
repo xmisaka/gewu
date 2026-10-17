@@ -172,6 +172,13 @@ function AppShell() {
           name="batch/item"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
+        {/* 做成海报：从详情页、多选、统计页三处进来，都是「选几件东西、发出去、回原处」。
+            ★ 走 modal 不走普通压栈：它不该在返回栈里留一层 ——
+              用户发完海报按返回，应该直接回到那件物品。 */}
+        <Stack.Screen
+          name="share/poster"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
       </Stack>
 
       {/* 桌面小组件的快照同步。不画任何东西，只保证「数据/主题一变，

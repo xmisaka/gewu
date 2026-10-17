@@ -21,6 +21,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   View,
 } from 'react-native';
@@ -46,6 +47,7 @@ import {
 } from '@/components/ui/controls';
 import { EmptyState, LegendStrip, Loading, MetricStrip, UndoBar, type UndoAction } from '@/components/ui/feedback';
 import { Card, PageHeader, Screen } from '@/components/ui/layout';
+import { SheetModal } from '@/components/ui/sheet-modal';
 import { Body, Heading, Label, Meta } from '@/components/ui/typography';
 import { GUTTER, Palette, Radius, Space } from '@/constants/theme';
 import { describeRemaining } from '@/lib/date';
@@ -57,6 +59,7 @@ import {
   adjustQuantity,
   assignCategory,
   assignLocation,
+  getItemView,
   listItems,
   setManualOrder,
   setQuantity,
@@ -69,6 +72,7 @@ import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { useDebouncedSearch } from '@/lib/hooks/use-debounced-search';
 import { useTagLibrary } from '@/lib/hooks/use-tag-library';
 import { filterCabinets } from '@/lib/search';
+import { buildListText } from '@/lib/share/list-text';
 import { nextQuantity, stockLabel } from '@/lib/stock';
 import { applyTagTransform, removeTag, type TagTransform } from '@/lib/tags';
 import { useAppState } from '@/lib/store/app-state';
@@ -175,6 +179,10 @@ export default function ItemsScreen() {
   /** 多选模式：低摩擦录入的补偿机制，用于批量补分类 / 改位置 / 删除 */
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const selecting = selected.size > 0;
+  /** 多选「⋯」面板：做成海报、分享清单、全选、取消 */
+  const [moreOpen, setMoreOpen] = useState(false);
+  /** 生成清单文本 / 唤起分享面板的间隙，挡住连点 */
+  const [shareBusy, setShareBusy] = useState(false);
 
   /** 库存面板正对着的那件物品；null = 面板关着 */
   const [stockTarget, setStockTarget] = useState<StockSheetTarget | null>(null);
@@ -420,6 +428,37 @@ export default function ItemsScreen() {
     await softDeleteMany([...selected]);
     clearSelection();
     bump();
+  };
+
+  /**
+   * 多选「⋯」面板：分享类动作收在这里。
+   *
+   * ★ 为什么是溢出面板而不是第五枚工具条按钮：那条注释写在 selectionBar 上 ——
+   *   四枚动作 ＋「已选 N 件」在 360dp 上刚好放得下，多一个字就把「删除」挤出屏幕
+   *   （而挤出去不报错）。⋯ 只有图标不占文字宽度，是唯一挤得进去的东西。
+   * ★ 语义上也不该并排：那四枚全是「改这几件东西」，这两项是「把这几件说出去」。
+   */
+  const openPoster = () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setMoreOpen(false);
+    router.push({ pathname: '/share/poster', params: { ids: ids.join(',') } });
+  };
+
+  const shareSelectedList = async () => {
+    if (shareBusy) return;
+    setShareBusy(true);
+    setMoreOpen(false);
+    try {
+      const views = await Promise.all([...selected].map((id) => getItemView(id)));
+      const found = views.filter((v): v is ItemView => v != null);
+      const text = buildListText(found);
+      if (text) await Share.share({ message: text });
+    } catch {
+      Alert.alert('清单没发出去', '再试一次看看。');
+    } finally {
+      setShareBusy(false);
+    }
   };
 
   /**
@@ -848,7 +887,19 @@ export default function ItemsScreen() {
 
       {selecting ? (
         <View style={styles.selectionBar}>
-          <Body color={Palette.onAccent}>已选 {selected.size} 件</Body>
+          <View style={styles.selectionLead}>
+            <Body color={Palette.onAccent}>已选 {selected.size} 件</Body>
+            {/* ⋯ 只有图标，不占文字宽度 —— 这是它挤得进这条工具条的唯一原因 */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="更多分享方式"
+              disabled={shareBusy}
+              onPress={() => setMoreOpen(true)}
+              hitSlop={12}
+              style={({ pressed }) => [styles.moreBtn, pressed && styles.barActionPressed]}>
+              <Ionicons name="ellipsis-horizontal" size={16} color={Palette.onAccent} />
+            </Pressable>
+          </View>
           <View style={styles.selectionActions}>
             {/* 标签统一用两字：四枚动作 + 「已选 N 件」在 360dp 屏上刚好放得下，
                 多一个字就会把「删除」挤出屏幕（而挤出去是不报错的） */}
@@ -941,10 +992,85 @@ export default function ItemsScreen() {
       {/* 撤销条放在面板之后、且在面板关掉之前不会出现（见 closeStock） */}
       <UndoBar action={undo} onDismiss={() => setUndo(null)} />
 
+      {/* 多选「⋯」：分享类动作。四枚工具条一个字都不改，理由见 openPoster 的注释 */}
+      <SheetModal visible={moreOpen} onClose={() => setMoreOpen(false)}>
+        <View style={styles.morePanel}>
+          <Meta tone="ink3" style={styles.moreHint}>
+            已选 {selected.size} 件
+          </Meta>
+          <MoreRow
+            icon="images-outline"
+            label="做成海报"
+            sub="选模板，写一句话，发出去"
+            onPress={openPoster}
+          />
+          <MoreRow
+            icon="share-social-outline"
+            label="分享清单"
+            sub="纯文本，家人可以直接复制"
+            onPress={() => void shareSelectedList()}
+          />
+          <MoreRow
+            icon="checkmark-done-outline"
+            label="全选"
+            onPress={() => {
+              setSelected(new Set(items.map((i) => i.id)));
+              setMoreOpen(false);
+            }}
+          />
+          <MoreRow icon="close-outline" label="取消选择" last onPress={() => {
+            clearSelection();
+            setMoreOpen(false);
+          }} />
+        </View>
+      </SheetModal>
+
       {/* 免费档点「问一问」时的门控。文案与浮层复用与皮肤同一套，
           不为 AI 再写一个 —— 「哪个功能要支持者」这张表只有一处实现 */}
       <SupporterGateSheet visible={gateOpen} feature="aiPro" onClose={() => setGateOpen(false)} />
     </Screen>
+  );
+}
+
+/**
+ * 「⋯」面板里的一行。
+ *
+ * 比 BarAction 多一行说明：这个面板里是「不太常用、但不该藏起来」的动作，
+ * 名字本身不足以让人知道会发生什么（「分享清单」是图还是字？）。
+ */
+function MoreRow({
+  icon,
+  label,
+  sub,
+  onPress,
+  last,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  sub?: string;
+  onPress: () => void;
+  last?: boolean;
+}) {
+  const styles = useStyles();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      android_ripple={{ color: Palette.ripple }}
+      style={({ pressed }) => [styles.moreRow, last && styles.moreRowLast, pressed && styles.moreRowPressed]}>
+      <View style={styles.moreIcon}>
+        <Ionicons name={icon} size={17} color={Palette.brand} />
+      </View>
+      <View style={styles.moreText}>
+        <Body style={styles.moreLabel}>{label}</Body>
+        {sub ? (
+          <Meta tone="ink3" style={styles.moreSub}>
+            {sub}
+          </Meta>
+        ) : null}
+      </View>
+    </Pressable>
   );
 }
 
@@ -1075,6 +1201,8 @@ const useStyles = makeStyles((Palette) => ({
     backgroundColor: Palette.ink,
   },
   selectionActions: { flexDirection: 'row', alignItems: 'center', gap: Space.xs },
+  selectionLead: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  moreBtn: { paddingHorizontal: 2, paddingVertical: 2 },
   /* 批量操作的按钮做成文字工具条而不是实心按钮：四枚并排还要放下「已选 N 件」，
      实心按钮一撑就换行；这里只要可点、看得清即可 */
   barAction: {
@@ -1086,4 +1214,29 @@ const useStyles = makeStyles((Palette) => ({
   },
   barActionPressed: { opacity: 0.6 },
   barActionText: { fontWeight: '600' },
+
+  /* 「⋯」面板 */
+  morePanel: { paddingHorizontal: GUTTER, paddingTop: Space.xs },
+  moreHint: { paddingVertical: Space.sm, fontSize: 12 },
+  moreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+    paddingVertical: Space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Palette.line,
+  },
+  moreRowLast: { borderBottomWidth: 0 },
+  moreRowPressed: { opacity: 0.6 },
+  moreIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: Palette.brandBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreText: { flex: 1, minWidth: 0 },
+  moreLabel: { fontSize: 14.5 },
+  moreSub: { fontSize: 11.5, marginTop: 1 },
 }));

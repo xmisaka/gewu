@@ -118,6 +118,14 @@ export default function StatsScreen() {
     <Screen>
       <View style={styles.topBar}>
         <IconButton icon="chevron-back" accessibilityLabel="返回" onPress={() => router.back()} />
+        {/* 一页账海报的入口。统计页是全 App 唯一有这些数字的地方，
+            没有出口的话，用户看到「437 件」只能截图 —— 而截图带着状态栏。 */}
+        <IconButton
+          icon="share-outline"
+          accessibilityLabel="做成海报"
+          tone="brand"
+          onPress={() => router.push({ pathname: '/share/poster', params: { mode: 'stat' } })}
+        />
       </View>
       <PageHeader title="统计洞察" />
 
@@ -311,7 +319,14 @@ export default function StatsScreen() {
 }
 
 const useStyles = makeStyles((Palette) => ({
-  topBar: { flexDirection: 'row', alignItems: 'center', paddingLeft: Space.sm, paddingTop: Space.xs },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: Space.sm,
+    paddingRight: Space.sm,
+    paddingTop: Space.xs,
+  },
 
   /* 守卫页（未激活）：同 ai.tsx 的两件套 */
   lockedText: { lineHeight: 21 },

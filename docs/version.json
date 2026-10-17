@@ -1,13 +1,13 @@
 {
-  "versionCode": 32,
-  "versionName": "2.6.0",
-  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.6.0-arm64.apk",
-  "size": "47.91 MB",
+  "versionCode": 33,
+  "versionName": "2.7.0",
+  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.7.0-arm64.apk",
+  "size": "47.99 MB",
   "notes": [
-    "新增家庭财产清册（支持者档）：三种 A4 版式，一次出 PDF 和 HTML",
-    "单张识物和语音录入不用激活了：免费档在录入页直接就能用",
-    "免费档能存 150 件物品；到顶后已有的照样能查、能改、能删、能导出",
-    "界面文案统一精简了一遍：长句和破折号都去掉了"
+    "新增「做成海报」：物品详情页、多选、统计页三处都能出图",
+    "四套模板：素笺 / 陈列 / 一页账 / 暗房，点一下就换",
+    "海报上那句话可以自己改，也可以不要",
+    "多选加了「分享清单」：纯文本，家人能直接复制"
   ],
   "force": false
 }
