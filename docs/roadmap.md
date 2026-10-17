@@ -3564,3 +3564,46 @@ UI 侧统一走 `lib/hooks/use-quota.ts` 的 `useQuotaGuard()` ——
       → 2026-10-18 已改：2.6.0 / vc32 / 47.91 MB / 4 条 notes（三条权益 + 一条文案）。
 - [x] 本次**未提交 git**。发版动线要先提交推送，否则下一版 diff 没有基点。
       → 2026-10-18 `release: v2.6.0 / vc 32` 提交并推送。
+
+## 二十八、发版记录：v2.6.0 已对外（2026-10-18）
+
+动线照旧：提交推送 → 传 `downloads/`（ssh 验 md5）→ 改 `docs/version.json`（仓库那份）
+→ 改 `shared.py` 的 `CHANGELOG` + `rc.py` 的 `V` → 重跑生成器 → `deploy.py` → `check_deploy.py`
+→ 服务器侧 `--resolve` 验源站 + 外部视角验公网。**不发 GitHub Release。**
+
+| 项 | 值 |
+|---|---|
+| 提交 | `432b6fa release: v2.6.0 / vc 32 —— 家庭财产清册 · 免费档 150 件 · 文案精简一遍`（已推 `origin/main`） |
+| APK | `downloads/gewu-v2.6.0-arm64.apk` · 50,242,460 B · md5 **`52aa6e76…`**（与本地交付包逐字节一致） |
+| 历史包 | v2.1.0 → v2.5.1 共 **11 份**全部保留（合计 12 份） |
+| index.html | **`70930b81`**（== `design-final.html`） |
+| changelog.html | **`9ffdc7a5`**（**16 条**） |
+| version.json | **`10fce4a8`**（仓库 / 本目录 / 远端 / 公网四方一致） |
+| 根站「周周的生活」 | `6ccd1731` **未被动** |
+
+★ **`version.json` 首次上传后线上仍是旧值 `17586720`，`confirm_landed` 自动重传才对**
+—— 这一条已经是第 N 次复现，照例不是噪音。
+
+### 28.1 线上实测（服务器侧）
+
+- `/version.json` → `HTTP/2 200` ＋ **`cache-control: no-cache`** ＋ `last-modified` 是本次上传时刻
+- 清单内容：`2.6.0 / 32 / 47.91 MB`，**notes 4 条**（App 弹窗上限就是 4，未截断）
+- APK 直链 → `200` / `content-length: 50242460` / `application/octet-stream`
+- `check_deploy.py` **①–⑩ 全过**；⑧ 这次本机有 cv2，微信二维码载荷**真的解出来了**
+  （`https://u.wechat.com/EHVgw7ESh4m95vrk4uZFldA?s=3`），不是 `?`
+- 公网视角（WebFetch，带 `?cb=` 绕 15 分钟缓存）：页面显示 **v2.6.0 / versionCode 32 / 47.91 MB**，
+  权益表里「物品 150 件」「单张识物 · 语音录入」在免费栏、「家庭财产清册」在支持者档
+
+### 28.2 官网顺手改掉的两处过时话
+
+1. **「AI 默认关闭」** —— App 从 v2.5.0 起「AI 助手」总开关**默认打开**，
+   官网还写着默认关闭就是对不上。改成「**AI 不会自己联网**：不填 Key，它就等于不存在」
+   （真正拦住联网请求的一直是「有没有填 Key」）。隐私段那句同理改成
+   「唯一的例外：识物会上传一份 ≤1024px 的压缩副本，Key 是你自己的，不填就不联网」。
+2. **`meta description` 还停在「v2.2 有……七套主题」** —— 改成 v2.6，并补上「家庭财产清册」。
+
+### 28.3 待办
+
+- [ ] **真机复验**（六条清单在 `_build/安装说明-v2.6.0.txt`）。
+- [ ] 微信是否接受 `.html` 附件 —— 不接受就把清册的 HTML 入口改成「存到手机」。
+- [ ] 清册的 `shot`（官网权益表用的是 `16-stats` 那张）以后可以换成真实册子截图。
