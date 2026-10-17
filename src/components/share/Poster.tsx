@@ -22,7 +22,7 @@ import type { ReactNode } from 'react';
 import { Fonts } from '@/constants/theme';
 import { absoluteUri } from '@/lib/photos/pipeline';
 import { initialOf } from '@/lib/format';
-import { gridColumns, POSTER_SIZE, type PosterCell, type PosterModel } from '@/lib/share/model';
+import { GRID_METRICS, gridMetrics, type PosterCell, type PosterModel } from '@/lib/share/model';
 import type { PosterSkin } from '@/lib/share/templates';
 
 const SERIF = Fonts.serif;
@@ -211,13 +211,19 @@ function PlainPoster({
         <View style={{ width: 26, height: 1, backgroundColor: accent, marginTop: 22, marginBottom: 16 }} />
 
         {sub ? (
-          <TextLike font={metaFont} size={11} color={skin.ink2} spacing={1.8}>
+          <TextLike font={metaFont} size={11} color={skin.ink2} spacing={1.8} numberOfLines={2}>
             {sub}
           </TextLike>
         ) : null}
 
         {model.daysText ? (
-          <TextLike font={metaFont} size={10} color={skin.ink3} spacing={0.8} style={{ marginTop: 6 }}>
+          <TextLike
+            font={metaFont}
+            size={10}
+            color={skin.ink3}
+            spacing={0.8}
+            numberOfLines={1}
+            style={{ marginTop: 6 }}>
             {metaLine}
           </TextLike>
         ) : null}
@@ -249,12 +255,12 @@ function GridPoster({
   accent: string;
   onSettled?: () => void;
 }) {
-  const cols = gridColumns(model.cells.length);
-  const gap = 9;
-  const inner = POSTER_SIZE.width - skin.pad * 2;
-  const cellW = Math.floor((inner - gap * (cols - 1)) / cols);
   const titleFont = skin.titleFont === 'serif' ? SERIF : SANS;
   const metaFont = skin.metaFont === 'serif' ? SERIF : SANS;
+
+  /* 图格尺寸一律问 model —— 那里有断言守着「九件也不溢出画布」 */
+  const { cellW, img } = gridMetrics(model.cells.length, skin.pad);
+  const gap = GRID_METRICS.gap;
 
   return (
     <View style={{ flex: 1, backgroundColor: skin.paper, padding: skin.pad }}>
@@ -279,18 +285,24 @@ function GridPoster({
         </TextLike>
       </View>
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap, marginTop: 16 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap, marginTop: GRID_METRICS.gridTop }}>
         {model.cells.map((cell, i) => (
-          <View key={`${cell.name}-${i}`} style={{ width: cellW }}>
+          <View key={`${cell.name}-${i}`} style={{ width: cellW, alignItems: 'center' }}>
             <PhotoBox
               cell={cell}
               radius={3}
               bg={CELL_BG}
               ink={CELL_INK}
               onSettled={onSettled}
-              style={{ width: cellW, height: cellW }}
+              style={{ width: img, height: img }}
             />
-            <TextLike font={metaFont} size={9.5} color={skin.ink2} lineHeight={14} numberOfLines={1} style={{ marginTop: 5 }}>
+            <TextLike
+              font={metaFont}
+              size={9.5}
+              color={skin.ink2}
+              lineHeight={14}
+              numberOfLines={1}
+              style={{ marginTop: 5, maxWidth: cellW, textAlign: 'center' }}>
               {cell.name}
             </TextLike>
             {cell.note ? (
@@ -455,7 +467,7 @@ function FullPoster({
           {model.title}
         </TextLike>
         {model.location ? (
-          <TextLike font={metaFont} size={9} color={skin.ink2} spacing={2} style={{ marginTop: 10 }}>
+          <TextLike font={metaFont} size={9} color={skin.ink2} spacing={2} numberOfLines={1} style={{ marginTop: 10 }}>
             {model.location}
           </TextLike>
         ) : null}

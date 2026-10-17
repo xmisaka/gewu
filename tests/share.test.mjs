@@ -15,6 +15,8 @@ import assert from 'node:assert/strict';
 
 const {
   POSTER_MAX_CELLS,
+  POSTER_SIZE,
+  GRID_METRICS,
   formatOrdinal,
   formatDaysLine,
   formatPurchaseMonth,
@@ -24,6 +26,7 @@ const {
   multiTitle,
   multiSubtitle,
   gridColumns,
+  gridMetrics,
   overflowHint,
   buildSinglePoster,
   buildMultiPoster,
@@ -193,6 +196,38 @@ test('多件列数：1–4 两列，5–9 三列', () => {
   assert.equal(gridColumns(4), 2);
   assert.equal(gridColumns(5), 3);
   assert.equal(gridColumns(9), 3);
+});
+
+test('图格尺寸：1–9 件都不溢出画布，且图格随行数收缩', () => {
+  const pad = skinOf('chenlie').pad;
+  const { header, gridTop, footer, nameH, gap } = GRID_METRICS;
+
+  for (let n = 1; n <= POSTER_MAX_CELLS; n += 1) {
+    const m = gridMetrics(n, pad);
+    // 内容总高 = 图格区 + 页头 + 上间距 + 落款，必须装进画布
+    const total = m.blockH + header + gridTop + footer;
+    assert.ok(
+      total <= POSTER_SIZE.height - pad * 2,
+      `${n} 件时总高 ${total} 超过可用 ${POSTER_SIZE.height - pad * 2}`,
+    );
+    assert.ok(m.img >= GRID_METRICS.minImg, `${n} 件时图格太小：${m.img}`);
+    assert.ok(m.img <= m.cellW, `${n} 件时图格比列还宽`);
+    assert.equal(m.rows, Math.ceil(n / m.cols));
+  }
+
+  // 九件（三行）必须靠缩小图格才装得下；若有人改回「图格 = 列宽」，这里会红
+  const nine = gridMetrics(9, pad);
+  assert.ok(nine.img < nine.cellW, '九件时图格必须小于列宽，否则最后一行被切');
+
+  // 四件（两行）应当比九件宽松
+  assert.ok(gridMetrics(4, pad).img > nine.img);
+
+  // 交叉校验：三行图格 + 两处行距 + 三行文字，确实等于 blockH
+  assert.equal(
+    nine.blockH,
+    nine.img * 3 + nameH * 3 + gap * 2,
+    'blockH 的算式与渲染侧必须一致',
+  );
 });
 
 test('超过九件给提示，不缩图', () => {

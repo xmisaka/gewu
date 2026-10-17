@@ -304,6 +304,64 @@ export function gridColumns(count: number): 2 | 3 {
   return count <= 4 ? 2 : 3;
 }
 
+/* ------------------------------------------------------------ 图格尺寸 */
+
+/** 陈列模板的纵向开销（dp，360 × 450 基准）。改版式时这几个数要一起看 */
+export const GRID_METRICS = {
+  gap: 9,
+  /** 页头：小字 + 标题 + 间距 */
+  header: 47,
+  /** 网格与页头之间 */
+  gridTop: 16,
+  /** 落款 */
+  footer: 16,
+  /** 每格名称行（5 边距 + 14 行高） */
+  nameH: 19,
+  /** 图格边长下限。再小就认不出是什么东西了，宁可少放几件 */
+  minImg: 48,
+} as const;
+
+export interface GridLayout {
+  cols: 2 | 3;
+  rows: number;
+  /** 单格的横向槽宽（撑满版心，文字按它居中） */
+  cellW: number;
+  /** 图格边长。**按可用高度反算**，不等于 cellW */
+  img: number;
+  /** 整块网格的高，用于断言「没有溢出画布」 */
+  blockH: number;
+}
+
+/**
+ * 陈列模板的图格尺寸。
+ *
+ * ★★ 图格边长**不能直接等于列宽**。九件时三行 × (95 图 + 19 字) = 360，
+ *   加上页头与落款就超过 450 的画布 —— 超出部分被裁掉，而画布不会报错，
+ *   只是最后一行被切了一半，发出去才发现。
+ *   所以：可用高 ÷ 行数 − 每格文字高，取整；再用列宽封顶。
+ *
+ * 抽成纯函数是为了能在 Node 里断言「九件也不溢出」（见 tests/share.test.mjs）。
+ */
+export function gridMetrics(count: number, pad: number): GridLayout {
+  const { gap, header, gridTop, footer, nameH, minImg } = GRID_METRICS;
+  const cols = gridColumns(count);
+  const rows = Math.max(1, Math.ceil(count / cols));
+  const inner = POSTER_SIZE.width - pad * 2;
+  const cellW = Math.floor((inner - gap * (cols - 1)) / cols);
+
+  const availableV =
+    POSTER_SIZE.height - pad * 2 - header - gridTop - footer - gap * (rows - 1) - nameH * rows;
+  const img = Math.max(minImg, Math.min(cellW, Math.floor(availableV / rows)));
+
+  return {
+    cols,
+    rows,
+    cellW,
+    img,
+    blockH: img * rows + nameH * rows + gap * (rows - 1),
+  };
+}
+
 /** 超出上限时给用户的话。调用方决定怎么展示，模型只负责说清楚 */
 export function overflowHint(count: number): string | null {
   if (count <= POSTER_MAX_CELLS) return null;
