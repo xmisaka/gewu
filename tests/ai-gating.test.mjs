@@ -129,7 +129,9 @@ test('全量扫描：新页面若读 AI store 就必须挡总开关，或写进�
 });
 
 test('深链兜底页面：先挡档位、后挡总开关，顺序不能反', () => {
-  for (const rel of ['../src/app/ask.tsx', '../src/app/voice.tsx', '../src/app/batch.tsx']) {
+  /* ★ 这里**没有 `/voice`** —— 2026-10-17 起语音录入属于免费权益，
+     它只剩总开关那一道守卫（下面那条单独钉住）。 */
+  for (const rel of ['../src/app/ask.tsx', '../src/app/batch.tsx']) {
     const src = read(rel);
     const gate = src.indexOf('if (!entitled)');
     const off = src.indexOf('if (!aiEnabled)');
@@ -142,6 +144,61 @@ test('深链兜底页面：先挡档位、后挡总开关，顺序不能反', ()
     );
     assert.ok(src.includes('AiOffNotice'), `${rel} 应当走共用的 AiOffNotice，别各写一套`);
   }
+});
+
+test('★★ 语音录入页只剩总开关一道守卫 —— 档位判断不许再加回去', () => {
+  /*
+   * 2026-10-17 的划档：语音走系统识别器、不耗模型调用、不要 Key，
+   * 把它锁在付费墙后面是这道墙里最没道理的一格，所以放进了免费权益。
+   *
+   * ★ 这条断言守的是**方向的另一半**：以前这里断言「必须有档位守卫」，
+   *   现在必须反过来断言「没有档位守卫」。只删不补的话，下次谁把门控加回去
+   *   也不会有人发现 —— 而症状是「免费用户点了麦克风看到付费浮层」，
+   *   不报错、不崩，测别的也都绿。
+   */
+  const src = read('../src/app/voice.tsx');
+  assert.equal(
+    /if\s*\(\s*!entitled/.test(src),
+    false,
+    '语音录入页不该再有档位判断 —— 它属于免费权益，加了就是把人挡在一扇他已经有权进的门外',
+  );
+  assert.equal(
+    src.includes('SupporterGateSheet'),
+    false,
+    '语音录入页不该再挂门控浮层',
+  );
+  assert.ok(src.includes('if (!aiEnabled)'), '总开关那道守卫必须留着：它和识物、问答共用一个总闸');
+  assert.ok(src.includes('AiOffNotice'), '总开关关着时要走共用的 AiOffNotice');
+});
+
+test('★★ 录入页与首页：语音入口不再看档位，批量识图仍然看', () => {
+  /* 两处麦克风都要**无条件**跳 `/voice`。判据写反的代价：
+     免费用户点了麦克风毫无反应（或弹一层「支持者功能」），
+     而他其实有权用 —— 这种「明明写着免费却用不了」最难被自测发现。 */
+  const compose = read('../src/app/compose.tsx');
+  assert.equal(
+    /if\s*\(\s*!entitled\s*\)\s*\{?\s*setGateOpen\(true\)[\s\S]{0,80}voice/.test(compose),
+    false,
+    '录入页不该在语音入口上判档位',
+  );
+  assert.match(
+    compose,
+    /accessibilityLabel="语音录入"\s*\n?\s*onPress=\{\(\) => router\.push\('\/voice'\)\}/,
+    '录入页的语音按钮应当无条件跳 `/voice`',
+  );
+
+  const home = read('../src/app/(tabs)/index.tsx');
+  const openVoice = /const openVoice = useCallback\(([\s\S]{0,200}?)\[/.exec(home)?.[1] ?? '';
+  assert.ok(openVoice, '在首页找不到 openVoice');
+  assert.equal(
+    /entitled/.test(openVoice),
+    false,
+    '首页的语音入口不该看档位 —— 它已经属于免费权益',
+  );
+  assert.ok(
+    /router\.push\('\/voice'\)/.test(openVoice),
+    '首页的语音入口应当直接跳 `/voice`',
+  );
 });
 
 test('识物入口的判据只有一个来源：ItemForm 不自己读 AI store', () => {
@@ -169,8 +226,12 @@ test('设置页文案不得再声称「语音与总开关无关」', () => {
     !src.includes('与上面的总开关无关'),
     '那句话说反了：语音与识物、问答同属「智能录入」，共用一个总闸',
   );
+  /* ★ 锚点只钉「一起收起」这四个字，不钉整句：2026-10-17 文案精简把
+     「关闭后它们一起收起」改成了「管着四个入口。关掉后它们一起收起……」，
+     整句锚点会让**正常的文案编辑**红一次。这里要守的是口径（这个开关管着整族），
+     不是某个版本的措辞。 */
   assert.ok(
-    src.includes('关闭后它们一起收起'),
+    src.includes('一起收起'),
     '总开关下面那句说明是**对用户的承诺**，也是这套门控存在的理由；改文案前先确认口径没变',
   );
   /* ★ 2026-10-15：AI 一族的入口从三个（识物/问答/语音）变成四个，多出「批量识图」。

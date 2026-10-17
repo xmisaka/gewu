@@ -77,7 +77,7 @@ export function SortPickerModal({ visible, value, onClose, onPick }: SortPickerM
 
         <View style={styles.foot}>
           <Meta tone="ink3">
-            选这一档后，列表每行右侧会出现上下箭头，点一下就能换位；也可以在录入 / 编辑页手填排序值，越小越靠前。没填过排序值的物品统一排在最后。
+            每行右侧会出现上下箭头，点一下换位。没填过的排在最后。
           </Meta>
         </View>
       </View>

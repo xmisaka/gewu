@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import { ContactSection } from '@/components/domain/ContactSection';
+import { InventorySheet } from '@/components/domain/InventorySheet';
 import { LeadDaysSheet } from '@/components/domain/LeadDaysSheet';
 import { ThemePickerModal } from '@/components/domain/ThemePickerModal';
 import { Segmented, SettingRow } from '@/components/ui/controls';
@@ -93,7 +94,9 @@ export default function MineScreen() {
   const [leadOpen, setLeadOpen] = useState(false);
   /** 本机备份包发生变化（清理掉几份、或刚新生成一份）后 +1，用来让上面的 metaState 重取一次 */
   const [cacheTick, setCacheTick] = useState(0);
-  /** 被挡下的功能（null = 不显示门控浮层）。目前只有皮肤会走到这里 */
+  /** 家庭财产清册的配置弹层 */
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  /** 被挡下的功能（null = 不显示门控浮层）：皮肤、统计、清册，以及 AI 进阶的入口 */
   const [gateFeature, setGateFeature] = useState<SupporterFeature | null>(null);
   /** 用户在选择器里点到的那套皮肤，带进激活页，激活完就地生效 */
   const [gateTheme, setGateTheme] = useState<ThemeKey | null>(null);
@@ -195,9 +198,9 @@ export default function MineScreen() {
           outcome.fileName,
           `位置：${outcome.dirLabel}`,
           // 同一份包反复存会撞名，覆盖是刻意的：那里是「我的最新备份」，不是历史归档
-          '（同名的旧包会被这一份覆盖，那个文件夹里始终只有最新的一份）',
+          '同名旧包会被覆盖',
           '',
-          '★ 它还在这一台手机上 —— 手机丢了照样打不开。',
+          '只在这台手机上，丢了打不开。',
           '要真防丢，用上面那行「发送备份包」再发一份到微信或网盘。',
         ].join('\n'),
       );
@@ -243,7 +246,7 @@ export default function MineScreen() {
         `本机有 ${info.count} 份，共 ${formatBytes(info.bytes)}。`,
         '清理后只保留最新的一份。',
         '',
-        '这些是 App 缓存目录里的副本；已经发到微信或存进网盘的备份不受影响。',
+        '只清 App 缓存。已发出或存到网盘的备份不受影响。',
       ].join('\n'),
       [
         { text: '取消', style: 'cancel' },
@@ -346,7 +349,7 @@ export default function MineScreen() {
           `位置 ${w?.locations ?? 0} 个`,
           `照片 ${w?.photos ?? 0} 张（文件 ${w?.photoFiles ?? 0} 个）`,
           w && w.skipped > 0 ? `跳过已存在 ${w.skipped} 条` : '',
-          w && w.prunedFiles > 0 ? `顺带清掉 ${w.prunedFiles} 个没人引用的照片文件` : '',
+          w && w.prunedFiles > 0 ? `清掉 ${w.prunedFiles} 个无主照片` : '',
         ]
           .filter(Boolean)
           .join('\n'),
@@ -378,11 +381,11 @@ export default function MineScreen() {
   const backupDesc =
     backupDays == null
       ? stats.total > 0
-        ? `这 ${stats.total} 件物品还没有任何副本。手机丢了或误卸载，就一起没了。`
-        : '这块数据不联网、也没有云端副本。手机丢了或误卸载，几千件物品和照片会一起没。'
+        ? `这 ${stats.total} 件还没有副本，手机丢了就一起没了。`
+        : '数据只在这台手机里，没有云端副本。'
       : backupStale
-        ? `距上次备份已经 ${backupDays} 天，这期间录入和修改的东西都还没有副本。`
-        : '这块数据不联网、也没有云端副本。手机丢了或误卸载，几千件物品和照片会一起没。';
+        ? `距上次 ${backupDays} 天，期间的改动还没有副本。`
+        : '数据只在这台手机里，没有云端副本。';
 
   /* 自动备份的状态是**另一条**信息，不能并进上面那张卡：
      上面说的是「包有没有离开这台手机」（这才是防丢），
@@ -412,20 +415,17 @@ export default function MineScreen() {
   /** 「我的」页两处入口共用的无障碍名，跟着按钮文案走，别再手写一份 */
   const backupA11yLabel = canSaveToDevice() ? '立即备份到手机文件夹' : '立即生成备份包';
 
-  /* 「AI 助手」那一行右侧的状态。四种情形对用户的含义完全不同，
+  /* 「AI 助手」那一行右侧的状态。三种情形对用户的含义完全不同，
      所以不能笼统写成「可用 / 不可用」：
      ★ 「未配置」与「已关闭」必须分开 —— 前者要去填 Key，后者只要把开关打开，
        写成同一句话会让已经配好的人再去找一遍 Key。
      ★ 2026-10-15：总开关默认改成**开**，于是「已关闭」只可能是**主动关掉**的结果。
        它现在按**开关本身**判，不再按有没有 Key 判 —— 否则「关了开关又没填过 Key」
-       会被读成「未配置」，把人指去填 Key，而他真正要做的只是打开开关。 */
-  const aiRowValue = !entitled
-    ? '支持者功能'
-    : !aiEnabled
-      ? '已关闭'
-      : aiActive
-        ? '已开启'
-        : '未配置';
+       会被读成「未配置」，把人指去填 Key，而他真正要做的只是打开开关。
+     ★★ 2026-10-17：这一行**不再按档位判**。单张识物与语音录入放开到免费档之后，
+       免费用户也必须能进这一页填自己的 Key —— 否则「免费可用」在界面上无处落地，
+       唯一的效果是把人挡在一扇门外，而门里的功能他已经有权用了。 */
+  const aiRowValue = !aiEnabled ? '已关闭' : aiActive ? '已开启' : '未配置';
   const aiRowTone = aiActive ? 'brand' : 'ink3';
 
   /**
@@ -443,14 +443,14 @@ export default function MineScreen() {
     : !notify.ready
       ? '正在检查系统通知权限…'
       : notify.enabled && notify.permission !== 'granted'
-        ? '系统里没给通知权限：到系统「设置 → 应用 → 格物 → 通知」里打开'
+        ? '没给通知权限。到系统「设置 → 应用 → 格物 → 通知」打开'
         : !notify.active
-          ? '关闭后不会有任何通知；数据仍在这台手机里'
+          ? '关掉后不会提醒，数据不受影响'
           : notify.channelMuted
-            ? '系统里把「到期提醒」这个通知类别关掉了：到系统「设置 → 应用 → 格物 → 通知」里把它打开'
+            ? '「到期提醒」类别被关掉。到系统「设置 → 应用 → 格物 → 通知」打开'
             : notify.scheduledCount > 0
               ? `已排 ${notify.scheduledCount} 条${notifyNextText}`
-              : '暂时没有要提醒的 —— 有物品快到期时会自动排上';
+              : '暂时没有要到期的';
 
   return (
     <Screen>
@@ -504,6 +504,20 @@ export default function MineScreen() {
                 value={busy === 'export' ? '处理中…' : 'CSV'}
                 valueTone="ink3"
                 onPress={runExport}
+              />
+              {/* 清册紧跟在 CSV 之下：两个都是「把数据带走」，只是形态不同 ——
+                  CSV 拿去算，清册拿去打印。别再往首页或统计页加第二处入口。
+                  ★ 2026-10-17 起清册转为支持者功能：CSV 导出仍免费（「把数据带走」
+                    的最低成本那一档不能收费，那是用户自己的数据），
+                    清册卖的是版式与打印品相。未激活不藏行，弹门控浮层。 */}
+              <SettingRow
+                label="生成家庭财产清册"
+                value="PDF · HTML"
+                valueTone="ink3"
+                onPress={() => {
+                  if (entitled) setInventoryOpen(true);
+                  else setGateFeature('inventory');
+                }}
               />
               <SettingRow
                 label="导入备份"
@@ -578,15 +592,14 @@ export default function MineScreen() {
               />
               {/* AI 助手紧跟在「封面图源」后面：两行都是「填一个自己的 Key 换一项联网能力」，
                   摆在一起用户才容易理解它们的共同点 —— 都是你申请、格物不代管。
-                  免费档点它弹门控浮层（而不是藏掉），理由同 01 屏那枚星标。 */}
+                  ★ 2026-10-17：**不再拦免费档**。单张识物与语音录入已属于免费权益，
+                  而 Key 正是在这一页填的 —— 拦住等于让「免费可用」变成一句空话。
+                  收费的只剩批量识图与问一问，它们在自己的入口上挡（`aiPro`）。 */}
               <SettingRow
                 label="AI 助手"
                 value={aiRowValue}
                 valueTone={aiRowTone}
-                onPress={() => {
-                  if (entitled) router.push('/ai');
-                  else setGateFeature('ai');
-                }}
+                onPress={() => router.push('/ai')}
               />
               <SettingRow
                 label="回收站"
@@ -735,12 +748,12 @@ export default function MineScreen() {
             <Card tone="inset" style={styles.themeTip}>
               <Body tone="ink2" style={styles.warnText}>
                 {lightKeyLocked
-                  ? `你之前选的「${THEMES[preferredLightKey].name}」属于支持者功能，现在按「素笺」显示。激活之后它会自动回来，不用再选一次。`
+                  ? `你之前选的「${THEMES[preferredLightKey].name}」需支持者档，现按素笺显示。激活后自动恢复。`
                   : systemDark
-                    ? '系统当前是深色模式，六套浅色暂时不生效 —— 界面正用「玄夜」。关掉系统深色就能看到所选配色。'
+                    ? '系统是深色，正用「玄夜」。关掉系统深色就能看到。'
                     : entitled
-                      ? '六套浅色全都解锁了。系统切到深色时，界面会自动换成「玄夜」，不用另外设置。'
-                      : '「素笺」「靛青」「青瓷」免费；另外三套属于支持者功能。系统切到深色时，界面会自动换成「玄夜」，不用另外设置。'}
+                      ? '六套浅色全部解锁。系统深色时自动用「玄夜」。'
+                      : '素笺、靛青、青瓷免费，另三套需支持者档。'}
               </Body>
             </Card>
           </Gutter>
@@ -756,7 +769,7 @@ export default function MineScreen() {
                   排「去爱发电支持」之前：先了解再掏钱，比先撞上价格顺得多 */}
               <SettingRow
                 label={entitled ? '我的权益' : '支持者权益'}
-                value={entitled ? '皮肤 · AI · 统计洞察' : '免费档 vs 支持者档'}
+                value={entitled ? '皮肤 · AI 进阶 · 统计 · 清册' : '免费档 vs 支持者档'}
                 valueTone="ink3"
                 onPress={() => router.push('/pro')}
               />
@@ -815,8 +828,8 @@ export default function MineScreen() {
 
             <Meta tone="ink4" style={styles.supportNote}>
               {entitled
-                ? '激活码不绑设备、不限台数，换手机再粘一次即可，不需要联网。仅限本人使用，请勿外传。'
-                : '一次买断，免费档照旧 —— 收纳、到期、库存、照片、备份都不受影响。'}
+                ? '不绑设备、不限台数，换手机再粘一次即可。请勿外传。'
+                : '一次买断。免费档照旧：收纳、到期、库存、照片、备份都不受影响。'}
             </Meta>
           </Gutter>
         </SectionCard>
@@ -837,7 +850,7 @@ export default function MineScreen() {
               {/* 这两句必须同时出现，否则「AI 属于支持者档」看起来与「AI 不收费」自相矛盾：
                   门控的是功能入口，不是调用量；Key 始终是用户自己的，账记在他自己的账号上 */}
               <Meta tone="ink4" style={styles.aboutLine}>
-                支持者档包含 AI 功能入口；AI 的 Key 由你自己申请、调用量记在你自己的账号上，格物不代出 Key、也不按量收费。
+                AI 的 Key 由你自己申请，用量记在你自己的账号上。
               </Meta>
             </Card>
 
@@ -876,6 +889,8 @@ export default function MineScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <InventorySheet visible={inventoryOpen} onClose={() => setInventoryOpen(false)} />
 
       <ThemePickerModal
         visible={themeOpen}

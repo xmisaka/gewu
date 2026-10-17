@@ -11,13 +11,19 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 
 import {
   checkActivation,
+  checkNewItems,
   entitlementFromCode,
+  FREE_BASELINE,
   FREE_ENTITLEMENT,
+  FREE_ITEM_LIMIT,
+  isQuotaFull,
   isThemeLocked,
+  itemLimit,
+  quotaLeft,
   SUPPORTER_FEATURES,
   SUPPORTER_THEME_KEYS,
 } from '../src/lib/entitlement.ts';
@@ -183,12 +189,12 @@ test('公钥为空串时一律拒绝，且原因是 key（这条与仓库是否�
 
 /* ==================== 4. 门控表 ==================== */
 
-test('三处功能都有门控文案，且都写明了「免费档没有被拿掉什么」', () => {
+test('四处功能都有门控文案，且都写明了「免费档没有被拿掉什么」', () => {
   /*
    * 注意：本文件是 .mjs，`--experimental-strip-types` 只处理 .ts ——
    * 这里写 `as const` / `as readonly string[]` 会直接 SyntaxError（不是类型报错，是解析失败）。
    */
-  for (const key of ['theme', 'ai', 'stats']) {
+  for (const key of ['theme', 'aiPro', 'stats', 'inventory']) {
     const copy = SUPPORTER_FEATURES[key];
     assert.ok(copy, `${key} 缺文案`);
     assert.equal(copy.sheetTitle, '支持者功能');
@@ -198,6 +204,86 @@ test('三处功能都有门控文案，且都写明了「免费档没有被拿�
       `${key} 的正文没有交代免费档的处境 —— 这是没有商店背书时最该讲清的一句`,
     );
   }
+});
+
+test('★★ 门控表的键必须恰好是这四项 —— 多一个少一个都是产物与文案对不上', () => {
+  /* 2026-10-17 重新划档：`'ai'` 拆成 `'aiPro'`（只含批量识图与问一问），
+     新增 `'inventory'`（家庭财产清册从免费转为收费）。
+     键名是四处文案（entitlement / ai.tsx / pro.tsx / 官网）共同的锚，改这里就要连带改那四处。 */
+  assert.deepEqual(
+    Object.keys(SUPPORTER_FEATURES),
+    ['theme', 'aiPro', 'stats', 'inventory'],
+    '门控表的项变了 —— 记得同步 app/ai.tsx、app/pro.tsx、官网 rc.py 与 shared.py 的文案',
+  );
+  assert.equal(
+    Object.keys(SUPPORTER_FEATURES).includes('ai'),
+    false,
+    "`'ai'` 这个键必须彻底删掉：它看起来仍像「整个 AI 一族」，留着的代价是" +
+      ' 有人照着它把门控加回单张识物或语音录入',
+  );
+});
+
+/* ==================== 4.5 免费档件数上限 ==================== */
+
+test('★★ 免费档件数上限是 150，且支持者档不限', () => {
+  assert.equal(FREE_ITEM_LIMIT, 150, '件数上限被改了 —— 官网、说明页与这行注释要一起改');
+  assert.equal(itemLimit(true), null, '支持者档必须不限件数，返回 null 而不是 Infinity');
+  assert.equal(itemLimit(false), 150);
+});
+
+test('★★ 配额换算：剩余件数夹在 0 以上，超额也不能是负数', () => {
+  assert.equal(quotaLeft(0, false), 150);
+  assert.equal(quotaLeft(149, false), 1);
+  assert.equal(quotaLeft(150, false), 0);
+  assert.equal(quotaLeft(200, false), 0, '老用户超额时剩余必须是 0，不能是 -50');
+  assert.equal(quotaLeft(999, true), null, '支持者档没有「剩几件」这回事');
+
+  assert.equal(isQuotaFull(149, false), false);
+  assert.equal(isQuotaFull(150, false), true);
+  assert.equal(isQuotaFull(151, false), true, '定额以上一律算满 —— 只挡新增，不动存量');
+  assert.equal(isQuotaFull(999, true), false);
+});
+
+test('★★ 按「整批」判：剩 3 件时选 9 张必须整批挡住，不能放进去 3 件', () => {
+  /* 半推半就地存一半是最糟的结果：界面报「已保存 9 件」，列表里只多了 3 件，
+     剩下 6 条还挂在待存列表里 —— 没有任何线索能让人看出发生了什么。 */
+  assert.equal(checkNewItems(147, 3, false).ok, true, '刚好放得下就该放行');
+  const blocked = checkNewItems(147, 9, false);
+  assert.equal(blocked.ok, false, '放不下要整批挡住');
+  assert.equal(blocked.left, 3);
+  assert.ok(blocked.message, '挡住时必须给出一句话，否则用户只看到按钮没反应');
+  assert.match(blocked.message, /150/, '这句话里要出现上限数字，不然用户不知道到底是多少');
+  assert.match(
+    blocked.message,
+    /照旧|不受影响/,
+    '必须先讲「已记下的照旧能用」—— 用户第一反应是「我的东西会不会被锁 / 被删」，而这里都不会',
+  );
+
+  assert.equal(checkNewItems(500, 9, true).ok, true, '支持者档超额也照旧能记新的');
+  assert.equal(checkNewItems(0, 1, false).ok, true);
+  assert.equal(checkNewItems(0, 1, false).message, null, '放行时不该带提示语');
+});
+
+test('★ 免费档基准清单里写清了件数、且含放开后的识物与语音', () => {
+  /* 这一栏是「免费档是完整版」的证据。件数上限与「单张识物 · 语音录入」
+     是 2026-10-17 这一版的核心变化，两样都不能只活在代码里。 */
+  assert.ok(
+    FREE_BASELINE.some((line) => line.includes(String(FREE_ITEM_LIMIT))),
+    `免费档基准清单没写件数上限 —— 用户在最该知道的地方看不到 ${FREE_ITEM_LIMIT} 这个数`,
+  );
+  assert.ok(
+    FREE_BASELINE.some((line) => line.includes('识别') || line.includes('识物')),
+    '免费档基准清单漏了识物',
+  );
+  assert.ok(
+    FREE_BASELINE.some((line) => line.includes('语音')),
+    '语音录入已经放开到免费档，基准清单里必须有它',
+  );
+  assert.equal(
+    FREE_BASELINE.some((line) => line.includes('清册')),
+    false,
+    '清册已转为支持者功能，不能出现在免费档基准清单里',
+  );
 });
 
 test('★ 锁的恰好是那三套会员色，免费三套都不在其中', () => {
@@ -240,6 +326,91 @@ test('★★ 玄夜永远不被锁：它不是权益，是系统深色时的接�
     '把玄夜列进门控表 = 深色模式用户没有主题可用，那是坏掉的功能而不是权益',
   );
   assert.equal(isThemeLocked(DARK_THEME_KEY, false), false);
+});
+
+/* ==================== 5. 件数闸门真的接到了四条规定上 ==================== */
+
+/**
+ * 递归收集 `src/` 下的 .ts/.tsx 相对路径。
+ * 这份测试要扫调用点，不能只 import 纯逻辑 —— 那些页面都装了 react-native。
+ */
+function walkSource() {
+  const out = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(new URL(`../${dir}`, import.meta.url))) {
+      const rel = `${dir}/${entry}`;
+      if (statSync(new URL(`../${rel}`, import.meta.url)).isDirectory()) walk(rel);
+      else if (/\.tsx?$/.test(entry)) out.push(rel);
+    }
+  };
+  walk('src');
+  return out;
+}
+
+test('★★★ 每一条「新增物品」的路径都过了件数闸门（漏一处就是一道免费绕道）', () => {
+  /*
+   * 免费档 150 件的闸门只在**新增**这一侧。新增物品的路径有四条：
+   *   录入页 · 批量识图 · 语音录入 · 复制一件
+   * 每一条都得先问一次 `useQuotaGuard()`。
+   *
+   * ★ 这条是全量扫描而不是逐个文件点名：以后再加第五个「新建」入口时，
+   *   漏挂闸门不会报错，只会让那一条路永远不限额 —— 而没有任何人会去测
+   *   「我明明记满 150 件了，为什么这里还能存进去」。
+   * ★ 排除 `lib/db/`（`createItem` 的实现本身）与备份恢复（走 `insertRaw`，
+   *   那是用户把自己已有的数据搬回来，不该被上限挡住）。
+   * ★★ 判据是 **`useQuotaGuard()`（带括号，真的调了一次）**，不是 `useQuotaGuard`：
+   *   只查名字的话，`import { useQuotaGuard } from '…'` 那一行就能让它通过 ——
+   *   变异验证时当场抓到过这种假绿（把调用和闸门整段删掉，断言照样全绿）。
+   */
+  const CALL = /\bcreateItemsBatch\(|\bcreateItem\(/;
+  const offenders = [];
+  let checked = 0;
+  for (const rel of walkSource()) {
+    if (rel.startsWith('src/lib/db/')) continue;
+    const src = readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
+    if (!CALL.test(src)) continue;
+    checked += 1;
+    if (!src.includes('useQuotaGuard()')) offenders.push(rel);
+  }
+
+  assert.ok(checked >= 4, `只扫到 ${checked} 个新增入口，路径大概率写错了`);
+  assert.deepEqual(
+    offenders,
+    [],
+    `这些文件会新增物品却没挂件数闸门：${offenders.join(', ')}`,
+  );
+});
+
+test('★ 闸门判「这一次要存几件」，不是「满了没有」', () => {
+  /* 单件路径传 1、批量路径传 `picked.length`。写成「满了没有」时，
+     剩 3 件额度选 9 张会被放进去 3 件 —— 界面报「已保存 9 件」，列表只多 3 条。 */
+  const batch = readFileSync(new URL('../src/app/batch.tsx', import.meta.url), 'utf8');
+  assert.match(
+    batch,
+    /quotaGuard\(picked\.length\)/,
+    '批量页应当把「这次要存的件数」交给闸门，而不是传 1 或先判满没满',
+  );
+  const compose = readFileSync(new URL('../src/app/compose.tsx', import.meta.url), 'utf8');
+  assert.match(compose, /await quotaGuard\(1\)/, '录入页一次只存一件，传 1');
+});
+
+test('★★ 判满之后只提示、不抛错 —— 表单外面没有 catch', () => {
+  /* `ItemForm` 里是裸的 `await onSubmit(...)`。闸门抛异常＝一条未处理异常：
+     用户看不到任何解释，表单停在原地，看起来像「点了保存没反应」。
+     批量页停在 review 并把话说在列表下方，录入页走弹窗。 */
+  for (const rel of ['src/app/compose.tsx', 'src/app/item/[id]/duplicate.tsx']) {
+    const src = readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
+    assert.match(
+      src,
+      /if \(!quota\.ok\) \{[\s\S]{0,200}return;/,
+      `${rel} 判满之后应当直接 return，不能 throw`,
+    );
+    assert.equal(
+      /throw new .*[Qq]uota|throw new Error\('记满/.test(src),
+      false,
+      `${rel} 不要为配额抛异常`,
+    );
+  }
 });
 
 test('门控表覆盖的键都在真实主题列表里（防手滑写错一个不存在的主题名）', () => {

@@ -88,14 +88,13 @@ export function ThemePickerModal({
               否则他上次明明选的是靛青，这次进来看到素笺，只会当成 bug */}
           {lightKeyLocked ? (
             <Meta tone="ink3">
-              {`你之前选的「${THEMES[preferredLightKey].name}」属于支持者功能，现在按「素笺」显示。
-              激活之后它会自动回来，不用再选一次。`}
+              {`你之前选的「${THEMES[preferredLightKey].name}」需支持者档，现按素笺显示。激活后自动恢复。`}
             </Meta>
           ) : (
             <Meta tone="ink3">
               {systemDark
-                ? '系统当前是深色模式，界面正用「玄夜」，上面六套暂时看不到效果；关掉系统深色即可。这个选择已经记住了。'
-                : '深色档跟随系统：系统切到深色时界面自动换成「玄夜」，这里的浅色选择会留着 —— 白天切回来还是这套。'}
+                ? '系统是深色，六套暂时看不到效果。选择已记住。'
+                : '深色档跟随系统，白天会切回你选的这套。'}
             </Meta>
           )}
         </View>

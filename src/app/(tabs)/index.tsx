@@ -226,9 +226,10 @@ export default function ItemsScreen() {
    *   ① 总开关关着 → 两格**根本不渲染**（见下方 SearchField 的 right）。
    *      「关掉开关等于这条链路不存在」是设置页对用户的承诺，
    *      关掉之后界面上还留着图标，这句承诺就是假的。
-   *   ② 开关开着但没激活支持者档 → 渲染，点下去弹门控浮层。
+   *   ② 开关开着、点的是**星标（问一问）**、又没激活支持者档 → 渲染，点下去弹门控浮层。
    *      不做成「灰按钮」也不藏掉：用户需要知道这是什么、少花了哪一档钱。
-   *      免费档的录入、到期、库存、照片与备份不受影响，一个不少。
+   *      免费档的录入、到期、库存、照片与备份不受影响（只封顶 150 件）。
+   *      ★ 麦克风（语音录入）不走这一道 —— 2026-10-17 起它属于免费权益，见下面的补记。
    *
    * ★ 2026-10-15：总开关默认从「关」翻成「开」（见 `lib/ai/config.ts`
    *   的 `saveAiEnabled`）。原来自带一个查不出来的死结 —— 设置页对未激活档
@@ -236,11 +237,10 @@ export default function ItemsScreen() {
    *   这两格**从来不渲染**，谁都没见过这功能存在过。
    *   现在免费档也看得见、点下去弹门控浮层；只有已激活的人关得掉它。
    *
-   * ★ 2026-10-09：语音从「免费」改为支持者功能。原来的理由 ——
-   *   「不联网、不要 Key、不申请权限，锁它等于给『记东西』本身加门槛」——
-   *   技术上仍然成立（这条链路确实零成本），改的是**产品定位**：
-   *   语音与识物、问一问同属「智能录入」，一档解锁；因此它们也同属一个总开关，
-   *   被一起收起或一起放出。要回退只需把这里的判据换回单个布尔，其余不用动。
+   * ★ 2026-10-17：语音回到免费档。上一版把它并进「智能录入」一档解锁，
+   *   但这条链路零成本、不要 Key、走系统识别 —— 锁它是这道墙里最没道理的一格。
+   *   于是**两格的档位判断现在不一样了**：星标（问一问）未激活弹门控，
+   *   麦克风（语音）直接进。别为了「统一」把语音的门控加回来。
    *
    * 两个都写成字面量路由（而不是一个接 path 参数的通用函数）：
    * 传变量的形式过不了 expo-router 的 typed routes。
@@ -253,13 +253,10 @@ export default function ItemsScreen() {
     router.push('/ask');
   }, [entitled, router]);
 
+  /* 语音不再看档位 —— 只受上面第 ① 道（总开关）约束 */
   const openVoice = useCallback(() => {
-    if (!entitled) {
-      setGateOpen(true);
-      return;
-    }
     router.push('/voice');
-  }, [entitled, router]);
+  }, [router]);
 
   // 排序方式记在库里，下次进来还是上次那档。读失败就安静地用默认值。
   useEffect(() => {
@@ -784,7 +781,7 @@ export default function ItemsScreen() {
                   <EmptyState
                     icon="cube-outline"
                     title="还没有登记任何物品"
-                    description="从最想找得到的那件开始，比如充电线、备用钥匙、药箱。"
+                    description="从最想找得到的那件开始。"
                     actionLabel="录入第一件"
                     onAction={() => router.push('/compose')}
                   />
@@ -826,7 +823,7 @@ export default function ItemsScreen() {
               <EmptyState
                 icon="grid-outline"
                 title="还没有登记柜子"
-                description="先建一个柜子，再往里加格位。物品可以只挂到柜子，也可以精确到某一格。"
+                description="先建柜子，再加格位。物品可挂在柜子或格位上。"
                 actionLabel="新建柜子"
                 onAction={() => router.push('/cabinet/new')}
               />
@@ -946,7 +943,7 @@ export default function ItemsScreen() {
 
       {/* 免费档点「问一问」时的门控。文案与浮层复用与皮肤同一套，
           不为 AI 再写一个 —— 「哪个功能要支持者」这张表只有一处实现 */}
-      <SupporterGateSheet visible={gateOpen} feature="ai" onClose={() => setGateOpen(false)} />
+      <SupporterGateSheet visible={gateOpen} feature="aiPro" onClose={() => setGateOpen(false)} />
     </Screen>
   );
 }

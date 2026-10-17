@@ -39,33 +39,34 @@ import { useEntitlement } from '@/lib/store/entitlement';
 import { makeStyles } from '@/lib/theme';
 
 /**
- * 三项权益的展示顺序。
+ * 四项权益的展示顺序。
  *
  * 皮肤在前是刻意的：它是一眼看懂的（六个色块摆在那儿），
  * 先给一个「我立刻能感受到」的东西，后面两项才有耐心读。
  * AI 居中，因为它是最值钱也最需要解释的一项 —— 夹在中间正好。
  *
  * ★ 这个列表必须与 `SUPPORTER_FEATURES` 的键集合完全一致，
- *   以后加了第四项权益而这里忘了加，界面上就会**静默**少一项。
+ *   以后加了第五项权益而这里忘了加，界面上就会**静默**少一项。
  *   由 `tests/pro-page.test.mjs` 钉住。
  */
-const FEATURE_ORDER: readonly SupporterFeature[] = ['theme', 'ai', 'stats'];
+const FEATURE_ORDER: readonly SupporterFeature[] = ['theme', 'aiPro', 'stats', 'inventory'];
 
 /** 已解锁清单右侧的一句短提示。只在这张清单里用，不搬去别处 */
 const UNLOCKED_HINT: Record<SupporterFeature, string> = {
   theme: '六套浅色',
-  ai: '识物 / 批量 / 问答 / 语音',
+  aiPro: '批量识图 / 问一问',
   stats: '五项指标',
+  inventory: '三套版式',
 };
 
 /**
- * 权益对比表里「AI 功能」那一行的四个子项。
+ * 权益对比表里「AI 进阶」那一行的子项（2026-10-17 起只剩批量识图与问一问）。
  *
- * ★ 与 `SUPPORTER_FEATURES.ai.proSide`（三项详解卡里那行）讲的是同一件事 ——
+ * ★ 与 `SUPPORTER_FEATURES.aiPro.proSide`（四项详解卡里那行）讲的是同一件事 ——
  *   两处都在列举 AI 到底有哪几个入口，改一处必须同时看另一处，
  *   否则对比表里少一个「批量识图」而明细卡里有，而且不报错。
  */
-const AI_ENTRY_HINT = '识物 · 批量识图 · 问答 · 语音';
+const AI_ENTRY_HINT = '批量识图 · 问一问';
 
 export default function ProScreen() {
   const styles = useStyles();
@@ -172,17 +173,23 @@ function PitchView() {
               </Label>
               <View style={styles.colRow}>
                 <Ionicons name="checkmark" size={12} color={Palette.sage} />
-                <Meta style={styles.colText}>以上全部照旧</Meta>
+                <Meta style={styles.colText}>左栏全都照旧</Meta>
+              </View>
+              <View style={styles.colRow}>
+                <Ionicons name="checkmark" size={12} color={Palette.sage} />
+                <Meta style={styles.colText}>物品不限件数</Meta>
               </View>
               {FEATURE_ORDER.map((key) => (
                 <View key={key} style={styles.colRow}>
                   <Ionicons name="add" size={12} color={Palette.brand} />
                   <View style={styles.colStack}>
                     <Meta color={Palette.brand}>{SUPPORTER_FEATURES[key].name}</Meta>
-                    {/* ★ AI 那一行把四个入口摊开写在对比表里：只写「AI 功能」四个字，
+                    {/* ★ AI 进阶那一项把收费的两个入口摊开写在对比表里：只写「AI 功能」四个字，
                         用户看不出「批量识图」也在里面 —— 对比表是决策的地方，
-                        这里少一项，就等于那一项不存在 */}
-                    {key === 'ai' ? (
+                        这里少一项，就等于那一项不存在。
+                        ★ 2026-10-17 起只剩批量识图与问一问：单张识物、语音录入已放开到免费档，
+                          子项里不许再把它们算进收费范围。 */}
+                    {key === 'aiPro' ? (
                       <Meta tone="ink4" style={styles.colSub}>
                         {AI_ENTRY_HINT}
                       </Meta>
@@ -194,13 +201,13 @@ function PitchView() {
           </View>
 
           <Meta tone="ink4" style={styles.compareNote}>
-            免费档功能一个不少 —— 收纳、到期提醒、库存、照片、备份恢复全部照旧。
+            免费档除物品件数封顶外，功能一样不少。到顶后仍可查、改、删、导出、备份。
           </Meta>
         </Gutter>
       </SectionCard>
 
       {/* 段 3 · 三项详解。每项统一结构：它是什么 → 免费档什么体验 → 支持者档多什么 */}
-      <SectionCard title="支持者档多出这三样">
+      <SectionCard title="支持者档多出这几样">
         <Gutter>
           <View style={styles.features}>
             {FEATURE_ORDER.map((key, index) => {
@@ -225,9 +232,9 @@ function PitchView() {
                   {/* ★ AI 这一张必须把「Key 是你自己的、不按量收费」与
                       「支持者档包含 AI」**同屏**写出来。分开写，用户只会看到前一句，
                       然后把后一句读成「我付了钱还得自己掏 API 费」 */}
-                  {key === 'ai' ? (
+                  {key === 'aiPro' ? (
                     <Meta tone="ink4" style={styles.featureNote}>
-                      Key 由你自己申请，调用量记在你自己的账号上 —— 格物不代出 Key，也不按量收费。
+                      Key 由你自己申请，用量记在你账号上。格物不代出，也不抽成。
                     </Meta>
                   ) : null}
 
@@ -351,8 +358,8 @@ function UnlockedView({ issuedOn }: { issuedOn: string | null }) {
       <Gutter>
         <Meta tone="ink4" style={styles.tailNote}>
           {issuedOn
-            ? `换机时把这串码再粘一次即可，不需要联网登记。「支持者状态」页里有完整激活码，签发于 ${formatDateCN(issuedOn)}。`
-            : '换机时把这串码再粘一次即可，不需要联网登记。「支持者状态」页里有完整激活码与找回办法。'}
+            ? `换手机再粘一次即可，不用联网。签发于 ${formatDateCN(issuedOn)}。`
+            : '换手机再粘一次即可，不用联网。完整码在「支持者状态」页。'}
         </Meta>
         <Pressable
           accessibilityRole="button"

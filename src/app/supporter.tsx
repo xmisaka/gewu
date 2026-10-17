@@ -92,7 +92,7 @@ export default function SupporterScreen() {
       ) : (
         <PageHeader
           title="支持者状态"
-          subtitle="不绑设备、不限台数，换手机把同一串码再粘一次即可。仅限本人使用，请勿外传。"
+          subtitle="不绑设备、不限台数，换手机再粘一次即可。"
         />
       )}
 
@@ -166,11 +166,10 @@ export default function SupporterScreen() {
                   </Card>
 
                   <Meta tone="ink4" style={styles.afterNote}>
-                    验签在本机完成，不上传任何东西，也不需要联网。支持者皮肤、统计洞察，
-                    以及 AI 那四个入口（拍照识物 / 批量识图 / 问一问 / 语音录入）现在都已解锁。
+                    验签在本机完成，不联网。皮肤、AI 进阶、统计洞察、清册、不限件数都已解锁。
                   </Meta>
                   <Meta color={Palette.clay} style={styles.afterNote}>
-                    这串码只属于你：请勿发到群里、论坛或二手平台。码内嵌有你的订单标识，一旦流出可以追溯到来源。
+                    只属于你，别发到群里或二手平台。码里有你的订单标识。
                   </Meta>
                 </Gutter>
               </SectionCard>
@@ -178,7 +177,7 @@ export default function SupporterScreen() {
               <>
                 <Gutter>
                   <Meta tone="ink4" style={styles.lead}>
-                    {`激活码里有签发日期与一个订单标识，不含姓名、手机号，也不含任何设备或硬件信息 —— 正因为它带着你的订单标识，请只自己使用，不要外传。`}
+                    {`码里有签发日期和订单标识，不含姓名、手机号和设备信息。请只自己使用，不要外传。`}
                   </Meta>
                 </Gutter>
 
@@ -327,12 +326,10 @@ export default function SupporterScreen() {
                 </Card>
 
                 <Meta tone="ink4" style={styles.afterNote}>
-                  建议把这串码存进微信文件传输助手或网盘 —— 格物没有服务器，
-                  聊天记录一清、手机一丢，就只剩这一份了。
+                  把码存进微信或网盘。格物没有服务器，手机一丢就找不回。
                 </Meta>
                 <Meta color={Palette.clay} style={styles.afterNote}>
-                  存的时候只发给你自己：请勿发到群里、论坛或二手平台。码内嵌有你的订单标识，外传可追溯到来源；
-                  一经发现滥用，该码会被作废，后续版本与换机都不再支持。
+                  码里有你的订单标识，外传可追溯；滥用会被作废。
                 </Meta>
               </Gutter>
             </SectionCard>

@@ -26,6 +26,7 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
+import { Alert } from 'react-native';
 
 import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import {
@@ -49,6 +50,7 @@ import { createItem } from '@/lib/db/items';
 import { listCabinetViews, lastUsedLocationId } from '@/lib/db/locations';
 import { addPhoto, promotePhoto } from '@/lib/db/photos';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
+import { useQuotaGuard } from '@/lib/hooks/use-quota';
 import { captureWithCamera, ingestMany, photoUri, pickFromLibrary } from '@/lib/photos/pipeline';
 import { useAi } from '@/lib/store/ai';
 import { useAppState } from '@/lib/store/app-state';
@@ -86,11 +88,12 @@ export default function ComposeScreen() {
    *   那是把用户的动作吃掉了，而且不报错。
    */
   const [sessionLocationId, setSessionLocationId] = useState<string | null | undefined>(undefined);
-  /** 免费档点识物或语音时弹的门控浮层 */
+  /** 点「批量识图」时弹的门控浮层（单张识物与语音录入已免费，不再走这里） */
   const [gateOpen, setGateOpen] = useState(false);
 
   const { entitled } = useEntitlement();
   const { active: aiActive, enabled: aiEnabled, record, supportsVision } = useAi();
+  const quotaGuard = useQuotaGuard();
 
   /* 识物要求「这家供应商能看图」。DeepSeek 的纯文本模型看不了 ——
      选了它却还摆着识物按钮，用户点下去只会拿到一个模型侧的报错。
@@ -124,10 +127,8 @@ export default function ComposeScreen() {
       /** 诊断用：这条链路上「图多大、花了多久」是排障时最先要看的两个数 */
       const t0 = Date.now();
 
-      if (!entitled) {
-        setGateOpen(true);
-        return null;
-      }
+      /* ★ 2026-10-17 起单张识物放开到免费档：这里只看「开关开没开」和「有没有 Key」，
+         档位判断已经删掉。批量识图仍然收费，但它的判断在下面那颗按钮上，与这个函数无关。 */
       if (!aiActive) {
         /*
          * 「开关没开」与「Key 没填」要分开说 —— 两件事用户要做的不一样。
@@ -191,7 +192,7 @@ export default function ComposeScreen() {
         };
       }
     },
-    [entitled, aiActive, aiEnabled, record, categoryNames],
+    [aiActive, aiEnabled, record, categoryNames],
   );
 
   /**
@@ -210,6 +211,19 @@ export default function ComposeScreen() {
   const handleSubmit = async (payload: FormPayload, action: 'primary' | 'secondary') => {
     setSubmitting(true);
     try {
+      /* ★★ 免费档的件数闸门**只挡新增**，且必须挡在这一步（写库之前）：
+         到顶之后查、改、删、导出、备份、清册一律照旧 —— 到顶不是把库锁上，
+         只是不再往里加。已经超过上限的老用户不回溯，否则升级一次就没法用了。
+         ★ 件数用 `countItems()` 现查，不用 store 里的 stats：后者只在 dataVersion
+           变化后重算，连续录入时差一步，闸门会悄悄多放几件。
+         ★ 不抛错、只提示：`ItemForm` 的 `await onSubmit(...)` 外面没有 catch，
+           抛出去就是一条未处理异常 —— 用户看不到任何解释，表单还停在原地。 */
+      const quota = await quotaGuard(1);
+      if (!quota.ok) {
+        Alert.alert('记满了', quota.message ?? '');
+        return;
+      }
+
       const itemId = await createItem(payload.draft);
       for (const photo of payload.newPhotos) {
         await addPhoto(itemId, photo.filePath, photo.thumbPath);
@@ -277,6 +291,7 @@ export default function ComposeScreen() {
                   icon="layers-outline"
                   accessibilityLabel="批量识图"
                   onPress={() => {
+                    // 批量识图仍是支持者功能；单张识物和语音已经免费
                     if (!entitled) {
                       setGateOpen(true);
                       return;
@@ -288,13 +303,7 @@ export default function ComposeScreen() {
               <IconButton
                 icon="mic-outline"
                 accessibilityLabel="语音录入"
-                onPress={() => {
-                  if (!entitled) {
-                    setGateOpen(true);
-                    return;
-                  }
-                  router.push('/voice');
-                }}
+                onPress={() => router.push('/voice')}
               />
             </HStack>
           ) : undefined
@@ -328,7 +337,7 @@ export default function ComposeScreen() {
         </Meta>
       </Gutter>
 
-      <SupporterGateSheet visible={gateOpen} feature="ai" onClose={() => setGateOpen(false)} />
+      <SupporterGateSheet visible={gateOpen} feature="aiPro" onClose={() => setGateOpen(false)} />
     </Screen>
   );
 }

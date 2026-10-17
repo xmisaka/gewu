@@ -174,11 +174,11 @@ export default function AskScreen() {
     return (
       <AiOffNotice
         title="问一问"
-        body="问一问与识物入库、语音录入同属支持者档。免费档的录入、到期、库存、照片与备份全部照旧，一个不少。"
+        body="问一问属于支持者功能。单张识物与语音录入已经免费。"
         actionLabel="去激活 / 了解支持者档"
         onAction={() => router.push('/supporter')}
         onBack={() => router.back()}
-        footer={<SupporterGateSheet visible feature="ai" onClose={() => router.back()} />}
+        footer={<SupporterGateSheet visible feature="aiPro" onClose={() => router.back()} />}
       />
     );
   }
@@ -190,7 +190,7 @@ export default function AskScreen() {
     return (
       <AiOffNotice
         title="问一问"
-        body="AI 助手的总开关现在是关着的，问一问也跟着一起收起来了。想用的话到「我的 → AI 助手」把总开关打开；本机检索那条路一直都在，开关打开后即使不填 Key，它也会照常按你库里的记录回答。"
+        body="问一问暂时关着。到「我的 → AI 助手」打开总开关；不填 Key 也能用。"
         actionLabel="去打开总开关"
         onAction={() => router.push('/ai')}
         onBack={() => router.back()}
@@ -243,8 +243,8 @@ export default function AskScreen() {
 
             <Meta tone="ink4" style={styles.heroNote}>
               {active
-                ? '回答只由你库里的记录决定。模型只负责把话说顺、帮着对对条目，数字和卡片都来自本机。'
-                : '现在用的是本机检索，回答会比较朴实；到「我的 → AI 助手」配一个免费 Key 之后会更自然。'}
+                ? '只依据你库里的记录回答。数字和卡片都来自本机。'
+                : '现在用本机检索，回答比较朴实。配上 Key 会更自然。'}
             </Meta>
           </Gutter>
         ) : (

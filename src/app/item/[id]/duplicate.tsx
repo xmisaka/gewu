@@ -15,6 +15,7 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { Alert } from 'react-native';
 
 import { ItemForm, type FormPayload, type ItemSeed } from '@/components/domain/ItemForm';
 import { IconButton } from '@/components/ui/controls';
@@ -25,6 +26,7 @@ import { createItem, getItemView } from '@/lib/db/items';
 import { listCabinetViews } from '@/lib/db/locations';
 import { addPhoto, promotePhoto } from '@/lib/db/photos';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
+import { useQuotaGuard } from '@/lib/hooks/use-quota';
 import { useAppState } from '@/lib/store/app-state';
 import type { ItemView } from '@/lib/types';
 
@@ -60,6 +62,9 @@ export default function DuplicateItemScreen() {
   const router = useRouter();
   const { bump, dataVersion } = useAppState();
   const [submitting, setSubmitting] = useState(false);
+  /* 「复制一件」也是一件新物品 —— 免费档到顶后同样要挡。
+     ★ 漏掉这一条就是一道明摆着的绕道：录不进去的人会去复制一条旧的再改名字。 */
+  const quotaGuard = useQuotaGuard();
 
   const itemState = useAsyncData(() => getItemView(id), [id, dataVersion], null as ItemView | null);
   const categoryState = useAsyncData(() => listCategories(), [dataVersion], []);
@@ -68,6 +73,13 @@ export default function DuplicateItemScreen() {
   const handleSubmit = async (payload: FormPayload) => {
     setSubmitting(true);
     try {
+      /* 与录入页同一道闸门：不抛错、只提示 —— 表单外面的 `await onSubmit` 没有 catch */
+      const quota = await quotaGuard(1);
+      if (!quota.ok) {
+        Alert.alert('记满了', quota.message ?? '');
+        return;
+      }
+
       const newId = await createItem(payload.draft);
       for (const photo of payload.newPhotos) {
         await addPhoto(newId, photo.filePath, photo.thumbPath);

@@ -10,10 +10,14 @@
  *      录入、到期、库存、照片、备份、图库找封面都不受这个开关影响。
  *
  * ★ 2026-10-15：总开关**默认从「关」翻成「开」**（见 `lib/ai/config.ts`
- *   的 `saveAiEnabled`）。这一页对未激活档整页锁着，所以「默认关」的实际后果
- *   是免费用户永远打不开它 → 入口整族不渲染 → 谁都没见过这功能。
- *   现在免费档看得见入口、点下去弹门控浮层；关得掉它的只有能进这一页的人。
+ *   的 `saveAiEnabled`）。原来「默认关」加上「这一页对未激活档整页锁着」，
+ *   两个保守的选择相乘 = 免费用户永远打不开它 → 入口整族不渲染 → 谁都没见过这功能。
  *   而「没 Key 就发不出任何请求」这条真闸门没有动 —— `active` 仍然要求 Key。
+ *
+ * ★★ 2026-10-17：**整页锁彻底删掉了**。单张识物与语音录入放开到免费档之后，
+ *   免费用户必须能进这一页填自己的 Key —— 留着那道锁，「免费可用」在界面上
+ *   无处落地，唯一的效果是把人挡在一扇他明明有钥匙的门外面。
+ *   这一页现在对两档一视同仁；收费的只剩批量识图与问一问，它们在自己的入口上挡。
  *
  * 用量卡是刻意的：让用户随时看见花了多少钱，他才有底气把开关一直开着。
  * 这里恒为 ¥0.00（两个模型都免费），但那个数字仍然由 `estimateMonthlyCost`
@@ -30,7 +34,6 @@ import { Linking, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-
 
 import { AiKeyModal } from '@/components/domain/AiKeyModal';
 import { AiEndpointModal, AiModelModal, AiProviderModal } from '@/components/domain/AiProviderModals';
-import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, SectionCard } from '@/components/ui/layout';
 import { Body, Label, Meta } from '@/components/ui/typography';
@@ -38,14 +41,12 @@ import { Palette, Space } from '@/constants/theme';
 import { estimateMonthlyCost } from '@/lib/ai/config';
 import { ASR_AVAILABLE } from '@/lib/ai/asr';
 import { useAi } from '@/lib/store/ai';
-import { useEntitlement } from '@/lib/store/entitlement';
 import { makeStyles } from '@/lib/theme';
 import { formatMoney } from '@/lib/format';
 
 export default function AiSettingsScreen() {
   const styles = useStyles();
   const router = useRouter();
-  const { entitled } = useEntitlement();
   const {
     enabled,
     hasKey,
@@ -75,33 +76,10 @@ export default function AiSettingsScreen() {
 
   const monthCost = estimateMonthlyCost(usage);
 
-  /* 未激活：整页只留一句解释与一个出口。不做成「能看不能按」——
-     灰按钮看起来像坏了，而用户真正需要的是知道怎么解锁。 */
-  if (!entitled) {
-    return (
-      <Screen>
-        <View style={styles.topBar}>
-          <IconButton icon="chevron-back" accessibilityLabel="返回" onPress={() => router.back()} />
-        </View>
-        <PageHeader title="AI 助手" subtitle="识物与问一问属于支持者功能" />
-        <Gutter>
-          <Card>
-            <Body tone="ink2" style={styles.lockedText}>
-              AI 助手需要支持者档：拍照识物、批量识图、问一问与语音录入四个入口，一次激活全部解锁。
-              免费档的录入、到期、库存、照片与备份全部照旧，一个不少。
-            </Body>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push('/supporter')}
-              style={styles.lockedBtn}>
-              <Label color={Palette.brand}>去激活 / 了解支持者档</Label>
-            </Pressable>
-          </Card>
-        </Gutter>
-        <SupporterGateSheet visible feature="ai" onClose={() => router.back()} />
-      </Screen>
-    );
-  }
+  /* ★ 2026-10-17：这一页**不再按档位锁**。
+     单张识物与语音录入放开到免费档之后，免费用户也必须能进来填 Key ——
+     锁着它等于把那两项也一起锁死了（有 Key 才能用，而填 Key 的地方进不去）。
+     这一页现在只按「总开关」控制，那是用户自己拉的闸，与付不付费无关。 */
 
   return (
     <Screen>
@@ -125,7 +103,7 @@ export default function AiSettingsScreen() {
                 <View style={styles.switchText}>
                   <Body tone="ink2">启用 AI 助手</Body>
                   <Meta tone="ink4" style={styles.switchDesc}>
-                    管着四个入口：拍照识物 / 批量识图 / 问一问 / 语音录入 —— 关闭后它们一起收起，也不再有 AI 请求
+                    管着四个入口。关掉后它们一起收起，也不再有 AI 请求。
                   </Meta>
                 </View>
                 <Switch
@@ -210,19 +188,16 @@ export default function AiSettingsScreen() {
               />
               {/* 语音单独一行：它与上面两个不是一回事 —— 不需要 Key、不联网、
                   也不申请麦克风权限（走系统识别对话框），**不消耗任何调用量**。
-                  ★ 但它与识物、问答同属支持者档，所以这一行的值不写「免费」，
-                    否则「免费」会被读成「免费档也能用」 */}
+                  ★ 2026-10-17 起它属于**免费权益**，所以这一行的值写「系统识别 · 不耗 Key」，
+                    不提档位 —— 以前这里刻意不写「免费」，是怕被读成「免费档也能用」，
+                    而现在那句话正好是事实。 */}
               <Row label="语音" value={ASR_AVAILABLE ? '系统识别 · 不耗 Key' : '这台设备用不了'} last />
             </Card>
             <Meta tone="ink4" style={styles.note}>
-              点「识图」或「问答」任意一行，就能改模型名 —— 留空即回到预置的默认值。
-              报「模型不存在 / model not found」时，多半是服务商改了名字，到它的文档里抄一个新的填进来就行，
-              不必等 App 更新。
+              点那一行可改模型名，留空回默认。报错就去文档抄新名。
             </Meta>
             <Meta tone="ink4" style={styles.note}>
-              语音走手机自带的识别对话框，不消耗模型调用，也不需要 API Key。
-              ★ 但它与识物、批量识图、问答同属「智能录入」，共用一个总闸 —— 上面的开关关掉时，
-              四处入口会一起收起来（这条与上面那句旧说明相反，见 ROADMAP 的口径记录）。
+              语音走系统识别，不花模型调用，也不要 Key。四个入口共用上面那个开关。
             </Meta>
           </Gutter>
         </SectionCard>
@@ -253,7 +228,7 @@ export default function AiSettingsScreen() {
           <Gutter>
             <Card>
               <Body tone="ink2" style={styles.privacy}>
-                识别时上传的是长边 ≤1024 的压缩副本，用完即弃，服务器上不留存；原图与物品数据始终留在这台手机里。
+                只上传压到长边 1024 的副本，原图不离开手机。
               </Body>
               <Meta tone="ink4" style={styles.privacy}>
                 {/* 换成自选供应商之后，这句话必须写清楚：数据发去哪一家、
@@ -381,6 +356,4 @@ const useStyles = makeStyles((Palette) => ({
   usageFoot: { marginTop: Space.md, lineHeight: 19, fontSize: 12.5 },
 
   privacy: { lineHeight: 21 },
-  lockedText: { lineHeight: 21 },
-  lockedBtn: { marginTop: Space.md },
 }));

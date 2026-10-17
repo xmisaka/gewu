@@ -410,8 +410,7 @@ export default function NewCabinetScreen() {
 
           <Gutter>
             <Meta tone="ink4" style={styles.hint}>
-              点柜子展开后可改柜子名；点格位可改名或单独删除。
-              删除柜子或格位都不会删除里面的物品 —— 只会把它们的位置记录清空。
+              点柜子可改名，点格位可改名或删除。删掉只清空位置，物品还在。
             </Meta>
           </Gutter>
         </ScrollView>

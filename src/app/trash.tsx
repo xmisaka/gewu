@@ -101,7 +101,7 @@ export default function TrashScreen() {
           <EmptyState
             icon="trash-outline"
             title="回收站是空的"
-            description="删除物品时会先移到这里，确认不要了再彻底清掉。"
+            description="删掉的物品会先放这里。"
           />
         ) : (
           <>

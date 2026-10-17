@@ -107,7 +107,12 @@ export function checkActivation(code: string, publicKeyB64Url?: string): Activat
  * 需要支持者档的功能。**这张表是唯一的真相** ——
  * 界面不要自己写 `entitled && xxx`，否则以后漏掉一处就是一道暗门。
  */
-export type SupporterFeature = 'theme' | 'ai' | 'stats';
+/**
+ * ★ 2026-10-17 起 `'ai'` **不再是**「整个 AI 一族」：
+ *   单张识物与语音录入放开到免费档，只留批量识图与问一问收费，键名同步改成 `'aiPro'`。
+ *   保留 `'ai'` 会让人以为它还是全家桶 —— 而这个错误的代价是有人把门控加回录入页。
+ */
+export type SupporterFeature = 'theme' | 'aiPro' | 'stats' | 'inventory';
 
 /** 门控浮层的标题与正文用得到；文案放在这儿，三处入口才不会各说各话 */
 export interface SupporterFeatureCopy {
@@ -137,34 +142,105 @@ export const SUPPORTER_FEATURES: Record<SupporterFeature, SupporterFeatureCopy> 
   theme: {
     name: '主题皮肤',
     tagline: '六套浅色，换一种纸的质地',
-    freeSide: '素笺、靛青、青瓷三套免费，日常记录够用',
+    freeSide: '素笺、靛青、青瓷三套免费',
     proSide: '再解锁朱砂、藕荷、胭脂',
     sheetTitle: '支持者功能',
-    sheetBody:
-      '六套浅色主题全部解锁，含后续新增。免费档保留「素笺」「靛青」「青瓷」三套，日常记录完全够用；系统深色时的「玄夜」照旧，不受影响。',
+    sheetBody: '六套浅色全部解锁，含后续新增。免费档的三套照旧可用，深色下仍自动用玄夜。',
   },
-  ai: {
-    name: 'AI 功能',
-    tagline: '少打字 —— 拍一张、选一批、说一句就能入库',
-    freeSide: '逐条手工录入照旧，字段一个不少',
-    proSide: '拍照识物、批量识图、问一问、语音录入四个入口',
+  aiPro: {
+    name: 'AI 进阶',
+    tagline: '批量识图、问一问',
+    freeSide: '单张识物与语音录入已经免费',
+    proSide: '批量识图（一次 9 张）、问一问',
     sheetTitle: '支持者功能',
-    /* ★ 「四个入口」是刻意数出来的：识物 / 批量识图 / 问一问 / 语音。
-       漏掉批量识图会让用户以为它不在权益里 —— 而它恰恰是最省事的那个。
-       改动时连同 `pro.tsx` 的 `AI_ENTRY_HINT` 与官网 `rc.py` 的 `PLAN` 一起看。 */
+    /* ★ 「批量识图」四个字必须留在 proSide 与 sheetBody 里：
+       它是最省事的那一项，漏了会让人以为它不在权益里。`tests/pro-page.test.mjs` 钉着。
+       ★ 2026-10-17 起这一项只包含批量识图与问一问 —— 单张识物、语音录入已放开到免费档，
+       文案里不许再出现「四个入口」。 */
     sheetBody:
-      '识物入库、批量识图、问一问与语音录入：拍一张、一次选一批、或者说一句，就能带出名称、分类和规格，省掉手工敲字。批量识图一次能选最多 9 张照片，逐张识别后在清单里核对、一次入库。免费档不受影响，逐条手工录入照旧，功能一个不少；Key 由你自己申请、调用量记在你自己的账号上，格物不代出 Key、也不按量收费。',
+      '批量识图一次可选 9 张，逐张入库；问一问按你库里的记录回答。单张识物与语音录入免费档已有。',
   },
   stats: {
     name: '统计洞察',
-    tagline: '看懂家底 —— 钱花在哪、柜子塞到几成',
-    freeSide: '列表、到期提醒、库存照常',
+    tagline: '钱花在哪，柜子塞到几成',
+    freeSide: '清单、到期提醒、库存照常',
     proSide: '总价值、日均持有成本、分类分布、柜子占用、入库趋势',
     sheetTitle: '支持者功能',
     sheetBody:
-      '总价值、日均持有成本、分类价值分布、柜子占用与近半年入库趋势，一页看完。免费档的录入、到期提醒、库存、照片与备份全部照旧，功能一个不少。',
+      '总价值、日均成本、分类分布、柜子占用与入库趋势。免费档的清单与提醒照旧。',
+  },
+  inventory: {
+    name: '家庭财产清册',
+    tagline: 'A4 排版，可直接打印',
+    freeSide: 'CSV 导出照旧',
+    proSide: '三种版式，一次生成 PDF 与 HTML',
+    sheetTitle: '支持者功能',
+    sheetBody:
+      '卷宗、账簿、活页三种版式，一次生成 PDF 与 HTML。免费档的 CSV 导出与备份照旧。',
   },
 };
+
+/**
+ * 免费档的物品数量上限。
+ *
+ * ★ 2026-10-17 定的一版权益：免费档**不再是无上限**，改为 150 件。
+ *   挑 150 的理由：普通家庭记到 150 件已经算勤，而拿它当仓库系统用的人会远超这条线 ——
+ *   挡的是后者，不是前者。
+ * ★★ 到顶**只挡新增**：查、改、删、导出、备份、清册全部照旧；
+ *   已经超过 150 件的老用户不回溯、不锁库。否则升级一次就等于让老用户没法用。
+ */
+export const FREE_ITEM_LIMIT = 150;
+
+/** 允许的物品总数；`null` = 不限 */
+export function itemLimit(entitled: boolean): number | null {
+  return entitled ? null : FREE_ITEM_LIMIT;
+}
+
+/** 还能再记几件；不限时返回 `null` */
+export function quotaLeft(used: number, entitled: boolean): number | null {
+  const limit = itemLimit(entitled);
+  return limit === null ? null : Math.max(0, limit - used);
+}
+
+/** 到顶了没有。★ 老用户超额（used > limit）也算到顶 —— 只挡新增，不动存量 */
+export function isQuotaFull(used: number, entitled: boolean): boolean {
+  const left = quotaLeft(used, entitled);
+  return left !== null && left <= 0;
+}
+
+/** 新增物品的配额判定结果 */
+export interface QuotaVerdict {
+  ok: boolean;
+  /** 还能再记几件；不限时为 `null` */
+  left: number | null;
+  /** 不通过时给用户的一句话；通过时为 `null` */
+  message: string | null;
+}
+
+/**
+ * 能不能再记 `want` 件。
+ *
+ * ★ 判据是「这一次要存的件数」而不是「有没有满」：批量识图一次可能选 9 张，
+ *   还剩 3 件时半推半就地存进去一半（而且不报错），用户只会看到「存了 9 件」的提示
+ *   而列表里只多了 3 件。要么整批过、要么整批挡住。
+ * ★ 提示里**必须**先讲「已有的不受影响」：付费墙的话术先讲限制，用户第一反应是
+ *   「我的东西会不会被锁 / 被删」，而这里两者都不会发生。
+ */
+export function checkNewItems(used: number, want: number, entitled: boolean): QuotaVerdict {
+  const left = quotaLeft(used, entitled);
+  if (left === null) return { ok: true, left: null, message: null };
+  if (want <= left) return { ok: true, left, message: null };
+
+  const head =
+    left <= 0
+      ? `免费档最多记 ${FREE_ITEM_LIMIT} 件，已经满了。`
+      : `免费档最多记 ${FREE_ITEM_LIMIT} 件，还剩 ${left} 件，这次要存 ${want} 件。`;
+  return {
+    ok: false,
+    left,
+    message: `${head}已记下的照旧能查、能改、能导出。想再记新的，删掉几件不要的，或激活支持者档。`,
+  };
+}
 
 /**
  * 免费档的基础能力 —— 说明页两栏对比里的左栏。
@@ -175,12 +251,14 @@ export const SUPPORTER_FEATURES: Record<SupporterFeature, SupporterFeatureCopy> 
  *   「免费=试用版」，那比现在更糟。
  */
 export const FREE_BASELINE: readonly string[] = [
-  '物品录入 · 编辑 · 搜索',
+  `物品 ${FREE_ITEM_LIMIT} 件`,
+  '录入 · 编辑 · 搜索',
   '分类与标签',
   '到期提醒',
   '库存与数量',
   '照片与备份恢复',
   '回收站与批量整理',
+  '单张识物 · 语音录入',
 ] as const;
 
 /**

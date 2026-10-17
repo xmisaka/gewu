@@ -604,6 +604,23 @@ export async function emptyTrash(): Promise<string[]> {
 
 /* ------------------------------------------------------------ 统计 */
 
+/**
+ * 未删除的物品件数 —— 免费档配额判定专用。
+ *
+ * ★ 刻意**新查一次库**，不用 `useAppState().stats.total`：后者只在 `dataVersion`
+ *   变化后重算，而连续录入时（保存 → 立刻再存一件）store 里那个数还差一步，
+ *   于是 150 件的闸门会漏到 151、152…… 这种偏差不会报错，只会一直悄悄多放几件。
+ * ★ 口径与 `getStats().total` 完全一致（都只数 `deleted_at IS NULL`）——
+ *   回收站里的是「删了的东西」，占不占配额要跟用户在清单页看到的件数对得上。
+ */
+export async function countItems(): Promise<number> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM items WHERE deleted_at IS NULL',
+  );
+  return row?.c ?? 0;
+}
+
 export async function getStats(): Promise<ItemStats> {
   const db = await getDatabase();
   const on = today();

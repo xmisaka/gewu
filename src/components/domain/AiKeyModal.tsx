@@ -172,7 +172,7 @@ export function AiKeyModal({ visible, onClose, onSaved }: AiKeyModalProps) {
         ) : null}
 
         <Meta tone="ink4" style={styles.warn}>
-          Key 存在本机数据库里，只在识物与提问的那一刻用它调一次模型。原图、物品数据都不会离开这台手机。
+          Key 只存本机。原图和物品数据不离开这台手机。
         </Meta>
       </View>
 

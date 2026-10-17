@@ -147,7 +147,7 @@ export default function AlbumScreen() {
     if (selected.size === 0 || busy) return;
     Alert.alert(
       '删除这些照片？',
-      `选中的 ${selected.size} 张会从对应物品上移除，物品本身不动 —— 只是不再有这张图了。`,
+      `这 ${selected.size} 张会从物品上移除，物品本身不动。`,
       [
         { text: '取消', style: 'cancel' },
         { text: '删除', style: 'destructive', onPress: () => void runDelete() },
@@ -233,7 +233,7 @@ export default function AlbumScreen() {
             <EmptyState
               icon="images-outline"
               title="还没有照片"
-              description="录入物品时加一张照片，以后盘点、理赔、出手都用得上。"
+              description="录入时加张照片，以后盘点用得上。"
             />
           )
         }

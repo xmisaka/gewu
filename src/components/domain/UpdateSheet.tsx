@@ -87,7 +87,7 @@ export function UpdateSheet({ visible, manifest, local, onRemindLater, onDownloa
             {manifest.url ? '点击「去下载」直接获取安装包。' : '下载地址：格物官网'}
           </Meta>
           <Meta tone="ink4" style={styles.where}>
-            直接覆盖安装即可，数据不会丢 —— 别先卸载。
+            直接覆盖安装，别先卸载。数据不会丢。
           </Meta>
 
           <View style={styles.actions}>

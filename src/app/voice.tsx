@@ -55,7 +55,6 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AiOffNotice } from '@/components/domain/AiOffNotice';
-import { SupporterGateSheet } from '@/components/domain/SupporterGateSheet';
 import { ItemForm, type FormPayload, type ItemSeed } from '@/components/domain/ItemForm';
 import { Button, IconButton } from '@/components/ui/controls';
 import { Card, Gutter, PageHeader, Screen, ScreenScroll } from '@/components/ui/layout';
@@ -70,9 +69,9 @@ import { listCategories } from '@/lib/db/categories';
 import { createItem } from '@/lib/db/items';
 import { listCabinetViews, listLocations } from '@/lib/db/locations';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
+import { useQuotaGuard } from '@/lib/hooks/use-quota';
 import { useAi } from '@/lib/store/ai';
 import { useAppState } from '@/lib/store/app-state';
-import { useEntitlement } from '@/lib/store/entitlement';
 import { makeStyles, useTheme } from '@/lib/theme';
 
 type Phase = 'idle' | 'listening' | 'result';
@@ -91,7 +90,6 @@ export default function VoiceScreen() {
   const { bump } = useAppState();
   const insets = useSafeAreaInsets();
 
-  const { entitled } = useEntitlement();
   const { active: aiActive, enabled: aiEnabled, record } = useAi();
 
   const [phase, setPhase] = useState<Phase>('idle');
@@ -117,12 +115,15 @@ export default function VoiceScreen() {
    */
   const busy = useRef(false);
 
+  /* 免费档的件数闸门。★ 语音已属免费权益，但「免费」不等于「不限件数」 */
+  const quotaGuard = useQuotaGuard();
+
   const locationState = useAsyncData(() => listLocations(), [], []);
   const cabinetState = useAsyncData(() => listCabinetViews(), [], []);
   const categoryState = useAsyncData(() => listCategories(), [], []);
 
-  /** 这一档会不会让模型参与 */
-  const aiOn = entitled && aiActive;
+  /** 会不会让模型参与。★ 不再看档位：AI 已经放开到免费档，缺的只是 Key */
+  const aiOn = aiActive;
   const aiBusy = aiRound.kind === 'running';
 
   /**
@@ -266,6 +267,15 @@ export default function VoiceScreen() {
       if (saving) return;
       setSaving(true);
       try {
+        /* ★ 语音虽然免费了，但它照样是**新增一件** —— 免费档的件数闸门在这里同样要判。
+           ★ 提示走本页的 notice 而不是弹窗：这一屏点保存后要么跳走、要么留在原地，
+             弹窗会在「不跳走」的那条路上多盖一层，用户还得再点一次才看得到表单。 */
+        const quota = await quotaGuard(1);
+        if (!quota.ok) {
+          setNotice(quota.message);
+          return;
+        }
+
         /* 语音这条路径没有照片：表单的照片区已隐去，newPhotos 必然为空 */
         await createItem(payload.draft);
         bump();
@@ -274,40 +284,19 @@ export default function VoiceScreen() {
         setSaving(false);
       }
     },
-    [saving, bump, router],
+    [saving, bump, router, quotaGuard],
   );
 
-  /* 守卫两道，顺序是刻意的：**先档位、后总开关**。
-     免费档看到的是「去买」，已付费但关掉 AI 的人看到的是「去打开」——
-     两句话指向的按钮完全不同；反过来说，对一个既没付费又关了开关的人，
-     该先告诉他付费这件事，否则他会以为打开开关就能用。
-
-     未激活：整页只留一句解释与一个出口（与 AI 助手设置页同一口径，不做成
-     「能看不能按」—— 灰按钮看起来像坏了，而用户需要的是知道怎么解锁）。
-     两处入口已经挡过一次，这里是**深链兜底** —— 少了它，
-     `gewu://voice` 这类直接跳转就是一道暗门。 */
-  if (!entitled) {
-    return (
-      <AiOffNotice
-        title="语音录入"
-        body="语音录入需要支持者档。免费档的录入、到期、库存、照片与备份全部照旧，一个不少。"
-        actionLabel="去激活 / 了解支持者档"
-        onAction={() => router.push('/supporter')}
-        onBack={() => router.back()}
-        footer={<SupporterGateSheet visible feature="ai" onClose={() => router.back()} />}
-      />
-    );
-  }
-
-  /* 总开关关着：麦克风入口已经整族收起来了，能走到这里只有深链一条路。
-     ★ 这一条与「没填 Key」不是一回事：没填 Key 时语音照常能用（走本地规则解析），
-       只是少了模型补字段那一步；总开关关掉才是「用户说不要」。
-       两个状态分开写，是因为用户要做的动作不同 —— 一个是去填 Key，一个是去开开关。 */
+  /* 只剩一道守卫：总开关。
+     ★ 2026-10-17 起语音录入**不再看档位** —— 它走系统识别、不耗模型调用、不要 Key，
+       把它锁在付费墙后面是这道墙里最没道理的一格。深链进来也一样能用。
+     ★ 但仍然挂在 AI 总开关上：它和识物、问答共用同一个「智能录入」总闸，
+       用户关掉那个开关时，这一族要一起收起（`ai.tsx` 里对用户的承诺就是这么写的）。 */
   if (!aiEnabled) {
     return (
       <AiOffNotice
         title="语音录入"
-        body="AI 助手的总开关现在是关着的，语音录入也跟着一起收起来了。到「我的 → AI 助手」把总开关打开就能用 —— 语音走手机自带的识别对话框，不消耗模型调用，也不需要填 API Key。"
+        body="语音录入暂时关着。到「我的 → AI 助手」打开总开关；识别走系统，不花调用。"
         actionLabel="去打开总开关"
         onAction={() => router.push('/ai')}
         onBack={() => router.back()}
@@ -462,10 +451,10 @@ function aiRoundLabel(round: AiRound): string {
       return 'AI 正在按这句话补齐没听出来的字段…';
     case 'ok':
       return round.gained > 0
-        ? `AI 补上了 ${round.gained} 个字段（带「AI」标的那几行可以核对一下）。`
-        : 'AI 读过了，没有能补的字段 —— 下面就是本机规则的结果，可以直接改。';
+        ? `AI 补了 ${round.gained} 项，带「AI」标的行可核对。`
+        : 'AI 没找到可补的字段。下面是本机规则的结果。';
     case 'failed':
-      return `AI 这一步没成功：${round.reason}。下面只是本机规则的结果，可能不完整。`;
+      return `AI 这一步没成功：${round.reason}。下面是本机规则的结果。`;
     default:
       /* 未参与。★ 能走到这一页，就说明档位与总开关两道守卫都过了
          （见本页顶部那两个 return），所以这里只剩**一种**原因：没配 API Key。
@@ -473,7 +462,7 @@ function aiRoundLabel(round: AiRound): string {
            而总开关默认翻成开、这一页本身又对免费档锁着 —— 那两件事
            恰好是这句话出现时**唯一不可能成立**的两件事，照着它去操作一无所获。
          也仍不说「AI 用不了」：那听起来像坏了，而语音本身是完整的。 */
-      return '没让 AI 参与（AI 助手还没填 API Key，到「我的 → AI 助手」填上就会参与）。下面是本机规则的结果，可以直接改。';
+      return 'AI 没参与，还没填 Key。下面是本机规则的结果。';
   }
 }
 

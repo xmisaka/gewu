@@ -300,8 +300,7 @@ export default function CategoryScreen() {
 
                           {cat.builtin ? (
                             <Meta tone="amber" style={styles.builtinNote}>
-                              猜词的关键词是按种子里的名字索引的，一旦改名，这一类就不再自动猜中，
-                              录物品时需要手动选一次。
+                              改名后这一类不再自动猜中，录入时手动选一次。
                             </Meta>
                           ) : null}
 

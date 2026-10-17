@@ -30,7 +30,7 @@ const QR_ZOOM_SIZE = 264;
 
 /** 默认开场白。「我的」页用它；激活页那边不传（标题已说明来意，二维码就在下面） */
 const DEFAULT_LEAD =
-  '格物没有账号、没有客服后台，也没有评论区。有问题、有建议，或者想获取激活码，都可以加我微信。';
+  '有问题、有建议，或者想要激活码，都可以加我微信。';
 
 export interface ContactSectionProps {
   /** 卡片标题，默认「联系我」 */
@@ -56,7 +56,7 @@ export function ContactSection({ title = '联系我', lead = DEFAULT_LEAD }: Con
       if (!ok) {
         Alert.alert(
           '这台设备没有分享面板',
-          '可以点开二维码用另一台手机扫；或者直接截屏，再在微信里从相册选这张图识别。',
+          '点开二维码用另一台手机扫，或截屏后在微信里从相册识别。',
         );
       }
     } catch (err) {

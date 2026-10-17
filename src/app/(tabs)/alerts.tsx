@@ -90,7 +90,7 @@ export default function AlertsScreen() {
         subtitle={
           attentionCount > 0
             ? `共 ${attentionCount} 件需要关注`
-            : '给食品、药品、耗材填上过期时间或数量，给数码家电填上保修截止日，这里就会列出来'
+            : '填上日期或数量就会列在这里'
         }
       />
 
@@ -106,13 +106,13 @@ export default function AlertsScreen() {
                   ★「没给权限」与「自己关着」分开说：前者要去系统设置里开 */}
               {notify.active
                 ? notify.channelMuted
-                  ? '系统里把「到期提醒」这个通知类别关掉了，所以现在不会响 —— 到系统设置里打开它。'
+                  ? '「到期提醒」类别被关掉。到系统设置里打开它。'
                   : notify.leadDays === 0
-                    ? '已开启到期提醒：到期当天在系统通知栏提醒你。'
-                    : `已开启到期提醒：提前 ${notify.leadDays} 天在系统通知栏提醒你。`
+                    ? '到期当天在系统通知栏提醒你。'
+                    : `提前 ${notify.leadDays} 天在系统通知栏提醒你。`
                 : notify.enabled
-                  ? '系统里没给通知权限，所以现在不会主动提醒 —— 到系统设置里打开，或者就在这里看。'
-                  : '不会主动推送通知，打开这一页即可查看。想让它提醒你，去「我的」页打开「到期提醒」。'}
+                  ? '没给通知权限。到系统设置里打开，或就在这里看。'
+                  : '不会推送通知。去「我的」打开「到期提醒」。'}
             </Meta>
           </Card>
         </Gutter>
@@ -123,7 +123,7 @@ export default function AlertsScreen() {
           <EmptyState
             icon="notifications-outline"
             title="没有需要盯着的物品"
-            description="录入时给食品药品填上过期时间、耗材填个数量、数码家电填上保修截止日，这里会自动按紧急程度排好。"
+            description="药品填过期时间，耗材填数量，家电填保修截止日。"
             actionLabel="去录入"
             onAction={() => router.push('/compose')}
           />

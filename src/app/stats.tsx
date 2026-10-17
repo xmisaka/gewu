@@ -99,7 +99,7 @@ export default function StatsScreen() {
         <Gutter>
           <Card>
             <Body tone="ink2" style={styles.lockedText}>
-              统计洞察需要支持者档。免费档的录入、到期提醒、库存、照片与备份全部照旧，一个不少。
+              统计洞察需要支持者档。
             </Body>
             <Pressable
               accessibilityRole="button"
@@ -127,7 +127,7 @@ export default function StatsScreen() {
         <EmptyState
           icon="stats-chart-outline"
           title="还没有可统计的东西"
-          description="先记几件东西，这里会告诉你钱花在哪、每天在烧多少、柜子塞到几成。"
+          description="记几件东西，这里就有数据了。"
           actionLabel="去记一件"
           onAction={() => router.push('/compose')}
         />
@@ -265,7 +265,7 @@ export default function StatsScreen() {
                   ))}
                 </Card>
                 <Meta tone="ink4" style={styles.caliber}>
-                  按占用率排，不按件数 —— 12 格里放 8 件的柜子，比 6 格里放 5 件的更空。
+                  按占用率排：12 格放 8 件，比 6 格放 5 件更空。
                 </Meta>
               </Gutter>
             </SectionCard>

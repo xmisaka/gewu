@@ -54,19 +54,36 @@ test('★ AI 那项与「Key 是你自己的」同屏 —— 分开写会被读�
 });
 
 test('★★ 「批量识图」必须出现在支持者功能说明与权益对比里（漏一处就是静默少一项）', () => {
-  /* AI 一族有四个入口，批量识图是最省事的那个。它曾经只活在录入页右上角一枚图标里，
-     权益文案一个字都没提 —— 结果是没人知道它属于支持者档。三处文案各写一遍，必然漂。 */
+  /* 收在支持者档里的 AI 项只剩「批量识图」与「问一问」，批量识图是最省事的那个。
+     它曾经只活在录入页右上角一枚图标里，权益文案一个字都没提 ——
+     结果是没人知道它属于支持者档。四处文案各写一遍，必然漂。
+     ★ 2026-10-17 起单张识物与语音录入已放开到免费档，所以这一项的叫法从
+       `SUPPORTER_FEATURES.ai` 改成了 `aiPro` —— 它不再是「整个 AI 一族」。 */
   assert.ok(
-    SUPPORTER_FEATURES.ai.proSide.includes('批量识图'),
-    '`SUPPORTER_FEATURES.ai.proSide`（支持者功能说明）漏了「批量识图」',
+    SUPPORTER_FEATURES.aiPro.proSide.includes('批量识图'),
+    '`SUPPORTER_FEATURES.aiPro.proSide`（支持者功能说明）漏了「批量识图」',
   );
   assert.ok(
-    SUPPORTER_FEATURES.ai.sheetBody.includes('批量识图'),
-    '`SUPPORTER_FEATURES.ai.sheetBody`（门控浮层正文）漏了「批量识图」',
+    SUPPORTER_FEATURES.aiPro.sheetBody.includes('批量识图'),
+    '`SUPPORTER_FEATURES.aiPro.sheetBody`（门控浮层正文）漏了「批量识图」',
   );
   assert.ok(
     /批量识图/.test(proSource),
     'pro.tsx 的权益对比（AI 那一行的子项）没写「批量识图」—— 对比表是决策的地方，少一项等于那一项不存在',
+  );
+});
+
+test('★★ 收费的 AI 项不许再讲成「四个入口全收费」', () => {
+  /* 免费用户看到「四个入口同属支持者档」会以为自己一项都用不了，
+     而事实上单张识物与语音录入他手上已经有 —— 这是一句会让人放弃的错话。 */
+  assert.equal(
+    /四个入口/.test(SUPPORTER_FEATURES.aiPro.sheetBody),
+    false,
+    'aiPro.sheetBody 里不该再出现「四个入口」',
+  );
+  assert.ok(
+    !/识物|语音/.test(SUPPORTER_FEATURES.aiPro.proSide),
+    'aiPro.proSide 不该再把识物 / 语音列成收费项 —— 它们已经免费了',
   );
 });
 

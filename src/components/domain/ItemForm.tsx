@@ -1054,7 +1054,7 @@ export function ItemForm({
                 />
               </FieldRow>
               <Meta tone="ink4" style={styles.quantityHint}>
-                填了数字行尾才会显示数量胶囊，可以就地用掉 / 补一件；单位不用填，写在备注里即可
+                填了数字才有数量胶囊，可就地用掉 / 补一件。
               </Meta>
             </Gutter>
           </Card>
@@ -1319,7 +1319,7 @@ function RecognizeSourceSheet({
 
         <View style={styles.sheetFoot}>
           <Meta tone="ink3">
-            识别会把这件物品的照片上传给模型，只上传压到 1024px 的副本；读出的字段带「AI」标，保存前你自己确认。糊图或反光拍不清时，它宁可少填一个字段，也不会替你猜。
+            上传的是 1024px 压缩副本。带「AI」标的字段，保存前确认一下。
           </Meta>
         </View>
       </View>

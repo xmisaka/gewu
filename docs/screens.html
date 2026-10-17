@@ -132,6 +132,10 @@ p.small{font-size:15px;color:var(--ink2)}
 .ph .tb.on{color:var(--brand)}
 .ph .fr{display:flex;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:0.5px solid #F1ECE4;align-items:center}
 .ph .fr:last-child{border-bottom:0}
+/* 02 屏专用：v2.5.1 起详细字段多出「过期时间 / 保修至」两行，而手机框 606px 是硬的 ——
+   把这一屏字段表的上下内边距从 10 收到 6.5（行高 37 → 30），7 行才装得下。
+   ★ 只给这一个容器，别改成 .ph .fr —— 12 屏（详情页库存卡）走的是原行高。 */
+.ph .fr-tight .fr{padding:6px 12px}
 .ph .fk{color:var(--ink3);flex:0 0 auto}
 .ph .fv{font-weight:500;text-align:right}
 .ph .cab{background:#fff;border:0.5px solid var(--line2);border-radius:13px;padding:10px}
@@ -160,7 +164,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
 <div class="wrap">
 
 <header class="cover">
-  <div class="eyebrow">收纳柜 App &middot; 界面设计 &middot; v2.2.0</div>
+  <div class="eyebrow">收纳柜 App &middot; 界面设计 &middot; v2.5.1</div>
   <h1>格物</h1>
   <p class="lede">东西放在哪，你记得，它也记得。一套以「位置」为骨架、以「持有成本」为情绪回报的本地收纳记录工具。</p>
   <div class="meta">
@@ -313,13 +317,13 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
     <figure class="fig" data-slug="detail">
       <div class="shot"><div class="ph">
         <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
-        <div style="height:158px;background:#E9ECE3;position:relative;display:flex;align-items:center;justify-content:center;flex:0 0 auto">
+        <div style="height:130px;background:#E9ECE3;position:relative;display:flex;align-items:center;justify-content:center;flex:0 0 auto">
           <svg width="60" height="60" viewBox="0 0 24 24" fill="none"><rect x="7" y="2.5" width="10" height="19" rx="2.6" stroke="#8A9384" stroke-width="1.1"/><circle cx="12" cy="18" r=".9" fill="#8A9384"/></svg>
           <div style="position:absolute;left:11px;top:11px;width:29px;height:29px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9 2 4 7l5 5" stroke="#2B241F" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div style="position:absolute;right:11px;top:11px;width:29px;height:29px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 14 14"><circle cx="3" cy="7" r="1.3" fill="#2B241F"/><circle cx="7" cy="7" r="1.3" fill="#2B241F"/><circle cx="11" cy="7" r="1.3" fill="#2B241F"/></svg></div>
           <div style="position:absolute;right:11px;bottom:11px;background:#2B241F;color:#fff;border-radius:999px;padding:3px 8px;font-size:11px">1 / 3</div>
         </div>
-        <div style="padding:13px 17px 0;flex:0 0 auto">
+        <div style="padding:10px 17px 0;flex:0 0 auto">
           <div class="hd" style="font-size:23px;letter-spacing:2px">iPhone 15 Pro</div>
           <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
             <span style="padding:3px 8px;border-radius:6px;background:#F3E9DE;color:#8C5A34">数码</span>
@@ -336,9 +340,9 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
             <div style="color:#8C5A34;margin-top:4px;line-height:1.6">&#165;7,999 摊到 328 天，每天约 &#165;24.40</div>
           </div>
         </div>
-        <div style="margin-top:14px;padding:0 17px;flex:1;min-height:0;overflow:hidden">
+        <div style="margin-top:8px;padding:0 17px;flex:1;min-height:0;overflow:hidden">
           <div style="color:#9A8D80;padding-bottom:6px">详细字段</div>
-          <div style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
+          <div class="fr-tight" style="background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden">
             <div class="fr"><span class="fk">分类</span><span class="fv">数码</span></div>
             <div class="fr"><span class="fk">位置</span><span class="fv">书房书柜 &middot; 顶层</span></div>
             <!-- 「数量」紧跟在「位置」后面。没填数量的物品这里写「未设置」（灰字、不加粗），
@@ -347,12 +351,19 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
             <div class="fr"><span class="fk">数量</span><span class="fv" style="color:#9A8D80;font-weight:400">未设置</span></div>
             <div class="fr"><span class="fk">购买日期</span><span class="fv">2025-10-24</span></div>
             <div class="fr"><span class="fk">价格</span><span class="fv">&#165;7,999</span></div>
-            <div class="fr"><span class="fk">品牌</span><span class="fv">Apple</span></div>
-            <div class="fr"><span class="fk">型号</span><span class="fv">A3102</span></div>
+            <!-- ★ v2.5.1 新增：「过期时间」与「保修至」**各占一行、并排在字段表里**。
+                 合成一行（「2026年12月31日 / 2028年3月1日」）谁也看不懂哪个是哪个 ——
+                 见 app/item/[id]/index.tsx 的 FormRow 注释。一件东西完全可能
+                 「保质期还早、保修已经过了」，两列各算各的。 -->
+            <div class="fr"><span class="fk">过期时间</span><span class="fv" style="color:#9A8D80;font-weight:400">未设置</span></div>
+            <div class="fr"><span class="fk">保修至</span><span class="fv">2026-10-24</span></div>
+            <!-- 品牌 / 型号这两行稿里没画：手机框 606px 装不下 9 行字段表，
+                 硬加会把最后两行裁掉半截。实现里的完整顺序是 分类 → 位置 → 数量 →
+                 购买日期 → 价格 → 过期时间 → 保修至 → 品牌 → 型号 → 标签。 -->
           </div>
         </div>
       </div></div>
-      <figcaption><div class="no">02</div><div class="nm">物品详情 &middot; 持有成本卡</div><div class="ds">成本卡单独成块：摊到多少天、每天多少钱、一句折算说明 —— 全 App 唯一带情绪回报的信息，混进字段表就会被淹没。价格或日期任一缺失就整卡隐藏，绝不留「&#165;0.00 / 天」。底部两个入口「编辑这件物品 / 复制为新物品」—— 同款买第二个走复制，只带过名称、分类、位置、品牌和单价，照片与备注按新物品处理（两个副本共用一份图，删掉其中一个另一个就白框）。这是 PRD 点名的「一键复制」，与连续录入、字段默认值并列为录入疲劳的三道对冲。<br>这一屏是<b>单件物品</b>：数量为空，所以没有库存卡，详细字段里那一行写「未设置」。买了六瓶酱油的那件东西，详情页长的是 12 屏那个样子 —— 库存卡从「滚动才看得到」提到照片正下方、持有成本卡之上，持有成本卡没被删，只是让了一位。</div></figcaption>
+      <figcaption><div class="no">02</div><div class="nm">物品详情 &middot; 持有成本卡</div><div class="ds">成本卡单独成块：摊到多少天、每天多少钱、一句折算说明 —— 全 App 唯一带情绪回报的信息，混进字段表就会被淹没。价格或日期任一缺失就整卡隐藏，绝不留「&#165;0.00 / 天」。底部两个入口「编辑这件物品 / 复制为新物品」—— 同款买第二个走复制，只带过名称、分类、位置、品牌和单价，照片与备注按新物品处理（两个副本共用一份图，删掉其中一个另一个就白框）。这是 PRD 点名的「一键复制」，与连续录入、字段默认值并列为录入疲劳的三道对冲。<br>这一屏是<b>单件物品</b>：数量为空，所以没有库存卡，详细字段里那一行写「未设置」。买了六瓶酱油的那件东西，详情页长的是 12 屏那个样子 —— 库存卡从「滚动才看得到」提到照片正下方、持有成本卡之上，持有成本卡没被删，只是让了一位。<br>详细字段里「过期时间」与「保修至」<b>各占一行</b>（v2.5.1 新增），顺序与 <code>app/item/[id]/index.tsx</code> 的 FormRow 一致（稿里省掉了末尾的「品牌 / 型号」两行，装不下）。两者是两件事：这台机器没有保质期（写「未设置」），但保修到 2026-10-24。合成一行谁也看不懂哪个是哪个。</div></figcaption>
     </figure>
 
     <!-- 03 -->
@@ -552,14 +563,22 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
         </div>
         <div style="margin-top:22px;padding:0 17px;flex:0 0 auto">
           <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:12px">
-            <span style="font-family:var(--serif);font-size:15px">顶层</span><span style="color:#C9BEB0">12 件</span>
+            <span style="font-family:var(--serif);font-size:15px">顶层</span><span style="color:#C9BEB0">33 件</span>
           </div>
         </div>
-        <div style="padding:0 9px;display:flex;gap:8px;flex:0 0 auto">
-          <div style="width:56px"><div style="width:56px;height:56px;border-radius:9px;background:#EFF1EA;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><rect x="6" y="3" width="12" height="18" rx="2.6" stroke="#7C8A6E" stroke-width="1.7"/><circle cx="12" cy="7.5" r="1.4" fill="#7C8A6E"/><path d="M9 12h6M9 15h4" stroke="#7C8A6E" stroke-width="1.7" stroke-linecap="round"/></svg></div><div style="font-size:11px;text-align:center;margin-top:4px">遥控器</div></div>
-          <div style="width:56px"><div style="width:56px;height:56px;border-radius:9px;background:#F0EBE2;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0 1 16 0" stroke="#8A7256" stroke-width="1.7" transform="rotate(180 12 12)"/><rect x="3" y="12.5" width="4" height="5" rx="1.2" stroke="#8A7256" stroke-width="1.7"/><rect x="17" y="12.5" width="4" height="5" rx="1.2" stroke="#8A7256" stroke-width="1.7"/></svg></div><div style="font-size:11px;text-align:center;margin-top:4px">HDMI 线</div></div>
-          <div style="width:56px"><div style="width:56px;height:56px;border-radius:9px;background:#EDEFF1;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><rect x="3" y="8" width="18" height="9" rx="4.5" stroke="#6C7A88" stroke-width="1.7"/><circle cx="8.5" cy="12.5" r="1.3" fill="#6C7A88"/><circle cx="13" cy="12.5" r="1.3" fill="#6C7A88"/></svg></div><div style="font-size:11px;text-align:center;margin-top:4px">游戏手柄</div></div>
-          <div style="width:56px"><div style="width:56px;height:56px;border-radius:9px;background:#F5EFE0;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="18" height="12" rx="2.4" stroke="#907737" stroke-width="1.7"/><circle cx="8" cy="13" r="1.2" fill="#907737"/><path d="M3 11h18" stroke="#907737" stroke-width="1.7"/></svg></div><div style="font-size:11px;text-align:center;margin-top:4px">机顶盒</div></div>
+        <div style="padding:0 9px;display:flex;gap:5px;flex:0 0 auto">
+          <div style="width:48px"><div style="width:48px;height:48px;border-radius:9px;background:#EFF1EA;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="6" y="3" width="12" height="18" rx="2.6" stroke="#7C8A6E" stroke-width="1.7"/><circle cx="12" cy="7.5" r="1.4" fill="#7C8A6E"/><path d="M9 12h6M9 15h4" stroke="#7C8A6E" stroke-width="1.7" stroke-linecap="round"/></svg></div><div style="font-size:10px;text-align:center;margin-top:4px">遥控器</div></div>
+          <div style="width:48px"><div style="width:48px;height:48px;border-radius:9px;background:#F0EBE2;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0 1 16 0" stroke="#8A7256" stroke-width="1.7" transform="rotate(180 12 12)"/><rect x="3" y="12.5" width="4" height="5" rx="1.2" stroke="#8A7256" stroke-width="1.7"/><rect x="17" y="12.5" width="4" height="5" rx="1.2" stroke="#8A7256" stroke-width="1.7"/></svg></div><div style="font-size:10px;text-align:center;margin-top:4px">HDMI 线</div></div>
+          <div style="width:48px"><div style="width:48px;height:48px;border-radius:9px;background:#EDEFF1;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="8" width="18" height="9" rx="4.5" stroke="#6C7A88" stroke-width="1.7"/><circle cx="8.5" cy="12.5" r="1.3" fill="#6C7A88"/><circle cx="13" cy="12.5" r="1.3" fill="#6C7A88"/></svg></div><div style="font-size:10px;text-align:center;margin-top:4px">游戏手柄</div></div>
+          <div style="width:48px"><div style="width:48px;height:48px;border-radius:9px;background:#F5EFE0;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="18" height="12" rx="2.4" stroke="#907737" stroke-width="1.7"/><circle cx="8" cy="13" r="1.2" fill="#907737"/><path d="M3 11h18" stroke="#907737" stroke-width="1.7"/></svg></div><div style="font-size:10px;text-align:center;margin-top:4px">机顶盒</div></div>
+          <!-- ★ v2.5.1：折叠态末尾这枚「+N」。它与缩略图方块**同宽同高、没有底色** ——
+               实现里是 styles.tile + styles.tileMore（height:72、居中、不设背景），
+               里面只有一个 Label tone="ink3"，所以看着是一枚灰字、不是第五个方块。
+               以前它是一块**纯展示的 View**（点不动、也没别处能看全），
+               现在外层换成 Pressable 接上展开，外观一个像素没动。
+               ★ 稿里把方块从 56 收到 48 才把它排进同一行；实现是先摊「每行几格 × 6」，
+                 第 25 枚才是它（这个格位 33 件 = 24 + 9），中间那 20 枚稿里没画。 -->
+          <div style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;color:#9A8D80;font-size:15px;flex:0 0 auto">+9</div>
         </div>
         <div style="margin-top:22px;padding:0 17px;flex:0 0 auto">
           <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:12px">
@@ -575,7 +594,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <div style="text-align:center;color:#C9BEB0">共 4 个格位在用</div>
         </div>
       </div></div>
-      <figcaption><div class="no">05</div><div class="nm">柜内格位 &middot; 位置二级页</div><div class="ds">按格位分组，每组就是一排方形图块（实现里是 72px 缩略图 + 名字，每行几个按窗口宽度算，常见机型排 4 个 —— 稿里这 280px 的框装不下 4 个真尺寸的块，按同比例收细到 56px 才排得齐），不是「一张卡片装着缩略图和一个计数」—— 这里要的是扫一眼认出东西，不是看统计。空格位照样占一行、给一块浅底写「这一格是空的」，位置缺失才看得见。没指定格位的物品落到「直接放在柜子里」。录入按钮在标题正下方而不是页脚：进这一页十次有九次是刚放进去、想顺手记一下。</div></figcaption>
+      <figcaption><div class="no">05</div><div class="nm">柜内格位 &middot; 位置二级页</div><div class="ds">按格位分组，每组就是一排方形图块（实现里是 72px 缩略图 + 名字，每行几个按窗口宽度算，常见机型排 4 个 —— 稿里这 280px 的框装不下 4 个真尺寸的块，按同比例收细到 48px 才排得齐（这一屏还要在同一行末尾塞下那枚「+N」）），不是「一张卡片装着缩略图和一个计数」—— 这里要的是扫一眼认出东西，不是看统计。空格位照样占一行、给一块浅底写「这一格是空的」，位置缺失才看得见。没指定格位的物品落到「直接放在柜子里」。录入按钮在标题正下方而不是页脚：进这一页十次有九次是刚放进去、想顺手记一下。<br><b>末尾那枚「+N」是 v2.5.1 修好的</b>（这个格位 33 件，先摊 24 件 + 「+9」）：它以前是一块<b>纯展示的 View</b> —— 看得见数字，点不动，也没有别的地方能看全。现在外层换成 <code>Pressable</code>，点一下就地展开这一格，展开后末尾给一枚「收起」。外观<b>一个像素没动</b>：不留底色、不加提示字，跟在缩略图后面和别的方块同款（<code>styles.tileMore</code> 只有 height + 居中）。「每格先摊多少件」是设计，这次只修「点不动」那半。</div></figcaption>
     </figure>
 
     <!-- 06 -->
@@ -628,41 +647,17 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
              ★ 第二句必须**跟着开关走**（四态各说一句）——
              还写着「计划在后续版本加入」就是骗人（v2.2.0 已上）。 -->
         <div style="margin:11px 17px 0;background:#F2EDE5;border-radius:13px;padding:11px 12px;flex:0 0 auto">
-          <div style="color:#6B6055;line-height:18px">这一页分两件事盯着：快过期的，和快用完该补货的。</div>
+          <div style="color:#6B6055;line-height:18px">这一页盯着三件事：快过期的、快用完该补货的，还有保修快到的。</div>
           <div style="color:#C9BEB0;line-height:18px;margin-top:4px">已开启到期提醒：提前 3 天在系统通知栏提醒你。</div>
         </div>
 
-        <!-- ★ 库存那一组排在最前：「能补货」是可以此刻顺手补一件的，比「还有二十天到期」紧急。
-             组标题用砖红（clay），与「已过期」同一档 —— 在这一页上这两个都叫「该动手了」 -->
-        <div style="margin:11px 17px 0;display:flex;align-items:baseline;justify-content:space-between;flex:0 0 auto">
-          <span style="color:#AA523D;font-weight:600;font-size:13px;letter-spacing:.4px">该补货了</span><span style="color:#C9BEB0">1 件</span>
-        </div>
-        <div style="margin:8px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden;flex:0 0 auto">
-          <div class="ir">
-            <div class="th" style="width:43px;height:43px;background:#F5EFE0;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="4.5" y="9.5" width="15" height="6.5" rx="3.25" transform="rotate(-40 12 12.7)" stroke="#8A6B33" stroke-width="1.6"/><path d="M9.2 14.6l5.4-4.6" stroke="#8A6B33" stroke-width="1.6" stroke-linecap="round"/></svg></div>
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">深海鱼油软胶囊</div>
-              <div style="color:#9A8D80;margin-top:1px">食品 &middot; 入手 3 个月</div>
-              <span style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;flex-wrap:wrap">
-                <span class="tgn"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#6B6055"/></svg>厨房吊柜 &middot; 第三层</span>
-                <span class="tga"><svg width="7" height="7" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.6" stroke="#926521" stroke-width="1.3"/><path d="M6 3.4V6l1.8 1.1" stroke="#926521" stroke-width="1.3" stroke-linecap="round"/></svg>6 天后到期</span>
-              </span>
-            </div>
-            <!-- 这一行的尾巴是「胶囊 + 补货 + 价格 + 日均」四行。
-                 ★ 两者**并存**：「剩 1」和「用完了」是两种紧急程度，正是决定先买哪个的依据，
-                 不能为了给「补货 +」腾位置把它抹掉。这多出来的一行只出现在这一组里，
-                 首页列表永远只有胶囊那一行（见 01 屏） -->
-            <div class="tailR">
-              <span class="tgs tgsLow">剩 1</span>
-              <span class="rst" style="margin-top:2px">补货<svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M6 2.6v6.8M2.6 6h6.8" stroke="#8C5A34" stroke-width="1.6" stroke-linecap="round"/></svg></span>
-              <div style="font-weight:500;font-size:12.5px;margin-top:2px">&#165;268</div>
-              <div style="color:#8C5A34;font-size:11px;font-variant-numeric:tabular-nums">&#165;2.98/天</div>
-            </div>
-          </div>
-        </div>
+        <!-- ★ 库存那一组（「该补货了」）排在最前、这里没画 ——
+             它读的是库存，与这一屏要讲的「两个日子」无关，而且手机框 606px
+             装不下三组带说明卡的分组。它在 11 屏（库存面板）与 12 屏（详情页库存卡）上有完整交代。
+             组标题的颜色规则没变：砖红=已过期/用完，琥珀=将到期/将见底/保修将到 -->
 
         <div style="margin:11px 17px 0;display:flex;align-items:baseline;justify-content:space-between;flex:0 0 auto">
-          <span style="color:#AA523D;font-weight:600;font-size:13px;letter-spacing:.4px">已过期</span><span style="color:#C9BEB0">2 件</span>
+          <span style="color:#AA523D;font-weight:600;font-size:13px;letter-spacing:.4px">已过期</span><span style="color:#C9BEB0">1 件</span>
         </div>
         <div style="margin:8px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden;flex:0 0 auto">
           <div class="ir">
@@ -677,17 +672,32 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
             </div>
             <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500;font-size:12.5px">&#165;39</div><div style="color:#8C5A34;margin-top:1px;font-size:11px;font-variant-numeric:tabular-nums">&#165;0.16/天</div></div>
           </div>
+        </div>
+
+        <!-- ★ v2.5.1 新增的一组：「保修将到期」。它排在**最后** ——
+             它是「顺带看一眼」的信息，紧迫度低于到期与补货（见 src/lib/db/items.ts）。
+             ★ 标题用**琥珀**，与「30 天内到期」同档；砖红只给「该动手了」那两组
+               （src/app/(tabs)/alerts.tsx 的 groupColor）。
+             ★ 行里那枚标签说的是**保修**（「保修还剩 8 天」），不是保质期：
+               分组上下文已经决定了这一行在讲哪件事 —— 同一行并排画「过期 8 天」和
+               「保修还剩 8 天」，用户第一反应是同一件事被算了两遍。
+             ★ 窗口只看**未来 30 天、不含已过保**：过保了什么也做不了，
+               把老电器永远列在这里，顶部那个数就再也清不掉。 -->
+        <div style="margin:11px 17px 0;display:flex;align-items:baseline;justify-content:space-between;flex:0 0 auto">
+          <span style="color:#926521;font-weight:600;font-size:13px;letter-spacing:.4px">保修将到期</span><span style="color:#C9BEB0">1 件</span>
+        </div>
+        <div style="margin:8px 17px 0;background:#fff;border:0.5px solid #EBE5DB;border-radius:14px;overflow:hidden;flex:0 0 auto">
           <div class="ir">
-            <div class="th" style="width:43px;height:43px;background:#EDEFF1;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="4" y="8.5" width="16" height="7" rx="3.5" stroke="#6C7A88" stroke-width="1.6"/><path d="M12 8.6v6.8" stroke="#6C7A88" stroke-width="1.4"/></svg></div>
+            <div class="th" style="width:43px;height:43px;background:#E9ECE3;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="7" y="2.5" width="10" height="19" rx="2.6" stroke="#8A9384" stroke-width="1.1"/><circle cx="12" cy="18" r=".9" fill="#8A9384"/></svg></div>
             <div style="flex:1;min-width:0">
-              <div style="font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">布洛芬缓释胶囊</div>
-              <div style="color:#9A8D80;margin-top:1px">药品 &middot; 入手 11 个月</div>
+              <div style="font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">iPhone 15 Pro</div>
+              <div style="color:#9A8D80;margin-top:1px">数码 &middot; 入手 11 个月</div>
               <span style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;flex-wrap:wrap">
-                <span class="tgn"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#6B6055"/></svg>药箱</span>
-                <span class="tgc"><svg width="7" height="7" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.6" stroke="#AA523D" stroke-width="1.3"/><path d="M6 3.4V6l1.8 1.1" stroke="#AA523D" stroke-width="1.3" stroke-linecap="round"/></svg>过期 8 天</span>
+                <span class="tgn"><svg width="7" height="9" viewBox="0 0 8 10"><path d="M4 0C1.8 0 0 1.8 0 4c0 3 4 6 4 6s4-3 4-6c0-2.2-1.8-4-4-4zm0 5.4A1.4 1.4 0 1 1 4 2.6a1.4 1.4 0 0 1 0 2.8z" fill="#6B6055"/></svg>书房书柜 &middot; 顶层</span>
+                <span class="tga"><svg width="7" height="7" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4.6" stroke="#926521" stroke-width="1.3"/><path d="M6 3.4V6l1.8 1.1" stroke="#926521" stroke-width="1.3" stroke-linecap="round"/></svg>保修还剩 8 天</span>
               </span>
             </div>
-            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500;font-size:12.5px">&#165;26</div><div style="color:#8C5A34;margin-top:1px;font-size:11px;font-variant-numeric:tabular-nums">&#165;0.08/天</div></div>
+            <div style="text-align:right;flex:0 0 auto"><div style="font-weight:500;font-size:12.5px">&#165;7,999</div><div style="color:#8C5A34;margin-top:1px;font-size:11px;font-variant-numeric:tabular-nums">&#165;24.40/天</div></div>
           </div>
         </div>
         <!-- 这一屏画到「已过期」为止：再往下还有「30 天内到期」那一段（2 件 —— 深海鱼油 6 天后到期、
@@ -702,7 +712,7 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
           <div class="tb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.2" r="3.6" stroke="#A99C8E" stroke-width="1.7"/><path d="M5 20c0-3.5 3.2-5.5 7-5.5s7 2 7 5.5" stroke="#A99C8E" stroke-width="1.7" stroke-linecap="round"/></svg><span>我的</span></div>
         </div>
       </div></div>
-      <figcaption><div class="no">07</div><div class="nm">到期 &middot; 该补货了排在最前</div><div class="ds">这一页现在盯两件事：快过期的，和快用完该补货的 —— 两组共用同一套分组列表与行组件，只是排在最前面的换了一个。<b>只有「该补货了」这一组给「补货 +」</b>：补一件最坏是数多了，点一下「用掉一件」就回来了；首页列表上的「−1」是反过来的，误触就真的少一件，还得去翻撤销条 —— 所以这里给 1 步，那里给 2 步。「补货 +」与余量胶囊<b>并存</b>，不顶掉胶囊：「剩 1」和「用完了」是两种紧急程度，正是决定先买哪个的依据。<br>行就是普通物品行 —— 没有「续期」，也没有「已处理」，要改去详情页改。顶部那条浅底说明卡两句都得在：一句说这一页盯什么，一句说 V1 不做系统推送（不写清楚，用户会以为提醒坏了）。<br>顶部「共 4 件需要关注」是<b>去重后</b>的：深海鱼油同时「该补货了」和「6 天后到期」，两组各数一次会多出一件。底部「提醒」上的角标取同一个数，点进来必须对得上。<br>再往下还有「30 天内到期」那一段（2 件），手机框 606px 装不下两段带说明卡的分组，这里画到「已过期」为止。</div></figcaption>
+      <figcaption><div class="no">07</div><div class="nm">到期 &middot; 三件事各占一组</div><div class="ds">v2.5.1 起这一页盯三件事：快过期的、快用完该补货的、保修快到的 —— 三组共用同一套分组列表与行组件，只是排在最前面的换了一个。<b>只有「该补货了」这一组给「补货 +」</b>：补一件最坏是数多了，点一下「用掉一件」就回来了；首页列表上的「−1」是反过来的，误触就真的少一件，还得去翻撤销条 —— 所以这里给 1 步，那里给 2 步。「补货 +」与余量胶囊<b>并存</b>，不顶掉胶囊：「剩 1」和「用完了」是两种紧急程度，正是决定先买哪个的依据。<br><b>「保修将到期」排在最后、标题走琥珀</b>：砖红只给「该动手了」的过期与用完两组，保修是「顺带看一眼」的信息。它读的是另一列日期（warrantyUntil），行里那枚标签也跟着改口说「保修还剩 8 天」而不是「8 天后到期」—— 同一行并排画两种标签，用户第一反应是同一件事被算了两遍。窗口只看<b>未来 30 天、不含已过保</b>：过保了什么也做不了，把老电器永远列在这里，顶部那个数就再也清不掉。<br>行就是普通物品行 —— 没有「续期」，也没有「已处理」，要改去详情页改。顶部那条浅底说明卡两句都得在：一句说这一页盯什么，一句说系统提醒此刻是开是关（四态各说一句，还写着「计划在后续版本加入」就是骗人）。<br>顶部「共 4 件需要关注」是<b>去重后</b>的：深海鱼油同时「该补货了」和「6 天后到期」，两组各数一次会多出一件。底部「提醒」上的角标取同一个数，点进来必须对得上。<br>手机框 606px 装不下三组带说明卡的分组，这里只画了两组：「已过期」（实际 2 件，另一件是布洛芬缓释胶囊，裁掉它才腾出保修那一组的位置）与最后的「保修将到期」；完整的组顺序是 该补货了 → 已过期 → 30 天内到期 → 保修将到期。</div></figcaption>
     </figure>
 
     <!-- 08 -->

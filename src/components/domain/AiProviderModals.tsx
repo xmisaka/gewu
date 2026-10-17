@@ -102,7 +102,7 @@ export function AiProviderModal({ visible, onClose }: AiProviderModalProps) {
         })}
 
         <Meta tone="ink4" style={styles.footNote}>
-          换供应商后要重新填一次它的 API Key —— 各家的 Key 不通用。已经填过的会各自留着，换回来不用再填。
+          各家 Key 不通用，换回来不用重填。
         </Meta>
       </ScrollView>
     </SheetModal>
@@ -158,7 +158,7 @@ export function AiEndpointModal({ visible, onClose }: AiEndpointModalProps) {
           value={draft}
           onChange={setDraft}
           placeholder="https://…/v1/chat/completions"
-          hint="要一路填到 /chat/completions —— 各家拼法不同，少填一段会得到一个看不懂的报错。"
+          hint="要一路填到 /chat/completions。少填一段会看不懂报错。"
         />
 
         {looksWrong ? (
@@ -171,8 +171,7 @@ export function AiEndpointModal({ visible, onClose }: AiEndpointModalProps) {
         ) : null}
 
         <Meta tone="ink4" style={styles.hint}>
-          模型名不在这里填 —— 回到「模型」那一段点「识图」「问答」两行各自填写，
-          各家的默认名已经预置好了。
+          模型名在上一段「模型」里填，默认名已预置。
         </Meta>
       </View>
 
@@ -237,7 +236,7 @@ export function AiModelModal({ kind, onClose }: AiModelModalProps) {
         </Meta>
 
         <Field
-          label="模型名（就是请求里 model 字段那个名字）"
+          label="模型名"
           value={draft}
           onChange={setDraft}
           placeholder={fallback || (isVision ? '这家没有默认识图模型，留空即不用识物' : '填写服务商文档里的模型名')}
@@ -252,13 +251,13 @@ export function AiModelModal({ kind, onClose }: AiModelModalProps) {
           <View style={styles.warn}>
             <Ionicons name="information-circle" size={14} color={Palette.clay} />
             <Meta color={Palette.clay} style={styles.warnText}>
-              留空保存后，「识物」入口会从录入页隐藏 —— 没有模型名就等于这家看不了图。
+              留空就等于这家看不了图，「识物」会隐藏。
             </Meta>
           </View>
         ) : null}
 
         <Meta tone="ink4" style={styles.hint}>
-          报「模型不存在 / model not found」时，多半是服务商改了名字：到它的文档里抄一个填进来就行。
+          报 model not found 时，去服务商文档抄一个新名字。
         </Meta>
       </View>
 

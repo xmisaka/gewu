@@ -75,6 +75,7 @@ import { createItemsBatch, findItemsByName } from '@/lib/db/items';
 import { lastUsedLocationId, listCabinetViews } from '@/lib/db/locations';
 import { addPhoto } from '@/lib/db/photos';
 import { useAsyncData } from '@/lib/hooks/use-async-data';
+import { useQuotaGuard } from '@/lib/hooks/use-quota';
 import { deleteFiles, ingestMany, photoUri, pickFromLibrary, type SourceImage } from '@/lib/photos/pipeline';
 import { useAi } from '@/lib/store/ai';
 import { useAppState } from '@/lib/store/app-state';
@@ -105,17 +106,21 @@ export default function BatchScreen() {
 
   /* 三道守卫，顺序有理由：**先档位、后总开关** ——
      一个既没付费、又关了开关的人，该先看到「去买」而不是「去打开」
-     （后者是他打开也用不了的东西）。与 `/ask`、`/voice` 同序。
-     第三道是「这家能不能看图」：纯文本模型进来只会在模型侧报错。 */
+     （后者是他打开也用不了的东西）。与 `/ask` 同序。
+     第三道是「这家能不能看图」：纯文本模型进来只会在模型侧报错。
+
+     ★ 2026-10-17：这一族里只剩**批量识图**与**问一问**还收费 ——
+       单张识物与语音录入已经放开到免费档，所以这里的说明不能再说「四个入口同属支持者档」，
+       那句话会让免费用户以为自己一项都用不了，而事实上他手上已经有两项。 */
   if (!entitled) {
     return (
       <AiOffNotice
         title="批量识图"
-        body="批量识图与识物、问一问、语音录入同属支持者档。免费档的录入、到期、库存、照片与备份全部照旧，一个不少。"
+        body="批量识图属于支持者功能。识物与语音录入已经免费。"
         actionLabel="去激活 / 了解支持者档"
         onAction={() => router.push('/supporter')}
         onBack={() => router.back()}
-        footer={<SupporterGateSheet visible feature="ai" onClose={() => router.back()} />}
+        footer={<SupporterGateSheet visible feature="aiPro" onClose={() => router.back()} />}
       />
     );
   }
@@ -123,7 +128,7 @@ export default function BatchScreen() {
     return (
       <AiOffNotice
         title="批量识图"
-        body="AI 助手总开关关着，这一族入口都不在。打开之后，拍一张、说一句、或者一次选一批照片都可以。"
+        body="AI 助手总开关关着。到「我的 → AI 助手」打开就能用。"
         actionLabel="去 AI 助手打开开关"
         onAction={() => router.push('/ai')}
         onBack={() => router.back()}
@@ -134,7 +139,7 @@ export default function BatchScreen() {
     return (
       <AiOffNotice
         title="批量识图"
-        body="当前这家模型看不了图（比如纯文本模型），所以识图入口是藏起来的。换一家能看图的，或给这家填一个识图模型。"
+        body="这家模型看不了图。换一家能看图的，或给它配一个识图模型。"
         actionLabel="去 AI 助手换模型"
         onAction={() => router.push('/ai')}
         onBack={() => router.back()}
@@ -152,6 +157,7 @@ function BatchRunner() {
   const router = useRouter();
   const { bump } = useAppState();
   const { record } = useAi();
+  const quotaGuard = useQuotaGuard();
 
   const [entries, setEntries] = useState<BatchEntry[]>([]);
   const [phase, setPhase] = useState<Phase>('picking');
@@ -447,6 +453,21 @@ function BatchRunner() {
   const save = useCallback(async () => {
     const picked = entries.filter(isSavable);
     if (picked.length === 0) return;
+
+    /* ★★ 免费档配额按**整批**判，不按件累加判断。
+       还剩 3 件额度却选了 9 张时，「存进去 3 件再报错」是最糟的结果：
+       界面写着「已保存 9 件」，列表里只多了 3 件，而剩下 6 条还在待存列表里
+       等着用户再点一次 —— 没有人能从这个状态里读出发生了什么。
+       ★ 判在 `setPhase('saving')` 之前：否则会先闪一下「正在保存」再退回，
+       看起来像失败了一次。
+       ★ 停在 `review`，提示挂在列表下面 —— 用户要做的动作是「少选几件」，
+       原地就能做，不该被弹窗挡在一个没有出口的对话框里。 */
+    const quota = await quotaGuard(picked.length);
+    if (!quota.ok) {
+      setHint(quota.message ?? '');
+      return;
+    }
+
     setPhase('saving');
     try {
       const drafts = toDrafts(picked, {
@@ -479,7 +500,7 @@ function BatchRunner() {
       setHint('没能保存，再试一次。');
       setPhase('review');
     }
-  }, [bump, entries, lastLocState.data, uniform.locationId]);
+  }, [bump, entries, lastLocState.data, quotaGuard, uniform.locationId]);
 
   /* ---------------------------------------------------------- 交互 */
 

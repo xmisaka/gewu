@@ -99,8 +99,7 @@ export function StockKeyModal({ visible, onClose, onSaved }: StockKeyModalProps)
 
       <View style={styles.body}>
         <Body tone="ink2" style={styles.desc}>
-          自动找封面用的是 Pexels 免费图库，需要一个 API Key。
-          到 pexels.com/api 注册后复制过来即可，免费额度足够自用。
+          封面搜索用 Pexels，去 pexels.com/api 免费注册取 Key。
         </Body>
 
         <Label tone="ink3" style={styles.fieldLabel}>
