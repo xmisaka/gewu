@@ -18,6 +18,12 @@
  *     ② 结果里把两个文件**分别列出来**，各带自己的大小与「发送」；
  *     ③ 任何失败只出现一句人话，且**贴着按钮那一栏**显示 —— 不再塞进滚动的正文里
  *        （正文滚上去以后报错就看不见了，人只会觉得「点了没反应」）。
+ *
+ * ★ 2026-10-18：付费墙从**入口**挪到了**生成这一下**。
+ *   入口先拦的写法是「我刚点开，就被一张卖会员的纸糊住」，用户连这东西长什么样都没看见；
+ *   现在是先让他看三种版式、看体检数字（件数与合计），点「生成清册」才校验并弹门控 ——
+ *   他知道支持者档卖的是什么，掏钱的判断才有依据。
+ *   ★ 校验写在 `runGenerate` 里，不写按钮的 onPress 上：所有生成出口（含以后的）都过这一处。
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -45,6 +51,7 @@ import {
 } from '@/lib/inventory/styles';
 import { formatBytes, formatMoney } from '@/lib/format';
 import { useAppState } from '@/lib/store/app-state';
+import { useEntitlement } from '@/lib/store/entitlement';
 import { makeStyles } from '@/lib/theme';
 import { SheetModal } from '../ui/sheet-modal';
 import { Body, Heading, Label, Meta } from '../ui/typography';
@@ -64,10 +71,19 @@ type FailureStep = 'generate' | 'pdf' | 'html';
 export interface InventorySheetProps {
   visible: boolean;
   onClose: () => void;
+  /**
+   * 未激活时点了「生成清册」→ 交给外层弹门控浮层。
+   *
+   * ★ 为什么由外层弹：门控浮层是个 `Modal`，这个弹层也是 `Modal`，
+   *   安卓上两层叠着不可靠（第二个可能根本不出现，而且不报错）。
+   *   外层收到这个回调会**先关掉本弹层、再弹门控**，与皮肤选择器被挡下时同一套做法。
+   */
+  onGate: () => void;
 }
 
-export function InventorySheet({ visible, onClose }: InventorySheetProps) {
+export function InventorySheet({ visible, onClose, onGate }: InventorySheetProps) {
   const styles = useStyles();
+  const { entitled } = useEntitlement();
   const { dataVersion } = useAppState();
   const [styleKey, setStyleKey] = useState<InventoryStyleKey>('dossier');
   const [model, setModel] = useState<InventoryModel | null>(null);
@@ -123,6 +139,12 @@ export function InventorySheet({ visible, onClose }: InventorySheetProps) {
      只要求报错**一直在视野里**。 */
   const runGenerate = async () => {
     if (!model || blocked) return;
+    /* ★★ 付费墙在这里，不在入口：拦早了对方连版式和体检数字都没看见。
+       校验放在本函数而不是按钮的 onPress 上 —— 以后再加生成出口也不会漏。 */
+    if (!entitled) {
+      onGate();
+      return;
+    }
     setBusy('generate');
     setError(null);
     try {

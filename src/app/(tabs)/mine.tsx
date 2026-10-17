@@ -509,15 +509,15 @@ export default function MineScreen() {
                   CSV 拿去算，清册拿去打印。别再往首页或统计页加第二处入口。
                   ★ 2026-10-17 起清册转为支持者功能：CSV 导出仍免费（「把数据带走」
                     的最低成本那一档不能收费，那是用户自己的数据），
-                    清册卖的是版式与打印品相。未激活不藏行，弹门控浮层。 */}
+                    清册卖的是版式与打印品相。未激活不藏行。
+                  ★ 2026-10-18 起付费墙从**入口**挪到**生成**那一下：
+                    免费档也进得去，看得到三种版式和体检数字，点「生成清册」
+                    才弹门控浮层（见 InventorySheet 的 onGate）。 */}
               <SettingRow
                 label="生成家庭财产清册"
                 value="PDF · HTML"
                 valueTone="ink3"
-                onPress={() => {
-                  if (entitled) setInventoryOpen(true);
-                  else setGateFeature('inventory');
-                }}
+                onPress={() => setInventoryOpen(true)}
               />
               <SettingRow
                 label="导入备份"
@@ -890,7 +890,16 @@ export default function MineScreen() {
         ) : null}
       </ScrollView>
 
-      <InventorySheet visible={inventoryOpen} onClose={() => setInventoryOpen(false)} />
+      {/* 未激活时点「生成清册」→ 先关弹层、再弹门控：
+          两个 Modal 叠着在安卓上会互相抢返回键，第二个还可能根本不出现 */}
+      <InventorySheet
+        visible={inventoryOpen}
+        onClose={() => setInventoryOpen(false)}
+        onGate={() => {
+          setInventoryOpen(false);
+          setGateFeature('inventory');
+        }}
+      />
 
       <ThemePickerModal
         visible={themeOpen}

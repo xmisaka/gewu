@@ -467,23 +467,44 @@ test('★ 入口写的就是两个格式，不许只写 PDF', () => {
   );
 });
 
-test('★★ 清册入口按档位拦：免费档打开的是门控浮层，不是配置弹层', () => {
+test('★★ 付费墙在「生成」这一下，不在入口：免费档进得去、生不出来', () => {
   /*
-   * 2026-10-17 重新划档时清册从免费转成了支持者功能。
-   * ★ 漏掉这一处不会报错 —— 入口照常打开、清册照常生成，只是这道付费墙等于不存在，
-   *   而且没有人会去测「我明明没买，为什么还能用」。
-   * ★ 行**不藏**：藏掉之后免费用户不知道有这项、也不知道支持者档买的是什么。
+   * 2026-10-17 重新划档时清册从免费转成了支持者功能；
+   * 2026-10-18 又把付费墙从**入口**挪到了**生成**那一下 —— 入口就拦的话，
+   * 用户连三种版式长什么样、这本册子印出来是什么都没看见，只有一张卖会员的纸。
+   *
+   * ★ 两种错法都不报错、都很难被测出来：
+   *   ① 墙彻底丢了 —— 免费档照常生成，等于这项不收费；
+   *   ② 墙留在了入口 —— 又能用，但用户永远看不到这东西长什么样。
+   *   所以两头都要钉：入口必须**无条件**打开，生成必须**先校验后生成**。
    */
   const mine = code('app/(tabs)/mine.tsx');
-  assert.match(
-    mine,
-    /if \(entitled\) setInventoryOpen\(true\);\s*\n\s*else setGateFeature\('inventory'\)/,
-    '清册入口没有按档位分流 —— 免费档应当弹 `inventory` 门控浮层',
+  assert.ok(
+    /label="生成家庭财产清册"[\s\S]{0,200}onPress=\{\(\) => setInventoryOpen\(true\)\}/.test(mine),
+    '清册入口又按档位分流了 —— 免费档应当进得去，墙在「生成」那一下',
   );
   assert.ok(
-    !/onPress=\{\(\) => setInventoryOpen\(true\)\}/.test(mine),
-    '清册入口又变回无条件打开了 —— 那等于取消这项付费',
+    !/setGateFeature\('inventory'\)/.test(
+      mine.split('label="生成家庭财产清册"')[1]?.slice(0, 260) ?? '',
+    ),
+    '入口还在按档位弹门控，等于没挪墙',
   );
+
+  const sheet = code('components/domain/InventorySheet.tsx');
+  /* onGate 交给外层去弹（两个 Modal 不叠）—— 这个回调必须真的接上，
+     否则免费档点「生成」就是「点了没反应」 */
+  assert.ok(sheet.includes('onGate'), '清册弹层没有收到 onGate —— 点生成会静默无事发生');
+  assert.ok(
+    /onGate=\{\(\) => \{[\s\S]{0,120}setGateFeature\('inventory'\)/.test(mine),
+    '外层没有把 onGate 接到 `inventory` 门控上',
+  );
+
+  /* 顺序：先判 entitled 再 generateInventory。反过来就是「生成完了才发现不该给」 */
+  const gateAt = sheet.indexOf('if (!entitled)');
+  const genAt = sheet.indexOf('generateInventory(model');
+  assert.ok(gateAt > 0, '生成入口没有校验档位 —— 这道付费墙等于不存在');
+  assert.ok(genAt > 0 && gateAt < genAt, '档位校验必须在真正生成之前');
+
   /* CSV 导出必须仍然是免费的：卖的是版式与打印品相，不是「把你的数据带走」这件事本身 */
   assert.ok(
     /label="导出物品清单"[\s\S]{0,220}onPress=\{runExport\}/.test(mine),
