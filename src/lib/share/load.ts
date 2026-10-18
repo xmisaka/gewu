@@ -9,6 +9,7 @@ import { getItemView, listItems, ordinalOf } from '@/lib/db/items';
 import { listCabinetViews } from '@/lib/db/locations';
 import type { ItemView } from '@/lib/types';
 
+import { buildListText } from './list-text';
 import {
   buildMultiPoster,
   buildSinglePoster,
@@ -47,4 +48,17 @@ export async function loadPosterModel(source: PosterSource): Promise<PosterModel
   }
 
   return buildMultiPoster(found);
+}
+
+/**
+ * 文字清单取数（海报页「只发文字清单」用）。
+ *
+ * ★ 不设 9 件上限 —— 海报的格子有画布边界，文本没有；
+ *   多选 20 件就出 20 行的清单，这正是文本存在的意义。
+ *   与 loadPosterModel 的「少画几件比打不开页面好」是两个方向，别共用一个函数。
+ */
+export async function loadListText(ids: string[]): Promise<string> {
+  const views = await Promise.all(ids.map((id) => getItemView(id)));
+  const found = views.filter((v): v is ItemView => v != null);
+  return buildListText(found);
 }

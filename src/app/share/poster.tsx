@@ -2,7 +2,8 @@
  * 格物 · 做成海报
  *
  * 一个页面，两种产出：进来就是一张已经渲染好的默认模板，横滑换皮、点题语就地改，
- * 右上没有「下一步」—— 只有一个「分享」。
+ * 右上没有「下一步」—— 只有一个「分享」。多选进来时底部多一枚「只发文字清单」：
+ * 海报给「看」，文本给「用」，两个出口在同一页（见 onShareText 的注释）。
  *
  * ── 为什么不是「先选模板 → 再预览」两步 ───────────────────────
  *   ① 多一步就会少一半人。分享是冲动动作，「先选再做」会把这股劲消耗掉。
@@ -29,8 +30,8 @@ import { SheetModal } from '@/components/ui/sheet-modal';
 import { Screen } from '@/components/ui/layout';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { GUTTER, Palette, Radius, Space } from '@/constants/theme';
-import { capturePoster, sharePosterFile } from '@/lib/share/capture';
-import { loadPosterModel, type PosterSource } from '@/lib/share/load';
+import { capturePoster, sharePosterFile, shareText } from '@/lib/share/capture';
+import { loadListText, loadPosterModel, type PosterSource } from '@/lib/share/load';
 import { POSTER_SIZE, photoCountOf, type PosterModel } from '@/lib/share/model';
 import { QUOTE_GROUPS, quotesOf } from '@/lib/share/quotes';
 import { skinOf, skinsFor, type PosterSkinKey } from '@/lib/share/templates';
@@ -120,6 +121,29 @@ export default function PosterScreen() {
   const onPhotoSettled = useCallback(() => {
     settledRef.current += 1;
   }, []);
+
+  /**
+   * 文字版入口（v2.7.1）：多选进来时，海报页也是纯文本清单的出口。
+   *
+   * ★ 为什么放这里而不是留在多选工具条的 ⋯ 面板：app 里「分享」只有一个目的地 ——
+   *   详情页、多选、统计页三个入口都汇到这张图，图或文字进去再选。
+   *   以前清单藏在无语义的 ⋯ 后面，想发文字的人根本想不到去点。
+   * ★ 文字取数不走 9 件上限（文本没有画布），见 load.loadListText 的注释。
+   */
+  const onShareText = useCallback(async () => {
+    if (busy || source.kind !== 'ids' || source.ids.length === 0) return;
+    setBusy(true);
+    try {
+      const text = await loadListText(source.ids);
+      if (!text) throw new Error('empty');
+      const ok = await shareText(text);
+      if (!ok) Alert.alert('没有发送出去', '清单还在这一页里，可以再试一次。');
+    } catch {
+      Alert.alert('清单没发出去', '再试一次看看。');
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, source]);
 
   const onShare = useCallback(async () => {
     if (!model || busy || !shotRef.current) return;
@@ -248,6 +272,15 @@ export default function PosterScreen() {
               onPress={() => void onShare()}
               loading={busy}
             />
+            {source.kind === 'ids' && source.ids.length > 1 ? (
+              <Button
+                label="只发文字清单"
+                tone="secondary"
+                icon="reorder-four-outline"
+                onPress={() => void onShareText()}
+                loading={busy}
+              />
+            ) : null}
           </View>
         </>
       )}
@@ -353,7 +386,7 @@ const useStyles = makeStyles((Palette) => ({
   },
   quoteText: { flex: 1, fontSize: 13 },
 
-  footer: { paddingHorizontal: GUTTER, paddingTop: Space.sm, paddingBottom: Space.lg },
+  footer: { paddingHorizontal: GUTTER, paddingTop: Space.sm, paddingBottom: Space.lg, gap: Space.xs },
 
   panel: { paddingHorizontal: GUTTER, paddingTop: Space.md },
   panelTitle: { fontSize: 18 },

@@ -21,7 +21,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  Share,
   StyleSheet,
   View,
 } from 'react-native';
@@ -59,7 +58,6 @@ import {
   adjustQuantity,
   assignCategory,
   assignLocation,
-  getItemView,
   listItems,
   setManualOrder,
   setQuantity,
@@ -72,7 +70,6 @@ import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { useDebouncedSearch } from '@/lib/hooks/use-debounced-search';
 import { useTagLibrary } from '@/lib/hooks/use-tag-library';
 import { filterCabinets } from '@/lib/search';
-import { buildListText } from '@/lib/share/list-text';
 import { nextQuantity, stockLabel } from '@/lib/stock';
 import { applyTagTransform, removeTag, type TagTransform } from '@/lib/tags';
 import { useAppState } from '@/lib/store/app-state';
@@ -179,10 +176,8 @@ export default function ItemsScreen() {
   /** 多选模式：低摩擦录入的补偿机制，用于批量补分类 / 改位置 / 删除 */
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const selecting = selected.size > 0;
-  /** 多选「⋯」面板：做成海报、分享清单、全选、取消 */
+  /** 多选「⋯」面板：删除、全选、取消 —— 只剩低频与危险的动作 */
   const [moreOpen, setMoreOpen] = useState(false);
-  /** 生成清单文本 / 唤起分享面板的间隙，挡住连点 */
-  const [shareBusy, setShareBusy] = useState(false);
 
   /** 库存面板正对着的那件物品；null = 面板关着 */
   const [stockTarget, setStockTarget] = useState<StockSheetTarget | null>(null);
@@ -431,34 +426,17 @@ export default function ItemsScreen() {
   };
 
   /**
-   * 多选「⋯」面板：分享类动作收在这里。
+   * 多选「分享」：直接进海报页 —— 不弹菜单、不选模板。
    *
-   * ★ 为什么是溢出面板而不是第五枚工具条按钮：那条注释写在 selectionBar 上 ——
-   *   四枚动作 ＋「已选 N 件」在 360dp 上刚好放得下，多一个字就把「删除」挤出屏幕
-   *   （而挤出去不报错）。⋯ 只有图标不占文字宽度，是唯一挤得进去的东西。
-   * ★ 语义上也不该并排：那四枚全是「改这几件东西」，这两项是「把这几件说出去」。
+   * ★ 为什么分享顶替「删除」而不是挤成第五枚：那条注释写在 selectionBar 上 ——
+   *   两字换两字，**宽度零变化**；删除收进 ⋯ 面板，低频且危险的动作多一跳确认反而是保护。
+   * ★ 纯文字清单也在海报页里（「只发文字清单」）：app 里「分享」只有一个目的地 ——
+   *   详情页、多选、统计页三个入口汇到同一张图，图或文字进去再选。
    */
   const openPoster = () => {
     const ids = [...selected];
     if (ids.length === 0) return;
-    setMoreOpen(false);
     router.push({ pathname: '/share/poster', params: { ids: ids.join(',') } });
-  };
-
-  const shareSelectedList = async () => {
-    if (shareBusy) return;
-    setShareBusy(true);
-    setMoreOpen(false);
-    try {
-      const views = await Promise.all([...selected].map((id) => getItemView(id)));
-      const found = views.filter((v): v is ItemView => v != null);
-      const text = buildListText(found);
-      if (text) await Share.share({ message: text });
-    } catch {
-      Alert.alert('清单没发出去', '再试一次看看。');
-    } finally {
-      setShareBusy(false);
-    }
   };
 
   /**
@@ -889,11 +867,10 @@ export default function ItemsScreen() {
         <View style={styles.selectionBar}>
           <View style={styles.selectionLead}>
             <Body color={Palette.onAccent}>已选 {selected.size} 件</Body>
-            {/* ⋯ 只有图标，不占文字宽度 —— 这是它挤得进这条工具条的唯一原因 */}
+            {/* ⋯ 只有图标，不占文字宽度 —— 分享升到工具条之后，这里只剩低频与危险动作 */}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="更多分享方式"
-              disabled={shareBusy}
+              accessibilityLabel="更多操作"
               onPress={() => setMoreOpen(true)}
               hitSlop={12}
               style={({ pressed }) => [styles.moreBtn, pressed && styles.barActionPressed]}>
@@ -902,7 +879,9 @@ export default function ItemsScreen() {
           </View>
           <View style={styles.selectionActions}>
             {/* 标签统一用两字：四枚动作 + 「已选 N 件」在 360dp 屏上刚好放得下，
-                多一个字就会把「删除」挤出屏幕（而挤出去是不报错的） */}
+                多一个字就会把「分享」挤出屏幕（而挤出去是不报错的）。
+                ★ 分享顶替了删除的位置：两字换两字，宽度零变化 ——
+                  分享是这次改造要抬上来的动作，删除低频且危险，进 ⋯ 反而是保护 */}
             <BarAction icon="pricetag-outline" label="分类" onPress={() => setPickerOpen(true)} />
             <BarAction
               icon="location-outline"
@@ -917,7 +896,7 @@ export default function ItemsScreen() {
                 setBatchTagOpen(true);
               }}
             />
-            <BarAction icon="trash-outline" label="删除" onPress={confirmBulkDelete} />
+            <BarAction icon="share-social-outline" label="分享" onPress={openPoster} />
           </View>
         </View>
       ) : null}
@@ -992,23 +971,21 @@ export default function ItemsScreen() {
       {/* 撤销条放在面板之后、且在面板关掉之前不会出现（见 closeStock） */}
       <UndoBar action={undo} onDismiss={() => setUndo(null)} />
 
-      {/* 多选「⋯」：分享类动作。四枚工具条一个字都不改，理由见 openPoster 的注释 */}
+      {/* 多选「⋯」：删除 / 全选 / 取消。分享已经升到工具条最右（与删除等宽对调），
+          纯文字清单在海报页里 —— app 里「分享」只有一个目的地，见 openPoster 的注释 */}
       <SheetModal visible={moreOpen} onClose={() => setMoreOpen(false)}>
         <View style={styles.morePanel}>
           <Meta tone="ink3" style={styles.moreHint}>
             已选 {selected.size} 件
           </Meta>
           <MoreRow
-            icon="images-outline"
-            label="做成海报"
-            sub="选模板，写一句话，发出去"
-            onPress={openPoster}
-          />
-          <MoreRow
-            icon="share-social-outline"
-            label="分享清单"
-            sub="纯文本，家人可以直接复制"
-            onPress={() => void shareSelectedList()}
+            icon="trash-outline"
+            label="删除"
+            sub="移入回收站，之后可以整批恢复"
+            onPress={() => {
+              setMoreOpen(false);
+              confirmBulkDelete();
+            }}
           />
           <MoreRow
             icon="checkmark-done-outline"
@@ -1035,8 +1012,8 @@ export default function ItemsScreen() {
 /**
  * 「⋯」面板里的一行。
  *
- * 比 BarAction 多一行说明：这个面板里是「不太常用、但不该藏起来」的动作，
- * 名字本身不足以让人知道会发生什么（「分享清单」是图还是字？）。
+ * 比 BarAction 多一行说明：这个面板里是「低频或危险」的动作，
+ * 名字本身不足以让人放心（「删除」会连照片一起没吗？）。
  */
 function MoreRow({
   icon,

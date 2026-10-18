@@ -24,7 +24,7 @@
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import type { RefObject } from 'react';
-import type { View } from 'react-native';
+import { Share, type View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 
 import { POSTER_SIZE } from './model';
@@ -79,4 +79,17 @@ export async function sharePosterFile(uri: string): Promise<boolean> {
   if (!(await Sharing.isAvailableAsync())) return false;
   await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: '分享这张海报' });
   return true;
+}
+
+/**
+ * 纯文本清单走 RN 的 Share —— expo-sharing 只收文件，不收字符串。
+ * 与 sharePosterFile 同一条约定：返回 false（包括用户划掉面板）不算错误，不弹提示。
+ */
+export async function shareText(message: string): Promise<boolean> {
+  try {
+    const res = await Share.share({ message });
+    return res.action !== Share.dismissedAction;
+  } catch {
+    return false;
+  }
 }
