@@ -137,7 +137,8 @@ export type PosterKind = 'single' | 'multi' | 'stat';
  *   ① 暗房是「照片满出血」，没有照片时它就是一整块墨 —— 不出现在列表里，
  *      而不是让人选了才发现是空的。
  *   ② 一页账只吃统计数字，单件/多选时没有它要的字段。
- *   ③ 其余都可跨 single / multi（素笺在多件时把标题换成位置名，见 model.ts）。
+ *   ③ 素笺是唯一的通用模板，single / multi 都在；
+ *      陈列对 single 也开放 —— 单件建模填一格（一物一格，见 buildSinglePoster）。
  */
 export function skinsFor(kind: PosterKind, hasPhoto: boolean): PosterSkin[] {
   return SKINS.filter((s) => {

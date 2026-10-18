@@ -75,7 +75,10 @@ test('模板目录：四套、顺序固定、骨架映射不变', () => {
   assert.equal(skinOf('nope').key, 'sujian');
 });
 
-test('模板过滤：暗房要有照片，一页账只吃统计', () => {
+test('模板过滤：暗房要有照片，一页账只吃统计，陈列两态都在', () => {
+  // ★ 陈列对 single / multi 都开放：单件建模填一格（一物一格）。
+  //   防的是 buildSinglePoster 的 cells 再度变空 —— 那样单件选陈列
+  //   就是一张只有标题的空海报（v2.7.1 真机踩到），守门断言在下面那条
   assert.deepEqual(
     skinsFor('single', false).map((s) => s.key),
     ['sujian', 'chenlie'],
@@ -86,6 +89,10 @@ test('模板过滤：暗房要有照片，一页账只吃统计', () => {
   );
   assert.deepEqual(
     skinsFor('multi', true).map((s) => s.key),
+    ['sujian', 'chenlie'],
+  );
+  assert.deepEqual(
+    skinsFor('multi', false).map((s) => s.key),
     ['sujian', 'chenlie'],
   );
   assert.deepEqual(
@@ -191,8 +198,8 @@ test('多件副标题最多两个分类，多了就归纳', () => {
   assert.equal(multiSubtitle([item({})]), null);
 });
 
-test('多件列数：1–4 两列，5–9 三列', () => {
-  assert.equal(gridColumns(1), 2);
+test('陈列列数：1 件独占一行，2–4 两列，5–9 三列', () => {
+  assert.equal(gridColumns(1), 1);
   assert.equal(gridColumns(4), 2);
   assert.equal(gridColumns(5), 3);
   assert.equal(gridColumns(9), 3);
@@ -296,14 +303,20 @@ test('单件模型：标题、位置、编号、题语都到位', () => {
   assert.ok(model.quote.length > 0);
   assert.equal(model.photoThumb, 'photos/a-thumb.jpg');
   assert.equal(photoCountOf(model), 1);
+  /* ★ 陈列守门：单件的 cells 必须有一格，否则陈列模板就是一张空海报 */
+  assert.equal(model.cells.length, 1);
+  assert.equal(model.cells[0].name, '索尼 WH-1000XM4');
+  assert.equal(model.cells[0].thumb, 'photos/a-thumb.jpg');
 });
 
-test('单件模型：没有照片时照片数为零（暗房会被过滤掉）', () => {
+test('单件模型：没有照片时照片数为零（暗房会被过滤掉），但陈列那格仍在', () => {
   const model = buildSinglePoster(item({ name: '酱油' }), null, NOW);
   assert.equal(model.photoThumb, null);
   assert.equal(photoCountOf(model), 0);
   assert.equal(model.ordinal, null);
   assert.equal(model.daysText, null);
+  assert.equal(model.cells.length, 1);
+  assert.equal(model.cells[0].thumb, null);
 });
 
 test('多件模型的照片数只算有图的格子', () => {

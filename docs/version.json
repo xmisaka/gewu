@@ -1,13 +1,13 @@
 {
-  "versionCode": 34,
-  "versionName": "2.7.1",
-  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.7.1-arm64.apk",
+  "versionCode": 35,
+  "versionName": "2.7.2",
+  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.7.2-arm64.apk",
   "size": "47.99 MB",
   "notes": [
+    "修复：陈列模板在单件时正文空白 —— 现在单件也是一整幅大图",
     "多选分享换位置：点「分享」直接出海报，纯文字清单在海报页里",
     "新增「做成海报」：详情页、多选、统计页三处都能出图，四套模板可换",
-    "海报上那句话可以自己改，也可以不要",
-    "多选删除收进了「⋯」，删除前会再确认一次"
+    "海报上那句话可以自己改，也可以不要"
   ],
   "force": false
 }

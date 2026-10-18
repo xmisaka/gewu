@@ -166,7 +166,9 @@ export function buildSinglePoster(
     dateText: stamp(now),
     quote: pickQuote(item.id),
     photoThumb: item.coverThumb,
-    cells: [],
+    /* ★ 陈列对单件也开放（用户指出）：一物一格 —— 一整幅大图 + 名称。
+       空着 cells 会让单件选陈列时出一张只有标题的空海报（v2.7.1 真机踩到） */
+    cells: [{ name: item.name, thumb: item.coverThumb, note: null }],
     stat: null,
   };
 }
@@ -295,12 +297,14 @@ export function buildStatPoster(
 /* ------------------------------------------------------------ 版式档位 */
 
 /**
- * 多件的列数。1–4 件两列、5–9 件三列。
+ * 陈列的列数。1 件独占一行、2–4 件两列、5–9 件三列。
  *
  * 不做等比缩放：四件摊成 3 列会剩一个空格，九件挤成 2 列会让每格小到认不出。
- * 这是两套版式，不是同一个版式的两个尺寸。
+ * 单件给一整幅通栏大图（「一物一格」）—— 两列里孤零零一格反而失衡。
+ * 这是三套版式，不是同一个版式的三个尺寸。
  */
-export function gridColumns(count: number): 2 | 3 {
+export function gridColumns(count: number): 1 | 2 | 3 {
+  if (count <= 1) return 1;
   return count <= 4 ? 2 : 3;
 }
 
@@ -322,7 +326,7 @@ export const GRID_METRICS = {
 } as const;
 
 export interface GridLayout {
-  cols: 2 | 3;
+  cols: 1 | 2 | 3;
   rows: number;
   /** 单格的横向槽宽（撑满版心，文字按它居中） */
   cellW: number;
