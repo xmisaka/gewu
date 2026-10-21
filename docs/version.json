@@ -1,13 +1,13 @@
 {
-  "versionCode": 35,
-  "versionName": "2.7.2",
-  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.7.2-arm64.apk",
-  "size": "47.99 MB",
+  "versionCode": 36,
+  "versionName": "2.7.3",
+  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.7.3-arm64.apk",
+  "size": "48.00 MB",
   "notes": [
-    "修复：陈列模板在单件时正文空白 —— 现在单件也是一整幅大图",
-    "多选分享换位置：点「分享」直接出海报，纯文字清单在海报页里",
-    "新增「做成海报」：详情页、多选、统计页三处都能出图，四套模板可换",
-    "海报上那句话可以自己改，也可以不要"
+    "新增：列表可分「全部 / 还有 / 用完」，默认只看还有的",
+    "用完的东西不再混在列表里，切到「用完」能看到是哪些",
+    "修复：点「添加照片」只有相册没有相机（魅族等机型）",
+    "分类上的件数会跟着库存档位一起变"
   ],
   "force": false
 }
