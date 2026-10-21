@@ -42,7 +42,14 @@ import { useAsyncData } from '@/lib/hooks/use-async-data';
 import { useDebouncedSearch } from '@/lib/hooks/use-debounced-search';
 import { useTagLibrary } from '@/lib/hooks/use-tag-library';
 import { normalizeQuantity } from '@/lib/stock';
-import { deleteFiles, ingestMany, pickFromLibrary, type IngestedPhoto } from '@/lib/photos/pipeline';
+import {
+  captureWithCamera,
+  deleteFiles,
+  ingestMany,
+  pickFromLibrary,
+  type IngestedPhoto,
+  type SourceImage,
+} from '@/lib/photos/pipeline';
 import { clearStockCache, downloadToCache, type CoverCandidate } from '@/lib/photos/stock';
 import { defaultExpireMonths, EXPIRY_PRESETS, guessCategory, UNCATEGORIZED } from '@/lib/suggest';
 import { applyTagTransform, joinTagsText, removeTag, splitTagsText, type TagTransform } from '@/lib/tags';
@@ -363,6 +370,8 @@ export function ItemForm({
   /** 识物来源选择弹层 */
   const [recognizeOpen, setRecognizeOpen] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
+  /** 照片来源选择弹层（拍一张 / 从相册选） */
+  const [photoSheet, setPhotoSheet] = useState(false);
   /**
    * 模型填了、用户还没确认的字段。
    *
@@ -628,12 +637,13 @@ export function ItemForm({
     [initialPhotos, removedPhotoIds],
   );
 
-  const pickPhotos = async () => {
-    const { sources, denied } = await pickFromLibrary();
-    if (denied) {
-      setHint('没有相册权限，暂时无法选图');
-      return;
-    }
+  /**
+   * 落盘并追加一批图。
+   *
+   * 拍照与相册两条来源在这里汇合 —— 压缩、缩略图、失败计数不该有两套写法，
+   * 否则「拍的照片能进备份包、选的不能」这种差异会在几个月后悄悄长出来。
+   */
+  const ingestPicked = async (sources: SourceImage[]) => {
     if (sources.length === 0) return;
 
     setUploading(true);
@@ -646,6 +656,38 @@ export function ItemForm({
     if (result.failed.length > 0) {
       setHint(`${result.failed.length} 张图片处理失败，已跳过`);
     }
+  };
+
+  /**
+   * 「添加」→ 选来源 → 取图。
+   *
+   * ★ 为什么不让系统相册选择器代劳拍照（原来就是这么做的）：
+   *   那个「相机」格子是**选择器自己画的**，有没有由厂商决定。
+   *   魅族（Flyme）的选择器就没有 —— 用户点「添加」只能翻相册，
+   *   反馈过来就是「格物不能拍照」。相机必须自己起，走 ACTION_IMAGE_CAPTURE，
+   *   这条路每个 ROM 都有。
+   */
+  const pickPhotos = async (source: 'camera' | 'library') => {
+    // 先关弹层再起相机：Modal 在 Android 上是独立窗口，
+    // 与相机 Activity 叠在一起时返回结果会丢（同 runRecognize 的做法）
+    setPhotoSheet(false);
+
+    if (source === 'camera') {
+      const { sources, denied } = await captureWithCamera();
+      if (denied) {
+        setHint('没有相机权限，拍不了。到系统设置里给格物开启相机');
+        return;
+      }
+      await ingestPicked(sources);
+      return;
+    }
+
+    const { sources, denied } = await pickFromLibrary();
+    if (denied) {
+      setHint('没有相册权限，暂时无法选图');
+      return;
+    }
+    await ingestPicked(sources);
   };
 
   const removeKeptPhoto = (photoId: string) => setRemovedPhotoIds((prev) => [...prev, photoId]);
@@ -775,11 +817,11 @@ export function ItemForm({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="添加照片"
-              onPress={pickPhotos}
+              onPress={() => setPhotoSheet(true)}
               disabled={uploading}
               style={styles.photoAdd}>
               <Ionicons
-                name={uploading ? 'hourglass-outline' : 'camera-outline'}
+                name={uploading ? 'hourglass-outline' : 'add'}
                 size={20}
                 color={Palette.ink3}
               />
@@ -1261,6 +1303,12 @@ export function ItemForm({
         onClose={() => setRecognizeOpen(false)}
         onPick={runRecognize}
       />
+
+      <PhotoSourceSheet
+        visible={photoSheet}
+        onClose={() => setPhotoSheet(false)}
+        onPick={pickPhotos}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -1321,6 +1369,57 @@ function RecognizeSourceSheet({
           <Meta tone="ink3">
             上传的是 1024px 压缩副本。带「AI」标的字段，保存前确认一下。
           </Meta>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/**
+ * 照片来源选择（拍一张 / 从相册选）。
+ *
+ * ★ 为什么不让系统相册选择器顺手带个相机入口：
+ *   那个「相机」格子是选择器自己画的，有没有全看 ROM。
+ *   魅族（Flyme）的选择器只有「照片 / 相册」两栏，用户就没法拍照 ——
+ *   「能不能拍照」这件事不能交给厂商决定，相机会话必须自己做。
+ *   （与识物那个弹层的区别在目的：这里要的是**往物品上挂图**，识物要的是**认东西**，
+ *    所以文案各写各的，不合并成一个弹层。）
+ */
+function PhotoSourceSheet({
+  visible,
+  onClose,
+  onPick,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onPick: (source: 'camera' | 'library') => void;
+}) {
+  const styles = useStyles();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+      <View style={styles.sheet}>
+        <View style={styles.sheetHandle} />
+        <View style={styles.sheetHead}>
+          <Heading>添加照片</Heading>
+          <Pressable accessibilityRole="button" accessibilityLabel="关闭" onPress={onClose} hitSlop={10}>
+            <Ionicons name="close" size={20} color={Palette.ink3} />
+          </Pressable>
+        </View>
+
+        <View style={styles.sheetBody}>
+          <SourceRow icon="camera-outline" label="拍一张" hint="现场拍，最像实物" onPress={() => onPick('camera')} />
+          <Divider />
+          <SourceRow
+            icon="images-outline"
+            label="从相册选"
+            hint="一次最多 9 张"
+            onPress={() => onPick('library')}
+          />
+        </View>
+
+        <View style={styles.sheetFoot}>
+          <Meta tone="ink3">图片会压缩后存入应用内，删掉系统相册不影响这里</Meta>
         </View>
       </View>
     </Modal>

@@ -115,3 +115,58 @@ test('缩略图仍然明显小于原图（两者混同＝缩略图这份工作�
       '要么缩略图失去了意义，要么原图被压到了缩略图的规格',
   );
 });
+
+/* ==================== 3. 「添加照片」必须自己起相机 ==================== */
+
+/**
+ * 2026-10-21 真机反馈：魅族（Flyme）用户点「添加」只能翻相册，拍不了照。
+ *
+ * 根因不是权限、也不是代码 bug，而是**原来根本没有相机路径**：
+ * 拍照这件事完全交给系统相册选择器里那个「相机」格子。
+ * 那个格子是选择器画出来的，有没有全看 ROM —— 魅族的选择器只有「照片 / 相册」两栏。
+ *
+ * 改法是自己弹一层「拍一张 / 从相册选」，相机走 `captureWithCamera`
+ * （`ACTION_IMAGE_CAPTURE`，每个 ROM 都有）。
+ *
+ * ★ 这条坏了不会报错：界面照常跑，只是又变回「只能选相册」，
+ *   而开发者手边的机器多半都有那个相机格子，测不出来。
+ */
+test('★★ 「添加照片」自己提供拍照入口，不依赖系统选择器的相机格子', () => {
+  const formSource = read('../src/components/domain/ItemForm.tsx');
+
+  assert.ok(
+    /captureWithCamera/.test(formSource),
+    'ItemForm 不再调用 captureWithCamera —— 拍照又只剩系统选择器里那个厂商自带的格子了',
+  );
+
+  /* 相册那条路径必须还在：只剩相机的话，网购截图、别人发来的图都进不来 */
+  assert.ok(
+    /pickFromLibrary/.test(formSource),
+    'ItemForm 不再调用 pickFromLibrary —— 相册这条路不能因为加相机被顺手删掉',
+  );
+
+  /* 相机会话要由 App 自己起，就不能把 launchImageLibraryAsync 当成唯一入口。
+     这里守的是「两个动作分别接在两个不同的取图函数上」。 */
+  const picks = /const pickPhotos = async \(source: 'camera' \| 'library'\)/.test(formSource);
+  assert.ok(
+    picks,
+    'pickPhotos 没有按来源分岔（期望签名 `(source: \'camera\' | \'library\')`）—— ' +
+      '一旦退回无参版本，就说明又在指望系统选择器代劳拍照',
+  );
+});
+
+test('★ 起相机前先关掉弹层（Modal 与相机 Activity 叠着会丢结果）', () => {
+  const formSource = read('../src/components/domain/ItemForm.tsx');
+  const body = /const pickPhotos = async \([\s\S]*?\r?\n  \};/.exec(formSource);
+
+  assert.ok(body, '抽不出 pickPhotos 的函数体，下面的断言不可信');
+  const closeAt = body[0].indexOf('setPhotoSheet(false)');
+  const cameraAt = body[0].indexOf('captureWithCamera');
+
+  assert.ok(closeAt >= 0, 'pickPhotos 里没有关掉来源弹层 —— Modal 在 Android 上是独立窗口');
+  assert.ok(
+    cameraAt < 0 || closeAt < cameraAt,
+    '先起相机、后关弹层 —— 相机 Activity 压在 Modal 上时，返回结果会丢（同 runRecognize 的做法反过来）',
+  );
+});
+

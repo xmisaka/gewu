@@ -40,6 +40,38 @@ export function stockState(quantity: number | null | undefined): StockState {
   return 'ok';
 }
 
+/* --------------------------------------------------------- 列表筛选 */
+
+/**
+ * 列表的库存档位。
+ *
+ *   'in'  还有 —— 单件物品（`quantity === null`）与还有余量的都在这一侧
+ *   'out' 用完 —— 只含 `quantity <= 0` 的
+ *
+ * ★ **故意没有「全部」这一档**：不传就是全部。默认值绝不能放进数据层 ——
+ *   清册导出、统计页、分享、问一问都调同一个 `listItems`，
+ *   一旦它默认筛掉用完的东西，清册会**静默少几件**，而发出去的清册收不回来。
+ *   所以「默认只看还有」这件事只由首页那一屏决定，数据层保持中立。
+ */
+export type StockFilter = 'in' | 'out';
+
+/**
+ * 档位 → SQL 条件（作用于 items 表，别名由调用方传入）。
+ *
+ * ★ 它与 `stockState` 是同一个判断的两面，改一处必须改另一处：
+ *   `null` 是「单件物品」，永远落在「还有」这一侧。把它算进「用完」，
+ *   用户会看到自己从没启用过库存的东西出现在「用完」里 ——
+ *   而那件东西的详情页连「标记用完」都不显示，界面上没有任何地方能解释它。
+ * ★ 用 `<= 0` 而不是 `= 0`：数量是派生态，历史数据里可能出现负数
+ *   （见 `nextQuantity` 为什么永不写负数），负数也该算用完。
+ */
+export function stockWhereSql(alias: string, filter: StockFilter): string {
+  if (filter === 'out') {
+    return `${alias}.quantity IS NOT NULL AND ${alias}.quantity <= 0`;
+  }
+  return `(${alias}.quantity IS NULL OR ${alias}.quantity > 0)`;
+}
+
 /**
  * 把界面上来的原始数字收拾成合法数量：取整、夹到 0 以上。
  *

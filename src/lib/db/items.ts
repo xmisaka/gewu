@@ -6,7 +6,15 @@
  */
 
 import { dailyCost, daysBetween, expiryState, holdingDays, today } from '../date';
-import { isStockEnabled, LOW_STOCK_THRESHOLD, nextQuantity, normalizeQuantity, stockState } from '../stock';
+import {
+  isStockEnabled,
+  LOW_STOCK_THRESHOLD,
+  nextQuantity,
+  normalizeQuantity,
+  stockState,
+  stockWhereSql,
+  type StockFilter,
+} from '../stock';
 import { aggregateTagCounts, applyTagTransform, normalizeTags, type TagCount, type TagTransform } from '../tags';
 import type { Database } from './index';
 import { getDatabase } from './index';
@@ -161,6 +169,13 @@ export interface ListOptions {
   tags?: readonly string[];
   /** 只看逾期与即将到期 */
   onlyExpiring?: boolean;
+  /**
+   * 库存档位：`'in'` 还有 / `'out'` 用完。**缺省 = 不筛**。
+   *
+   * ★ 缺省必须是不筛：清册导出、统计页、分享、问一问都走这一个函数，
+   *   默认筛掉用完的东西会让清册静默漏件。见 `stock.ts` 的 `StockFilter` 注释。
+   */
+  stock?: StockFilter;
   /** 排序方式；缺省为「最近变动」，与改版前行为一致 */
   sort?: ItemSort;
   limit?: number;
@@ -266,6 +281,8 @@ export async function listItems(options: ListOptions = {}): Promise<ItemView[]> 
     where.push('julianday(i.expire_date) - julianday(?) <= 30');
     args.push(on);
   }
+
+  if (options.stock) where.push(stockWhereSql('i', options.stock));
 
   // 按名称排序要整体取回后重排，分页只能挪到排序之后，不能交给 SQL
   const pagingInSql = sort !== 'name';
@@ -702,9 +719,20 @@ export async function getStats(): Promise<ItemStats> {
     on,
   );
 
+  /* 用完的件数。只查这一侧，「还有」用总数减 —— 与上面 fineCount 同一个理由：
+     少一次查询，也天然保证「还有 + 用完 = 总数」。这两个数会并排显示在
+     首页那排档位上，差一件用户就会觉得整个筛选坏了。
+     ★ 条件复用 stockWhereSql，与列表查询是同一份口径：
+       两边各写一遍 `quantity <= 0`，早晚会有一边忘了算 null。 */
+  const usedUpRow = await db.getFirstAsync<{ c: number }>(
+    `SELECT COUNT(*) AS c FROM items
+     WHERE deleted_at IS NULL AND ${stockWhereSql('items', 'out')}`,
+  );
+
   const total = totalRow?.c ?? 0;
   const overdueCount = groupRow?.overdue ?? 0;
   const soonCount = groupRow?.soon ?? 0;
+  const usedUpCount = usedUpRow?.c ?? 0;
 
   return {
     total,
@@ -714,6 +742,8 @@ export async function getStats(): Promise<ItemStats> {
     soonCount,
     overdueCount,
     fineCount: Math.max(0, total - soonCount - overdueCount),
+    inStockCount: Math.max(0, total - usedUpCount),
+    usedUpCount,
   };
 }
 

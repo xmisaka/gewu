@@ -41,6 +41,8 @@ const EMPTY_STATS: ItemStats = {
   soonCount: 0,
   overdueCount: 0,
   fineCount: 0,
+  inStockCount: 0,
+  usedUpCount: 0,
 };
 
 const AppStateContext = createContext<AppStateValue | null>(null);

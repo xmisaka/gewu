@@ -3829,3 +3829,139 @@ verify 690 条持平（纯 UI 重排，无新纯函数）。
 - 线上：`index.html` `8418c9c8` / `changelog.html` `3a75112a`（19 条）/
   `version.json` `6b9db2a4`；APK 服务器侧 200 · 50,322,204 B；`check_deploy.py` 全过
 - notes 合并三版（弹窗 4 条上限）
+
+## 三十三、添加照片自己起相机（2026-10-21）
+
+魅族（Flyme）用户反馈：「添加照片只能选相册，不能拍照」，附了两张选择器截图。
+
+### 33.1 根因：相机格子在 ROM 手里
+
+- 两张图是**两个不同的系统选择器**：常见的那个第一格是「相机」，Flyme 的只有「照片 / 相册」两栏。
+- 那个相机格子**不是格物放的**。`pickFromLibrary()` → `launchImageLibraryAsync` →
+  AndroidX `PickVisualMedia`（`ACTION_PICK_IMAGES`，无实现时回落 `ACTION_OPEN_DOCUMENT`），
+  这条链上**没有任何参数**能要求「给我一个相机入口」—— ImagePicker 的选项里就没这一项。
+- 也不是权限：`aapt2 dump badging` 里 `android.permission.CAMERA` 一直在包里
+  （来自 expo-image-picker 原生模块的清单合并 —— 那个 config plugin 只在 `cameraPermission: false`
+  时**屏蔽**权限，从不主动添加）。
+- **根因是原来根本没有相机代码路径**：`captureWithCamera()`（`ACTION_IMAGE_CAPTURE`）早就写了，
+  但只被 `compose.tsx` 的 AI 识物用。表单那个「添加」虽然画的是 `camera-outline` 图标，
+  实际只调 `pickFromLibrary` —— 拍照能力整个外包给了厂商的选择器。
+
+### 33.2 修法（`ItemForm.tsx` 一个文件，两处小改）
+
+- 「添加」不再直接进相册 → 先弹 `PhotoSourceSheet`：**拍一张 / 从相册选**。
+  相机走 `captureWithCamera`，相册走 `pickFromLibrary(9)`，两条路都汇到 `ingestPicked()`，
+  压缩 / 缩略图 / 失败计数只有一份写法。
+- **先关弹层再起相机**（`setPhotoSheet(false)` 在 `captureWithCamera()` 之前）：
+  Modal 在 Android 上是独立 Dialog 窗口，与相机 Activity 叠着时返回结果会丢（同 `runRecognize`）。
+- 按钮图标 `camera-outline` → `add`：画相机却进相册，本身就是误导。
+- 识物那个弹层不动：目的不同（挂图 vs 认东西），文案各写各的。
+
+### 33.3 守门（2 条新断言 + 变异 2/2）
+
+- 「添加照片自己提供拍照入口」：守 `captureWithCamera` 与 `pickFromLibrary` **都在**，
+  且 `pickPhotos` 签名带来源分岔 —— 一旦退回无参版本，就是又在指望系统选择器代劳拍照。
+- 「起相机前先关掉弹层」：守 `setPhotoSheet(false)` 的位置在 `captureWithCamera` 之前。
+- 变异验证：① 去掉相机调用并退回无参 `pickPhotos` → 389 红；
+  ② 把 `setPhotoSheet(false)` 挪到起相机之后 → 390 红。两次单独跑，都按预期命中。
+- 全量 **692 条**通过（原 690 + 2）；`tsc --noEmit` 与 `expo lint` 干净。
+
+### 33.4 打包核对（v2.7.3 / vc 36，2026-10-21）
+
+**只打包，未上线。** 官网下载页与「检查更新」仍指向 v2.7.2（`docs/version.json` 刻意没动）。
+
+- `BUILD SUCCESSFUL in 8m10s`（576 任务 / 44 executed）；`versionName=2.7.3 versionCode=36`
+- APK 50,325,140 B · md5 `aba9235a…` · sha256 `7765ba2d…`；权限 **12 条，与 v2.7.2 逐条 diff 一致**
+- Metro 1991 modules（行尾无 `UP-TO-DATE`）；bundle 4,649,888 → 4,652,828（+2,940）
+- 差分 `_build/diff-v273.py`：`现场拍，最像实物` / `一次最多 9 张` /
+  `没有相机权限，拍不了。到系统设置里给格物开启相机` 三项 **0 → 1**；
+  对照 5 项持平。★ `拍一张` / `从相册选` **不能**当新增串（识物弹层早有，基线各 1）
+- 基线归档：`_build/baseline-v272-r1.apk`（md5 `0df61a2f…` = 已发布交付包）、
+  `_build/baseline-v273-r1.apk`（本版，`cp -p` 保住 mtime）
+- 交付：`E:/WorkBuddy/Storage/格物-v2.7.3-arm64.apk` + `格物-v2.7.3-安装说明.txt`
+- ★ **这一版后来被 §34 的库存档位顶掉了**（同 vc 36 重打，见 §34.4）；
+  该文件已被覆盖，r1 只在 `_build/baseline-v273-r1.apk` 与 `_build/stale-v273-r1.apk` 里。
+
+### 33.5 待办
+
+- [ ] 真机复验（优先魅族）：点「添加」→ 弹层两行都在 → 「拍一张」能调起相机 → 回来照片入列
+- [ ] 相册权限被拒时的文案仍显示在照片区（`hint` 落点没变）
+- [ ] 验过之后：提交推送 → 升 `docs/version.json` → `shared.py` CHANGELOG → `deploy.py`
+
+## 三十四、列表加库存档位（全部 / 还有 / 用完，2026-10-21）
+
+原话是「给列表加一档『在库』和『用完』的筛选，默认只看在库」。**「在库」这个词不能照抄**：
+它在本屏已经被占用了（副标题与统计卡，含义是「回收站之外的全部」，**含用完的**）。
+两处并排出现同屏两个对不上的数字，所以档位改叫「还有 / 用完」，并给了第三档「全部」。
+
+### 34.1 口径（先钉死，再动界面）
+
+- 「用完」= `quantity IS NOT NULL AND quantity <= 0`；`quantity IS NULL`（单件物品、没启用库存）
+  **永远在「还有」一侧**。判错的症状：用户在自己从没启用过库存的东西上看见「用完」，
+  而那件东西的详情页连「标记用完」都不显示 —— 界面上没有任何地方能解释它。
+- 两档互斥且穷尽：`还有 + 用完 = 总数`（与 `fineCount` 同一个做法，用减法算「还有」，
+  少一次查询，也天然保证三个数对得上）。
+- ★ **默认「还有」只写在界面里**。`listItems` 的 `stock` 缺省 = 不筛 ——
+  清册导出、统计页、分享、问一问都调它，数据层一旦默认筛掉用完的，清册会**静默少几件**，
+  而发出去的清册收不回来。
+
+### 34.2 改动面（7 个文件）
+
+- `lib/stock.ts`：新增 `StockFilter`（`'in' | 'out'`，**故意没有 'all'**）与 `stockWhereSql()`，
+  和 `stockState` 放在同一个文件里 —— 这是「什么算用完」的唯一出处，两边各写一遍早晚会分叉。
+- `lib/db/items.ts`：`ListOptions.stock?`（缺省不筛）、`getStats()` 补 `inStockCount` / `usedUpCount`。
+- `lib/types.ts` + `lib/store/app-state.tsx`：`ItemStats` 两个新字段与 `EMPTY_STATS`。
+- `lib/db/categories.ts`：`listCategories({ stock })` —— 分类胶囊的件数跟着档位走。
+  不跟的话，默认档下每个分类都比自己列出的行多出几件，第一反应是「东西丢了」。
+- `app/(tabs)/index.tsx`：`stockFilter` state（默认 `'in'`，**不落库**）、三档 chip 行、
+  `useAsyncData` / `onRefresh` / `manualReorder` 守卫 / 回顶依赖 / 四张空态。
+  - ★ 手动排序的守卫必须带上档位：漏掉它，默认视图下就能拖顺序，
+    而被「用完」挡在外面的那几件会永远卡在 `setManualOrder` 写回的序列之外。
+  - ★ 库里一件都没用完时整排不出现（与标签那一排同一个规矩：不给空入口）；
+    已经在别的档上时必留 —— 否则切到「用完」又恰好没有，那一排就消失，再也切不回来。
+- 文案顺手换了两处：副标题 `在库 N 件 · 共 ¥X` → `共 N 件 · 价值 ¥X`，
+  统计卡 `在库` → `物品`。数字没变（仍是含用完的总数），只是不再和「还有」抢同一个词。
+  统计页与海报里的「在库物品」**没动** —— 那两处没有档位，在库＝不在回收站，是准确的。
+
+### 34.3 守门（4 条新断言 + 变异 5/5）
+
+- 「单件物品永远在『还有』一侧」：`null` / `>0` / `0` / 负数 / 回收站 五种数据一起断言，
+  并守住「不传 = 不筛」这个缺省。
+- 「与搜索、分类叠加时是 AND」：档位不能被 `categoryId` 或 `query` 顶掉。
+- 「还有 + 用完 = 总数」。
+- 「分类件数跟着档位走，缺省仍是全部」。
+- 变异验证（5/5 全部命中）：① `in` 档丢掉 `IS NULL` → 2 红；② `out` 档把 `<= 0` 写成 `= 0`
+  → 1 红；③ `listItems` 忽略 `stock` → 2 红；④ `inStockCount` 不减用完 → 1 红；
+  ⑤ 分类子查询不吃档位 → 1 红。
+- 全量 **696 条**通过（原 692 + 4）；`tsc --noEmit` / `expo lint` / `audit:colors` 干净。
+- 旁注：`tests/afdian.test.mjs` 的 `status：拉池子 × 拉订单 × 台账` 在**整包并发**下偶发红
+  （单跑 3/3 绿，整包约 1/5 概率）。它只 import node 内建模块，与本轮改动无关，属既有抖动。
+
+### 34.4 打包核对（v2.7.3 / vc 36 重打，2026-10-21 11:08）
+
+**同版本号重打**（vc 36 不变，v2.7.3 从未上线）。上一版 r1 只有拍照修复，本版＝拍照 + 库存档位。
+
+- `BUILD SUCCESSFUL in 2m52s`（576 任务 / 24 executed）；`versionName=2.7.3 versionCode=36`
+- APK 50,326,972 B · md5 `44c25346…` · sha256 `14d4011d…`；权限 **12 条，与 v2.7.2 逐条一致**
+- Metro **1991 modules**（行尾无 `UP-TO-DATE`，模块数与上版相同是对的 —— 本轮只改文件、没加文件）
+- bundle 4,652,828 → 4,654,660（**+1,832**）；`diff_bundle.py` 归因到**恰好那 6 个源文件**
+- 两版 bundle 逐串对照（正/反/对照三向都咬住）：
+  - 净新增 6 项，基线 0 → 新包 1：`stockWhereSql` / `usedUpCount` / `inStockCount` /
+    `没有用完的东西` / `东西都用完了` / `看用完的`
+  - 使用处变多：`还有` 7→9、`用完` 5→9
+  - 反向对照：`清掉搜索与分类筛选后，可用箭头调顺序` **1 → 0**（本版被改写，源码已确认彻底不在）
+  - 对照持平：`回收站` 9→9、`即将到期` 1→1
+  - ★ `stockOption` 是**局部常量**，压缩时改名，0→0 属正常 —— 特征串只认 export 出去的东西
+- 基线归档：`_build/baseline-v273-r2.apk`（`cp -p` 保住 mtime）；
+  r1 留在 `_build/baseline-v273-r1.apk`（作废那版），旧产物另存 `_build/stale-v273-r1.apk`
+- 交付：`E:/WorkBuddy/Storage/格物-v2.7.3-arm64.apk`（覆盖了 r1 的同名文件）+ 安装说明
+
+### 34.5 待办
+
+- [ ] 真机看一遍：默认档下只剩「还有」的件；切「用完」列表换成空瓶；切「全部」两边都有
+- [ ] 用完最后一件 → 该物品从默认列表消失，档位行出现且「用完 1」
+- [ ] 全部用完时默认档的空态说「东西都用完了」，点「看用完的」能切过去
+- [ ] **导出清册必须仍含用完的件**（数据层缺省不筛就是为了这条，最该复验）
+- [ ] 验过之后：提交推送 → 升 `docs/version.json` → `shared.py` CHANGELOG → `deploy.py`
+
+

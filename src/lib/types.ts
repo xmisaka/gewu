@@ -174,6 +174,15 @@ export interface ItemStats {
   overdueCount: number;
   /** 正常：其余全部（含未设过期时间的） */
   fineCount: number;
+  /**
+   * 库存口径的两半：`inStockCount`（还有）+ `usedUpCount`（用完）= `total`。
+   * 首页那排「全部 / 还有 / 用完」的件数用它 —— 三个数必须能一眼对上总数。
+   *
+   * ★ 「还有」**含 `quantity === null` 的单件物品**：它们没有「用完」这回事，
+   *   归到「用完」那一侧会让用户在自己的库里看见从没启用过库存的东西。
+   */
+  inStockCount: number;
+  usedUpCount: number;
 }
 
 /* ---------------------------------------------------------------- 柜子视图 */

@@ -88,6 +88,15 @@ const FOCUS_AFTER_NAV_MS = 150;
 
 type ViewMode = 'list' | 'location';
 
+/**
+ * 列表的库存档位：全部 / 还有 / 用完。
+ *
+ * `'all'` 只活在界面这一层 —— 数据层的 `ListOptions.stock` 只认后两个，
+ * 「全部」就是**不传**。多出来这一档是因为界面上必须有出口：
+ * 只给「还有 / 用完」两档，用户想看全部时没有地方可点。
+ */
+type StockTier = 'all' | 'in' | 'out';
+
 export default function ItemsScreen() {
   const styles = useStyles();
   const router = useRouter();
@@ -163,6 +172,15 @@ export default function ItemsScreen() {
   const [batchTags, setBatchTags] = useState<string[]>([]);
   const [sort, setSort] = useState<ItemSort>(DEFAULT_ITEM_SORT);
   const [sortOpen, setSortOpen] = useState(false);
+  /**
+   * 库存档位。默认「还有」——用完的东西不是库存，
+   * 把它们混在列表里，「我家有多少件东西」这个问题永远说不清。
+   *
+   * ★ **不记进库里**（与排序不同）：排序是长期偏好，档位是「我现在想看什么」。
+   *   上次停在「用完」而用户忘了，一进来看到的是几件空瓶子 —— 会以为东西丢了。
+   *   每次进来都从「还有」开始，第三档留给主动去点。
+   */
+  const [stockFilter, setStockFilter] = useState<StockTier>('in');
   const [refreshing, setRefreshing] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
@@ -289,19 +307,35 @@ export default function ItemsScreen() {
      筛选条本身已经滚出屏幕了，结果却从中间开始显示，会让人以为「点了没反应」 */
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }, [mode, debouncedQuery, categoryId, tagFilter, sort]);
+  }, [mode, debouncedQuery, categoryId, tagFilter, stockFilter, sort]);
+
+  /** 「全部」＝不筛。数据层不认识 `'all'`，这层转换只在这里做一次 */
+  const stockOption = stockFilter === 'all' ? undefined : stockFilter;
 
   /* 手动排序的箭头只在「看得见整份列表」时才给。
-     带着筛选调顺序，被过滤掉的物品会插在中间，用户看着像是点了没反应 */
+     带着筛选调顺序，被过滤掉的物品会插在中间，用户看着像是点了没反应。
+     ★ 库存档位也算筛选，而且是**默认就生效**的那一个：漏掉它，
+       默认视图下就允许拖顺序，而被「用完」挡在外面的那几件
+       会永远卡在写回的序列之外（`setManualOrder` 只重排看得见的那些）。 */
   const manualReorder =
-    sort === 'manual' && debouncedQuery.length === 0 && categoryId === null && tagFilter.length === 0;
+    sort === 'manual' &&
+    debouncedQuery.length === 0 &&
+    categoryId === null &&
+    tagFilter.length === 0 &&
+    stockFilter === 'all';
 
   const itemsState = useAsyncData(
-    () => listItems({ query: debouncedQuery, categoryId, tags: tagFilter, sort }),
-    [debouncedQuery, categoryId, tagFilter, sort, dataVersion],
+    () => listItems({ query: debouncedQuery, categoryId, tags: tagFilter, sort, stock: stockOption }),
+    [debouncedQuery, categoryId, tagFilter, sort, stockOption, dataVersion],
     [] as ItemView[],
   );
-  const categoryState = useAsyncData(() => listCategories(), [dataVersion], []);
+  /* 分类胶囊上的件数跟着档位走：默认「还有」档下若仍数全部，
+     每个分类都会比自己列出的行多出几件，看起来像丢了东西 */
+  const categoryState = useAsyncData(
+    () => listCategories({ stock: stockOption }),
+    [stockOption, dataVersion],
+    [],
+  );
   const cabinetState = useAsyncData(() => listCabinetViews(), [dataVersion], []);
   /* 候选跟着物品一起刷新：新录入一件带新标签的物品后，筛选器里要能立刻选到它 */
   const tagLibrary = useTagLibrary([dataVersion]);
@@ -323,7 +357,7 @@ export default function ItemsScreen() {
       ? currentSort.hint
       : manualReorder
         ? '用右侧箭头直接调顺序'
-        : '清掉搜索与分类筛选后，可用箭头调顺序';
+        : '清掉搜索、分类与库存筛选后，可用箭头调顺序';
   const activeCategory = useMemo(
     () => categories.find((c) => c.id === categoryId) ?? null,
     [categories, categoryId],
@@ -332,8 +366,14 @@ export default function ItemsScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
-      listItems({ query: debouncedQuery, categoryId, tags: tagFilter, sort }).catch(() => undefined),
-      listCategories().catch(() => undefined),
+      listItems({
+        query: debouncedQuery,
+        categoryId,
+        tags: tagFilter,
+        sort,
+        stock: stockOption,
+      }).catch(() => undefined),
+      listCategories({ stock: stockOption }).catch(() => undefined),
       listCabinetViews().catch(() => undefined),
     ]);
     itemsState.reload();
@@ -341,7 +381,31 @@ export default function ItemsScreen() {
     cabinetState.reload();
     setRefreshing(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, categoryId, tagFilter, sort]);
+  }, [debouncedQuery, categoryId, tagFilter, sort, stockOption]);
+
+  /**
+   * 搜索 / 分类 / 标签 —— 用户主动收窄的三件事。
+   *
+   * 库存档位**不算**：它是这一屏的基线视图（默认就在「还有」上），
+   * 把它算进「有没有在筛选」，空态的文案就会在用户什么都没做的时候
+   * 变成「没有找到 / 清除筛选」—— 而默认档位并不是他刚刚点的。
+   */
+  const hasNarrowFilter =
+    debouncedQuery.length > 0 || categoryId !== null || tagFilter.length > 0;
+
+  /**
+   * 空态里那个「清除筛选」。
+   *
+   * ★ 库存档位也回到默认的「还有」：按钮写着「清除筛选」，点完却还挡着
+   *   一半东西，用户会以为按钮坏了。一键回到**这一页刚进来时的样子**，
+   *   比「只清掉其中一部分」更好预测。
+   */
+  const clearFilters = useCallback(() => {
+    setQuery('');
+    setCategoryId(null);
+    setTagFilter([]);
+    setStockFilter('in');
+  }, []);
 
   /**
    * 选择器里的改名 / 合并 / 删除。
@@ -576,9 +640,12 @@ export default function ItemsScreen() {
     <Screen>
       <PageHeader
         title="我的物品"
+        /* 「在库」这个词在这里不能再用了：下面那排档位里「还有」才是库存口径，
+           而这个数字是**含用完的**总数。两个词并排出现，用户会以为总数和
+           档位对不上 —— 换成「共 N 件」，它说的就是「库里一共有多少件」。 */
         subtitle={
           stats.total > 0
-            ? `在库 ${stats.total} 件 · 共 ${formatMoneyCompact(stats.totalValue)}`
+            ? `共 ${stats.total} 件 · 价值 ${formatMoneyCompact(stats.totalValue)}`
             : '把家里的东西记进来，以后就找得到了'
         }
         right={headerRight}
@@ -642,7 +709,7 @@ export default function ItemsScreen() {
               <View style={styles.headBlock}>
                 <MetricStrip
                   metrics={[
-                    { label: '在库', value: String(stats.total) },
+                    { label: '物品', value: String(stats.total) },
                     { label: '总价值', value: formatMoneyCompact(stats.totalValue) },
                     {
                       label: '即将到期',
@@ -661,6 +728,37 @@ export default function ItemsScreen() {
                       { tone: 'overdue', label: '已过期', count: stats.overdueCount },
                     ]}
                   />
+                ) : null}
+
+                {/* 库存档位。★ 放在分类上面，因为它是**默认生效的基线视图**
+                    （一进来就在「还有」上），不是又一个可选筛选 ——
+                    用户发现「明明记过的东西不见了」时，第一个该看见的就是这里。
+                    ★ 三个数必须能对上：全部 = 还有 + 用完（口径见 getStats）。
+                    ★ 库里一件都没用完时整排不出现：三档里有两档会给出同一个结果，
+                    一个永远是 0 的档位只会让人怀疑自己点错了（与标签那一排同一个规矩）。
+                    已经在别的档上时必须留着 —— 否则用户切到「用完」又恰好没有用完的
+                    东西，那一排就消失了，他再也切不回来。 */}
+                {stats.usedUpCount > 0 || stockFilter !== 'in' ? (
+                  <ChipRow>
+                    <Chip
+                      label="全部"
+                      count={stats.total}
+                      selected={stockFilter === 'all'}
+                      onPress={() => setStockFilter('all')}
+                    />
+                    <Chip
+                      label="还有"
+                      count={stats.inStockCount}
+                      selected={stockFilter === 'in'}
+                      onPress={() => setStockFilter('in')}
+                    />
+                    <Chip
+                      label="用完"
+                      count={stats.usedUpCount}
+                      selected={stockFilter === 'out'}
+                      onPress={() => setStockFilter('out')}
+                    />
+                  </ChipRow>
                 ) : null}
 
                 <ChipRow>
@@ -782,25 +880,43 @@ export default function ItemsScreen() {
               <Card style={styles.emptyCard}>
                 {itemsState.loading ? (
                   <Loading />
-                ) : debouncedQuery || categoryId || tagFilter.length > 0 ? (
-                  <EmptyState
-                    icon="search-outline"
-                    title="没有找到"
-                    description="换个词试试，或者清掉筛选条件"
-                    actionLabel="清除筛选"
-                    onAction={() => {
-                      setQuery('');
-                      setCategoryId(null);
-                      setTagFilter([]);
-                    }}
-                  />
-                ) : (
+                ) : stats.total === 0 ? (
+                  /* 库是空的：这时无论挂着什么筛选，「还没有登记」都是实话，
+                     而且它指向的动作（去录第一件）也才是用户真正要做的 */
                   <EmptyState
                     icon="cube-outline"
                     title="还没有登记任何物品"
                     description="从最想找得到的那件开始。"
                     actionLabel="录入第一件"
                     onAction={() => router.push('/compose')}
+                  />
+                ) : hasNarrowFilter ? (
+                  <EmptyState
+                    icon="search-outline"
+                    title="没有找到"
+                    description="换个词试试，或者清掉筛选条件"
+                    actionLabel="清除筛选"
+                    onAction={clearFilters}
+                  />
+                ) : stockFilter === 'out' ? (
+                  /* 「用完」档空了是**好消息**，别用「没有找到」那种出错口气 */
+                  <EmptyState
+                    icon="checkmark-circle-outline"
+                    title="没有用完的东西"
+                    description="东西都还有，暂时不用补。"
+                    actionLabel="看还有的"
+                    onAction={() => setStockFilter('in')}
+                  />
+                ) : (
+                  /* 走到这里只剩「还有」一档：库里有东西却一件都拿不出来，
+                     只可能是全用完了。这句话必须说出口 —— 否则默认档位下的
+                     空列表会被当成「我的数据没了」。 */
+                  <EmptyState
+                    icon="cube-outline"
+                    title="东西都用完了"
+                    description="去「用完」看看是哪些，顺手补上。"
+                    actionLabel="看用完的"
+                    onAction={() => setStockFilter('out')}
                   />
                 )}
               </Card>

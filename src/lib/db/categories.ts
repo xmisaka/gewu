@@ -10,6 +10,7 @@
  */
 
 import { uuid } from '../id';
+import { stockWhereSql, type StockFilter } from '../stock';
 import type { Category } from '../types';
 import { getDatabase } from './index';
 
@@ -43,12 +44,27 @@ const CATEGORY_COLUMNS_C = `${CATEGORY_COLUMNS.split(', ')
   .map((c) => `c.${c}`)
   .join(', ')}`;
 
-/** 全部分类，带在库物品数；按 sort_order 升序 */
-export async function listCategories(): Promise<CategoryWithCount[]> {
+/** 全部分类，带件数（缺省不含回收站）；按 sort_order 升序 */
+export interface CategoryListOptions {
+  /**
+   * 只数某一库存档位下的件数。缺省数全部。
+   *
+   * ★ 首页按当前档位传进来，分类胶囊上的数字才和下面列出的行数对得上 ——
+   *   否则默认「还有」档下，每个分类都会比自己实际列出的行多出几件，
+   *   用户第一反应是「东西丢了」，而不是「被档位筛掉了」。
+   */
+  stock?: StockFilter;
+}
+
+export async function listCategories(
+  options: CategoryListOptions = {},
+): Promise<CategoryWithCount[]> {
   const db = await getDatabase();
+  const stockClause = options.stock ? ` AND ${stockWhereSql('i', options.stock)}` : '';
   const rows = await db.getAllAsync<CategoryRow & { item_count: number }>(
     `SELECT ${CATEGORY_COLUMNS_C},
-       (SELECT COUNT(*) FROM items i WHERE i.category_id = c.id AND i.deleted_at IS NULL) AS item_count
+       (SELECT COUNT(*) FROM items i
+        WHERE i.category_id = c.id AND i.deleted_at IS NULL${stockClause}) AS item_count
      FROM categories c
      ORDER BY c.sort_order ASC, c.name ASC`,
   );

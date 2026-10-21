@@ -370,6 +370,82 @@ test('getStats：attentionCount 把「该补货」并进来，且与到期部分
   assert.equal(stats.attentionCount, ids.size, '角标必须等于提醒页里能数出来的件数');
 });
 
+/* ------------------------------------------------------------ 库存档位 */
+
+/**
+ * 「还有 / 用完」这一档的口径只有一条容易错、而且**错了不报错**：
+ * `quantity === null`（单件物品、没启用库存）到底算哪边。
+ * 它必须落在「还有」——否则用户会在「用完」里看见自己从没启用过库存的东西，
+ * 而那件东西的详情页连「标记用完」都不显示。
+ */
+test('listItems({ stock })：单件物品永远在「还有」一侧，「用完」只含 quantity <= 0', async () => {
+  await reset();
+  await makeItem('single', { quantity: null });
+  await makeItem('ok', { quantity: 3 });
+  await makeItem('low', { quantity: 1 });
+  await makeItem('zero', { quantity: 0 });
+  await makeItem('neg', { quantity: -2 });
+  await makeItem('trashed', { quantity: 0, deletedAt: 1 });
+
+  const ids = async (options) => (await items.listItems(options)).map((i) => i.id).sort();
+
+  assert.deepEqual(
+    await ids({}),
+    ['low', 'neg', 'ok', 'single', 'zero'],
+    '★ 不传 = 不筛（清册/统计/分享都靠这个缺省），回收站仍然排除',
+  );
+  assert.deepEqual(await ids({ stock: 'in' }), ['low', 'ok', 'single'], 'null 与 >0 都在这一侧');
+  assert.deepEqual(await ids({ stock: 'out' }), ['neg', 'zero'], '负数也算用完（历史脏数据）');
+});
+
+test('listItems({ stock })：与搜索、分类叠加时是 AND，谁都不会被顶掉', async () => {
+  await reset();
+  const cat = await categories.createCategory('饮料');
+  await makeItem('cola', { name: '可乐', categoryId: cat, quantity: 0 });
+  await makeItem('soda', { name: '苏打水', categoryId: cat, quantity: 4 });
+  await makeItem('milk', { name: '牛奶', quantity: 0 });
+
+  const ids = async (options) => (await items.listItems(options)).map((i) => i.id).sort();
+
+  assert.deepEqual(await ids({ stock: 'out', categoryId: cat }), ['cola'], '档位与分类是交集');
+  assert.deepEqual(await ids({ stock: 'out', query: '牛奶' }), ['milk'], '档位与搜索是交集');
+  assert.deepEqual(await ids({ stock: 'in', categoryId: cat }), ['soda']);
+});
+
+test('getStats：还有 + 用完 = 总数，且用完只数 quantity <= 0', async () => {
+  await reset();
+  await makeItem('single');
+  await makeItem('ok', { quantity: 5 });
+  await makeItem('low', { quantity: 1 });
+  await makeItem('zero', { quantity: 0 });
+  await makeItem('gone', { quantity: 0, deletedAt: 1 });
+
+  const stats = await items.getStats();
+  assert.equal(stats.total, 4, '回收站里的不计入');
+  assert.equal(stats.usedUpCount, 1);
+  assert.equal(stats.inStockCount, 3, '★ 单件物品算「还有」');
+  assert.equal(
+    stats.inStockCount + stats.usedUpCount,
+    stats.total,
+    '首页三档并排显示，差一件用户就会觉得整个筛选坏了',
+  );
+});
+
+test('listCategories({ stock })：件数跟着档位走，缺省仍是全部', async () => {
+  await reset();
+  const cat = await categories.createCategory('饮料');
+  await makeItem('a', { categoryId: cat, quantity: 2 });
+  await makeItem('b', { categoryId: cat, quantity: 0 });
+  await makeItem('c', { categoryId: cat });
+
+  const countOf = async (options) =>
+    (await categories.listCategories(options)).find((x) => x.id === cat).itemCount;
+
+  assert.equal(await countOf(), 3, '不传 = 数全部，与改动前完全一致');
+  assert.equal(await countOf({ stock: 'in' }), 2);
+  assert.equal(await countOf({ stock: 'out' }), 1);
+});
+
 test('listExpiring：三段两两互斥，并集等于全部填了过期时间的物品', async () => {
   await reset();
   const on = new Date();
