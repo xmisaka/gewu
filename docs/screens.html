@@ -1506,6 +1506,65 @@ footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-fa
       <figcaption><div class="no">19</div><div class="nm">批量识图 &middot; 清单核对（v2.2.0 新增）</div><div class="ds">一次选最多 <b>9 张</b>照片，一张一张认完，在清单里核对，最后<b>一次入库</b>。入口在录入页页头右上角（麦克风左边，见 03 屏），走 AI 支持者档 + AI 总开关两道门，不引入新判据。<br>★ <b>必须严格串行，不能并发。</b>免费模型同一时刻只允许 1 条并发请求，任何「并发 2~3 提速」的写法都会稳定撞 429，而用户只看到「调用太频繁」，想不到是自己并发了。所以页头副标题是进度而不是总数：<b>「识别中 3/9 · 别退出这一页」</b>，右边那枚是「停止」；停止后队列里仍 pending 的会变成一颗「继续识别 N」，接着跑。<br>★ <b>识别一张就冒一条</b>，不等全部跑完。9 张最坏可接近 9 分钟，等最后一起出结果等于让用户对着空屏发呆。<br>★ <b>没读出字段的条目不丢</b>：照片留着、条目留着，标一句「没读出字段，补个名字就能保存」，并给「重试」。判据只有「勾了 + 有名字」两条，<b>刻意不看状态</b> —— 照片早已落盘，丢弃它反而制造孤儿文件。<br>★ <b>行内只做轻量编辑</b>（名称 + 分类 / 位置），<b>不挂整页级的 ItemForm</b>：一行即一屏高，清单就再也做不到「一屏扫过 N 条」；而且清单会随进度重渲染重挂行，把用户刚改的名字冲回识别初稿。要逐条深改的点「详细编辑」跳独立一页（复用录入表单，跳页＝全新挂载，天然绕开这一条）。<br>★ 顶部「统一分类 / 统一位置」是<b>快选而不是「刷一遍」</b>：识别是流式的，第 3 张还在跑时设的值第 4 张要立刻用上，而且<b>只套之后那些条</b>，不回头冲掉用户单独改过的。同名检测只提示不阻断，与单件录入同一口径。</div></figcaption>
     </figure>
 
+    <!-- 20 -->
+    <figure class="fig" data-slug="poster">
+      <div class="shot"><div class="ph">
+        <div class="sb"><span style="font-weight:500">9:41</span><svg width="50" height="11" viewBox="0 0 52 11" fill="none"><rect x="0" y="6" width="2.5" height="5" rx="1" fill="#2B241F"/><rect x="4" y="4" width="2.5" height="7" rx="1" fill="#2B241F"/><rect x="8" y="2" width="2.5" height="9" rx="1" fill="#2B241F"/><rect x="12" y="0" width="2.5" height="11" rx="1" fill="#2B241F"/><path d="M20 4.5a7 7 0 0 1 9 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><path d="M22.5 7.5a3.5 3.5 0 0 1 4 0" stroke="#2B241F" stroke-width="1.4" fill="none"/><circle cx="24.5" cy="10.2" r="1" fill="#2B241F"/><rect x="39" y="1.5" width="12" height="8" rx="2.5" stroke="#2B241F" stroke-opacity=".4" fill="none"/><rect x="40.5" y="3" width="8" height="5" rx="1.2" fill="#2B241F"/><rect x="51.8" y="4" width="1.4" height="3" rx=".7" fill="#2B241F" fill-opacity=".4"/></svg></div>
+        <div style="display:flex;align-items:center;gap:6px;padding:2px 9px 0;flex:0 0 auto">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M15 4.5 7.5 12 15 19.5" stroke="#2B241F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-family:var(--serif);font-size:17px;letter-spacing:.5px">做成海报</span>
+        </div>
+
+        <!-- 舞台：底色比画布深一档，让纸边看得出来。画布 360×450 等比缩到这一块里 -->
+        <div style="flex:1;margin:6px 17px 0;background:#F2EDE5;border-radius:14px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <!-- 素笺：纸色 #F7F4EF，全部字号按 360 宽 ×0.628 缩 -->
+          <div style="width:226px;height:282px;background:#F7F4EF;padding:20px;display:flex;flex-direction:column">
+            <div style="display:flex;justify-content:space-between;font-size:5px;letter-spacing:1.5px;color:#9A8D80">格 物<span>NO. 019</span></div>
+            <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+              <div style="font-family:var(--serif);font-size:20.7px;line-height:29px;letter-spacing:1.2px;color:#241D18">徕卡 Q2<br>数码相机</div>
+              <div style="width:16px;height:1px;background:#B79C7E;margin:14px 0 10px"></div>
+              <div style="font-size:6.9px;letter-spacing:1.1px;color:#7A6C5E">书房柜 &middot; 保险柜</div>
+              <div style="font-size:6.3px;letter-spacing:.5px;color:#9A8D80;margin-top:4px">2021.08 &middot; 至今 1891 天</div>
+              <div style="margin-top:14px;padding-top:9px;border-top:1px solid #E3DCD1;font-family:var(--serif);font-size:8.2px;line-height:17px;letter-spacing:.7px;color:#7A6C5E">买的时候心疼，<br>用久了就值了。</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:5px;letter-spacing:.9px;color:#9A8D80"><span>格物 &middot; 收纳柜</span><span>2026.10.18</span></div>
+          </div>
+        </div>
+
+        <div style="text-align:center;color:#C9BEB0;font-size:9px;padding-top:5px;flex:0 0 auto">下面是模板，点题语可以改</div>
+
+        <!-- 模板条：色块取各套的纸色 + 墨色 + 点缀色，不看名字也认得出 -->
+        <div style="display:flex;gap:12px;padding:4px 17px 0;flex:0 0 auto">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+            <div style="width:34px;height:43px;border-radius:4px;border:1.5px solid #8C5A34;background:#F7F4EF;padding:5px;display:flex;flex-direction:column;justify-content:flex-end;gap:3px"><div style="height:2px;width:55%;border-radius:1px;background:#241D18"></div><div style="height:8px;width:72%;border-radius:1px;background:#B79C7E;opacity:.85"></div></div>
+            <span style="font-size:8.5px;color:#8C5A34">素笺</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+            <div style="width:34px;height:43px;border-radius:4px;border:1.5px solid #EBE5DB;background:#fff;padding:5px;display:flex;flex-direction:column;justify-content:flex-end;gap:3px"><div style="height:2px;width:55%;border-radius:1px;background:#2B241F"></div><div style="height:8px;width:72%;border-radius:1px;background:#8C5A34;opacity:.85"></div></div>
+            <span style="font-size:8.5px;color:#9A8D80">陈列</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+            <div style="width:34px;height:43px;border-radius:4px;border:1.5px solid #EBE5DB;background:#171310;padding:5px;display:flex;flex-direction:column;justify-content:flex-end;gap:3px"><div style="height:2px;width:55%;border-radius:1px;background:#F6EFE4"></div><div style="height:8px;width:72%;border-radius:1px;background:#F6EFE4;opacity:.5"></div></div>
+            <span style="font-size:8.5px;color:#9A8D80">暗房</span>
+          </div>
+        </div>
+
+        <!-- 题语：一行就能改。留空＝不显示，所以「无题语」是个正当状态 -->
+        <div style="margin:8px 17px 0;padding:7px 10px;border-radius:11px;background:#fff;border:0.5px solid #EBE5DB;display:flex;align-items:center;gap:8px;flex:0 0 auto">
+          <span style="color:#C9BEB0;flex:0 0 auto">题语</span>
+          <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">买的时候心疼，用久了就值了。</span>
+          <span style="color:#8C5A34;flex:0 0 auto">改</span>
+        </div>
+
+        <!-- 出口：分享这张海报 / 只发文字清单。多选进来才有第二枚 -->
+        <div style="padding:9px 17px 16px;flex:0 0 auto">
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:11px;background:#8C5A34;color:#fff;font-weight:600"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 16V4M8 7.5 12 3.5l4 4M5 13v6.5h14V13" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>分享这张海报</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:9px;border-radius:11px;border:0.5px solid #EBE5DB;background:#fff;margin-top:5px;color:#6B6055">只发文字清单</div>
+        </div>
+      </div></div>
+      <figcaption><div class="no">20</div><div class="nm">做成海报 &middot; 进来就是一张画好的图</div><div class="ds">三个入口汇到这一页：物品详情页右上「分享」、首页多选最右那枚「分享」、统计洞察右上。图或文字都从这里出去。<br>★ <b>进来不是一排空白模板，而是一张已经画好的图。</b>多一步「先选模板」就会少一半人 —— 而「素笺」「陈列」这些名字，不看自己的东西摆在里面的样子是没法判断的。所以模板条在下面、点一下就换，题语点一下就地改。<br>★ 模板条只列<b>这个内容能用的</b>：一页账只吃统计数字（单件/多选时没有它要的字段），暗房要照片满幅（没照片时不出现，而不是让人选了才发现是一块墨）。所以单件有照片时是三套，统计页只有一套。<br>★ 题语<b>可以清空</b>，清空就是真的不显示（「无题语」是正当状态）。不能只在空串时回落到默认句 —— 那样用户按了「就这样」，海报上还挂着一句话。<br>★ 抓图的对象就是屏幕上这块画布（所见即所发），不做后台静默生成；照片是异步落图，抓之前要等它到位，否则发出去的是一张空框。<br>★ 「只发文字清单」只在多选进来时出现：海报给「看」，文本给「用」（买菜、加购物车）。文字不限 9 件 —— 画布有边界，文本没有。</div></figcaption>
+    </figure>
+
 <section>
   <div class="sec-head">
     <span class="sec-num">03</span>
