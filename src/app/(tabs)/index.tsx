@@ -871,32 +871,44 @@ export default function ItemsScreen() {
             }
             /* 列表的「卡」由每一行拼出来：左右边框每行都画，首行加上圆角与顶边，
                末行加下圆角与底边 —— 接起来仍是一张有轮廓的卡，但它现在是列表内容，
-               可以整张随滚动走；外面不能再套一层容器，那会把头部一并包进去 */
-            renderItem={({ item, index }) => (
-              <View
-                style={[
-                  styles.rowShell,
-                  index === 0 && styles.rowShellFirst,
-                  index === items.length - 1 && styles.rowShellLast,
-                ]}>
-                <ItemRow
-                  item={item}
-                  selected={selected.has(item.id)}
-                  selecting={selecting}
-                  showSortOrder={sort === 'manual'}
-                  onPress={openItem}
-                  onLongPress={(it) => setSelected(new Set([it.id]))}
-                  /* 多选状态下不接库存面板：那会儿整行是「待处理的勾选项」，
-                     点尾巴弹出的应该是勾选，不是库存 */
-                  onOpenStock={selecting ? undefined : openStock}
-                  /* 多选状态下不给排序钮：两套操作抢同一个手势区，谁都点不准 */
-                  onMoveUp={manualReorder && !selecting ? () => void moveItem(item.id, -1) : undefined}
-                  onMoveDown={manualReorder && !selecting ? () => void moveItem(item.id, 1) : undefined}
-                  canMoveUp={index > 0}
-                  canMoveDown={index < items.length - 1}
-                />
-              </View>
-            )}
+               可以整张随滚动走；外面不能再套一层容器，那会把头部一并包进去
+
+               ★★ 圆角**不再靠这一层的 overflow: 'hidden' 裁**（2026-10-24）：
+                 那样在 Android 上走的是一层离屏裁剪，只改原生子视图的挂载关系、
+                 不改布局 —— 结果是「卡的外壳（白底、边框、高度）都在，行内容整块
+                 没画」，看起来就是「明明有数据，那一行却空着」。现在圆角由
+                 `ItemRow` 自己画（它有 background，画圆角不需要裁剪任何人）。 */
+            renderItem={({ item, index }) => {
+              const first = index === 0;
+              const last = index === items.length - 1;
+              return (
+                <View
+                  style={[
+                    styles.rowShell,
+                    first && styles.rowShellFirst,
+                    last && styles.rowShellLast,
+                  ]}>
+                  <ItemRow
+                    item={item}
+                    cardFirst={first}
+                    cardLast={last}
+                    selected={selected.has(item.id)}
+                    selecting={selecting}
+                    showSortOrder={sort === 'manual'}
+                    onPress={openItem}
+                    onLongPress={(it) => setSelected(new Set([it.id]))}
+                    /* 多选状态下不接库存面板：那会儿整行是「待处理的勾选项」，
+                       点尾巴弹出的应该是勾选，不是库存 */
+                    onOpenStock={selecting ? undefined : openStock}
+                    /* 多选状态下不给排序钮：两套操作抢同一个手势区，谁都点不准 */
+                    onMoveUp={manualReorder && !selecting ? () => void moveItem(item.id, -1) : undefined}
+                    onMoveDown={manualReorder && !selecting ? () => void moveItem(item.id, 1) : undefined}
+                    canMoveUp={index > 0}
+                    canMoveDown={index < items.length - 1}
+                  />
+                </View>
+              );
+            }}
             contentContainerStyle={styles.listInner}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Palette.brand} />
@@ -1239,8 +1251,8 @@ const useStyles = makeStyles((Palette) => ({
    * 改由每一行提供卡边：左右边框每行都画，接起来是一条连续的竖线；
    * 首行补上圆角与顶边，末行补下圆角与底边。
    *
-   * 只有首行 / 末行需要 overflow:'hidden'，把 ItemRow 的矩形底色裁进圆角里；
-   * 中间行不裁剪 —— 少一层离屏层，也就没有「每帧重建离屏层」那类隐患。
+   * 圆角与顶/底边只画在首末行；**圆角本身由 ItemRow 自己画**（它有背景色），
+   * 这一层不裁剪任何子视图 —— 原因见 rowShellFirst 里的说明。
    */
   rowShell: {
     marginHorizontal: GUTTER,
@@ -1253,13 +1265,18 @@ const useStyles = makeStyles((Palette) => ({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopLeftRadius: Radius.card,
     borderTopRightRadius: Radius.card,
-    overflow: 'hidden',
+    /* ★★ 这一层**不许再开子视图裁剪**（2026-10-24 去掉）。
+       原意是让首行的直角白底被圆角裁掉，但 Android 上那是一层离屏裁剪：
+       只改原生子视图的挂载关系、不改布局 —— 于是会出现「外壳高度与边框都在、
+       行内容整块没画」。圆角现在由 ItemRow 自己承担（cardFirst / cardLast），
+       它有自己的背景色，画圆角不需要裁剪任何人。
+       ★ 断言钉在 tests/list-clipping.test.mjs：这一段对象体里出现裁剪即为红。 */
   },
   rowShellLast: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomLeftRadius: Radius.card,
     borderBottomRightRadius: Radius.card,
-    overflow: 'hidden',
+    /* 同上：圆角交给 ItemRow 的 cardLast，这一层不裁剪任何东西 */
   },
   /** 空态也得有卡片轮廓：头部在卡外，空态不给卡就成了一片裸底 */
   emptyCard: { marginHorizontal: GUTTER, marginBottom: Space.xl },

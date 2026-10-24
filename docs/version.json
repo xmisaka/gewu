@@ -1,13 +1,13 @@
 {
-  "versionCode": 37,
-  "versionName": "2.7.4",
-  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.7.4-arm64.apk",
+  "versionCode": 38,
+  "versionName": "2.7.5",
+  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.7.5-arm64.apk",
   "size": "48.00 MB",
   "notes": [
-    "修复：列表偶尔整行空白，明明有数据那一行却空着",
-    "新增：一件物品有多张照片时，长按缩略图即可换封面",
-    "封面的那张缩略图左上角有星标，一眼看得出列表显示的是哪张",
-    "全屏查看里的「设为封面」仍然保留"
+    "修复：切换「用完 / 还有」后，列表第一行空着不显示",
+    "上一版没修干净，这次换了实现方式，再出现请告诉我",
+    "新增：多张照片时，长按缩略图即可换封面（上一版）",
+    "封面那张的缩略图左上角有星标，一眼看得出是哪张"
   ],
   "force": false
 }

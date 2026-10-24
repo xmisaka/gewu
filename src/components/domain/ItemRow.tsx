@@ -79,6 +79,22 @@ export interface ItemRowProps {
    *   都多挂一枚胶囊，而首页不是在讲保修。
    */
   warrantyView?: boolean;
+  /**
+   * 这一行是「拼起来的那张卡」的首行 / 末行 —— 只由首页列表传。
+   *
+   * ★★ 为什么圆角画在**行自己**身上，而不是让外面的容器裁剪：
+   *   首页的卡片是由每行拼出来的（`rowShell` 画左右边，首末行画圆角）。
+   *   原来圆角靠容器 `overflow: 'hidden'` 裁出来 —— 而 Android 上这是一层
+   *   **离屏裁剪**：它只改原生子视图的挂载/裁切关系，不改布局。
+   *   于是可能出现「卡片外壳（白底、边框、高度）都在，行内容整块没画」，
+   *   而高度仍然正确 —— 看起来就是「明明有数据，那一行却空着」。
+   *   有背景色的元素自己承担圆角是最稳的写法：不依赖任何裁剪即可正确。
+   *
+   * ★ 只在首页传。别的页面（到期、柜子、回收站）用这个组件时是「独立一行」，
+   *   不传就完全保持原样 —— 所以这两个 prop 默认 undefined，不能有默认圆角。
+   */
+  cardFirst?: boolean;
+  cardLast?: boolean;
 }
 
 export const ItemRow = memo(function ItemRow({
@@ -95,6 +111,8 @@ export const ItemRow = memo(function ItemRow({
   onOpenStock,
   onQuickRestock,
   warrantyView,
+  cardFirst,
+  cardLast,
 }: ItemRowProps) {
   const styles = useStyles();
   const reorderable = !!onMoveUp || !!onMoveDown;
@@ -131,7 +149,14 @@ export const ItemRow = memo(function ItemRow({
       onPress={() => onPress?.(item)}
       onLongPress={() => onLongPress?.(item)}
       android_ripple={{ color: Palette.ripple }}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+      style={({ pressed }) => [
+        styles.row,
+        /* 圆角由行自己承担（见 ItemRowProps.cardFirst 的注释）：
+           顺序在 rowPressed 之前，按下态只换背景色、不改圆角 */
+        cardFirst && styles.rowFirst,
+        cardLast && styles.rowLast,
+        pressed && styles.rowPressed,
+      ]}>
       {selecting ? (
         <View style={[styles.check, selected && styles.checkOn]}>
           {selected ? <Ionicons name="checkmark" size={13} color={Palette.onAccent} /> : null}
@@ -285,6 +310,12 @@ const useStyles = makeStyles((Palette) => ({
     borderBottomColor: Palette.line3,
   },
   rowPressed: { backgroundColor: Palette.surface2 },
+  /**
+   * 拼卡的首 / 末行圆角。★ 必须与 `Radius.card` 一致 —— 外面那层 `rowShell`
+   * 画的是同一组圆角的边框，两边差 1dp 就会露出白角。
+   */
+  rowFirst: { borderTopLeftRadius: Radius.card, borderTopRightRadius: Radius.card },
+  rowLast: { borderBottomLeftRadius: Radius.card, borderBottomRightRadius: Radius.card },
   check: {
     width: 20,
     height: 20,

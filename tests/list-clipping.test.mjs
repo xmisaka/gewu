@@ -89,3 +89,48 @@ test('列表仍然交给 FlatList 渲染（关裁剪 ≠ 全量铺开）', () =>
   assert.ok(/data=\{items\}/.test(span.text), 'FlatList 的 data 不再是 items —— 列表数据源被换掉了');
   assert.ok(/keyExtractor=/.test(span.text), 'FlatList 少了 keyExtractor —— 行会按 index 复用，勾选态与库存面板会串行');
 });
+
+/* ==================== 3. 圆角不许再靠 overflow 裁 ==================== */
+
+/**
+ * 2026-10-24 真机第二轮：关了 `removeClippedSubviews` 之后**仍然**复现
+ * 「白卡占两行、第一行空」。像素采样证明那块空白是 `#FFFFFF` 的卡片白、
+ * 从卡顶到内容之间连续 115px 纯白、**没有任何分隔线** —— 所以 cell 外壳在、
+ * `ItemRow` 子树没画。
+ *
+ * 于是怀疑换到了另一层裁剪：`rowShellFirst` / `rowShellLast` 上的
+ * `overflow` 圆角裁剪。Android 上那是**离屏裁剪**，同样只改原生子视图的
+ * 挂载关系、不改布局 —— 症状与前者一模一样，只是发生在另一层。
+ *
+ * 改法不是「加个开关」，而是**把圆角交给有背景色的元素自己画**（ItemRow），
+ * 从结构上不需要裁剪任何人。这两条钉住的就是这个结构。
+ */
+test('★★ 首末行壳不许再开子视图裁剪（离屏裁剪同样会吞掉行内容）', () => {
+  for (const name of ['rowShellFirst', 'rowShellLast']) {
+    const body = new RegExp(name + ': \\{([\\s\\S]*?)\\n  \\},').exec(homeSource);
+    assert.ok(body, `在首页样式里找不到 ${name}`);
+
+    assert.ok(
+      !/overflow/.test(body[1]),
+      `${name} 里又出现了 overflow —— 圆角一旦靠裁剪实现，就可能出现` +
+        `「卡的外壳在、行内容整块不画」，且不报错`,
+    );
+  }
+});
+
+test('★★ 圆角改由行自己画：首页必须把首末行告诉 ItemRow', () => {
+  assert.ok(
+    /cardFirst=\{first\}/.test(homeSource) && /cardLast=\{last\}/.test(homeSource),
+    '首页没把首末行传给 ItemRow —— 行自己不知道要画圆角，卡片会变成四个直角',
+  );
+
+  const rowSource = read('../src/components/domain/ItemRow.tsx');
+  assert.ok(
+    /rowFirst: \{ borderTopLeftRadius: Radius\.card/.test(rowSource),
+    'ItemRow 的首行圆角没了或半径不是 Radius.card —— 与 rowShell 的边框圆角对不上，会露出白角',
+  );
+  assert.ok(
+    /rowLast: \{ borderBottomLeftRadius: Radius\.card/.test(rowSource),
+    'ItemRow 的末行圆角没了或半径不是 Radius.card —— 同上',
+  );
+});
