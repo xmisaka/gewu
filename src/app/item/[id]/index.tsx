@@ -113,11 +113,16 @@ export default function ItemDetailScreen() {
    * 列表封面取的是 sort_order 最小的那张，所以「提到最前」和「换封面」是同一件事。
    * 落库后只 bump 一次，让列表封面自己刷新 —— 不在这里改本地那份 photos，
    * 那会多出一个「和数据库不一致」的状态。
+   *
+   * ★ 顺手把大图位也拨回第 1 张：重查之后照片顺序变了，`activePhoto` 却还是旧下标，
+   *   于是大图位会显示成**另一张**照片 —— 用户以为自己点错了。
+   *   全屏查看器里（`setIndex(0)`）也是同一条处理。
    */
   const setCover = useCallback(
     async (filePath: string) => {
       if (!item) return;
       await promotePhoto(item.id, filePath);
+      setActivePhoto(0);
       bump();
     },
     [item, bump],
@@ -185,22 +190,54 @@ export default function ItemDetailScreen() {
           />
         </Pressable>
 
+        {/* 缩略条：点一下切大图，长按换成封面。
+            ★ 为什么长按放在这里：换封面时用户人就在这一条上看着，
+              而要够到全屏查看器里那个按钮得「点大图 → 等全屏 → 找底部」三步。
+              长按与首页「长按进多选」是同一套肌肉记忆，不需要新学一个动作。
+            ★ 封面那张必须**看得出来**：它现在是第一张，但第一张与「当前选中」
+              在视觉上原本无从区分（选中只是品牌色边框）。星标钉的是「封面」，
+              边框钉的是「正在看哪张」—— 两件事，两颗钉子，各管各的。 */}
         {photos.length > 1 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.thumbStrip}>
-            {photos.map((p, i) => (
-              <Pressable key={p.id} onPress={() => setActivePhoto(i)}>
-                <PhotoThumb
-                  thumb={p.thumbPath}
-                  name={item.name}
-                  size={48}
-                  style={i === activePhoto ? styles.thumbActive : undefined}
-                />
-              </Pressable>
-            ))}
-          </ScrollView>
+          <>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.thumbStrip}>
+              {photos.map((p, i) => (
+                <Pressable
+                  key={p.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    i === 0
+                      ? `${item.name} 第 ${i + 1} 张照片，当前是封面`
+                      : `${item.name} 第 ${i + 1} 张照片，长按设为封面`
+                  }
+                  onPress={() => setActivePhoto(i)}
+                  /* 第一张就是封面，长按它是个空操作 —— 干脆不接，免得按下去毫无反应
+                     又说不清是不是坏了 */
+                  onLongPress={i === 0 ? undefined : () => void setCover(p.filePath)}
+                  delayLongPress={350}
+                  style={styles.thumbSlot}>
+                  <PhotoThumb
+                    thumb={p.thumbPath}
+                    name={item.name}
+                    size={48}
+                    style={i === activePhoto ? styles.thumbActive : undefined}
+                  />
+                  {i === 0 ? (
+                    <View style={styles.coverBadge} pointerEvents="none">
+                      <Ionicons name="star" size={8} color={Palette.onAccent} />
+                    </View>
+                  ) : null}
+                </Pressable>
+              ))}
+            </ScrollView>
+            {/* 长按是**看不见**的交互，星标只说明「这是封面」、说不出怎么换。
+                一行 11px 的灰字换一次「用户知道有这条路」，值。 */}
+            <Meta tone="ink4" style={styles.thumbHint}>
+              长按缩略图可换封面
+            </Meta>
+          </>
         ) : null}
 
         <View style={styles.identity}>
@@ -540,6 +577,25 @@ const useStyles = makeStyles((Palette) => ({
   topActions: { flexDirection: 'row', alignItems: 'center', gap: Space.sm },
   scroll: { paddingBottom: Space.xxxl * 2 },
   thumbStrip: { gap: Space.sm, paddingHorizontal: GUTTER, paddingTop: Space.md },
+  /** 星标相对**缩略图**定位，所以包一层（Pressable 自身就是那个定位上下文） */
+  thumbSlot: { position: 'relative' },
+  /**
+   * 封面星标。14dp 圆点 + 8dp 星，压在左上角。
+   * ★ 位置取 (1,1) 而不是贴边 0：选中态那圈 2dp 品牌色边框画在缩略图上，
+   *   徽标压到边框上会显得像没对齐。
+   */
+  coverBadge: {
+    position: 'absolute',
+    top: 1,
+    left: 1,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: Palette.brand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbHint: { fontSize: 11, paddingHorizontal: GUTTER, paddingTop: Space.xs },
   thumbActive: { borderWidth: 2, borderColor: Palette.brand },
   identity: { paddingHorizontal: GUTTER, paddingTop: Space.xl, gap: Space.md },
   name: { fontSize: 27 },
