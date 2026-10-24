@@ -3968,4 +3968,110 @@ verify 690 条持平（纯 UI 重排，无新纯函数）。
 落 `downloads/`；线上 `version.json` = vc 36 / 2.7.3 / 48.00 MB；`check_deploy.py` ①–⑩ 全过。
 
 
+---
+
+## 三十五、列表整行空白 · 多图可选封面（v2.7.4，2026-10-24）
+
+两笔改动性质完全不同：前一笔是**已交付功能的 bug**，后一笔是**功能早有、入口够不着**。
+两笔都没有新增字段、没有迁移。
+
+### 35.1 列表偶发整行空白 —— Android 的 `removeClippedSubviews` 默认开着
+
+**判据（用户截图给的）**：白卡高度仍是两行，第一行位置空着，白底与左右卡边都在，
+**内容是空的，连行间那条发丝线都没有**。
+
+最后这条才是关键：那根线是 `ItemRow` 自己的 `borderBottom`。若真是数据只查出一条，
+卡片会缩成一行高；线跟着内容一起消失，说明 **`ItemRow` 子树被摘掉、cell 外壳还留着**。
+
+**根因**：`node_modules/react-native/Libraries/Lists/FlatList.js:162`
+
+```js
+return removeClippedSubviews ?? Platform.OS === 'android';   // ← Android 默认 true
+```
+
+裁剪动的是**原生子视图的挂载关系、不改布局** → 「高度对、内容空」。
+RN 自己在类型注释里写着 `may have bugs (missing content) in some circumstances`。
+
+**为什么首页特别容易中**：① `ListHeaderComponent`（统计卡 + 图例 + 两排筛选 + 排序行）
+比列表视口还高，前几行长期在裁剪边界进出；② 换档位/换筛选时 `scrollToOffset(0)`
+把 cell 整批推出视口，紧接着数据又换一批。
+
+**旁证**：只有 `FlatList` 带这个 Android 默认值，`SectionList`（相册页）没有 ——
+恰好只有首页列表报过这个症状。
+
+**修法**：首页 FlatList 显式 `removeClippedSubviews={false}`（带长注释）。
+窗口化照旧（`windowSize` 不变），关掉的只是「已渲染 cell 是否被回收」。
+
+★ 这条修复**不产生任何新字符串**（`removeClippedSubviews` 是 RN 自己的属性名，
+基线 bundle 里本来就有 1 次）—— **bundle 差分验不了它**，只能靠源码断言守。
+
+### 35.2 换封面：功能早在，只是够不着
+
+`promotePhoto()` 早就存在（录入/复制/编辑三条路径都在用）：把目标照片的
+`sort_order` 改成最小值，列表封面取 `MIN(sort_order)` ——
+「换封面」与「提到第一张」本来就是同一件事，**不需要新列、不需要迁移**。
+
+用户找不到的原因有两个：要「点大图 → 进全屏 → 找底部按钮」三步；
+而缩略条上**看不出哪张是封面**（只有「当前选中」有品牌色边框）。
+
+改动（`item/[id]/index.tsx`）：
+
+- 封面星标 14dp 圆 + 8dp 星，位置 `(1,1)`，**带 1.5dp `Palette.pure` 白描边**
+  ★★ 棕褐色压在深色封面（黑壳产品、夜景）上会整块融进去 —— 星标是这次唯一的视觉线索；
+  用 `pure` 不用 `surface`（后者在玄夜是深灰，等于在深色图上描深灰边）
+- 长按缩略图换封面（首张不接：空操作是最难判断的反馈），`delayLongPress=350`
+- 缩略条下一行 11px 灰字「长按缩略图可换封面」—— 长按看不见
+- `setCover` 顺手 `setActivePhoto(0)`：重排后旧下标会指错人，大图位显示成另一张
+- 全屏查看器里的「设置封面」保留
+
+### 35.3 守门（3 + 4 条新断言，变异 2/2 + 3/3）
+
+- `tests/list-clipping.test.mjs`（3 条）：必须 `={false}` / 不许 `={true}` / 仍走 FlatList 窗口化
+  - 变异：改 `true` → 2 红；按行删该属性 → 1 红
+  - ★ 抽取 JSX 属性区踩过坑：`indexOf('<FlatList')` 会先命中
+    `useRef<FlatList<ItemView>>`（属性区只剩一行 → 断言全假绿）；
+    必须用 `/<FlatList\r?\n/` + `ListHeaderComponent={` + 自检
+- `tests/cover-pick.test.mjs`（4 条）：长按接上 `setCover` / 首张不接 / 星标挂 `i===0`
+  而非 `activePhoto` / `setCover` 里 `setActivePhoto(0)`
+  - 变异：星标改 `activePhoto` → 1 红；删归零 → 1 红；删长按 → 2 红
+- 全量 **703 条**通过（696 + 3 + 4）
+
+★ 变异脚本纪律再确认一次：**按行删**（CRLF 下用 `\n` 拼的替换串匹配不上，
+变异会「静默不生效」，看起来像「测试没抓住」）。
+
+### 35.4 打包核对（v2.7.4 / vc 37，2026-10-24 19:22）
+
+- `BUILD SUCCESSFUL in 5m 34s`（576 任务 / 53 executed）；`versionName=2.7.4 versionCode=37`
+- APK 50,327,688 B · md5 `ddc9951c…` · sha256 `f56561c3…`
+- 权限 **12 条，与 v2.7.3 逐条一致**（`aapt2 dump badging` 两版 diff 为空）
+- bundle 4,654,660 → 4,655,372（**+712**），sha256 `d7a7e67d… → d412a8c5…`
+  - 净新增 4 项（基线 0 → 新包 1）：`长按缩略图可换封面` / `coverBadge` / `thumbSlot` / `thumbHint`
+  - 对照持平：`thumbActive` / `thumbStrip` / `添加照片` / `已是封面` 各 1→1
+  - 记录：`长按设为封面` 0→1（模板串片段仍可搜到）；`removeClippedSubviews` 1→1（不可用作判据）
+- 基线归档：`_build/baseline-v274-r1.apk`（`cp -p` 保住 mtime 19:22）；
+  差分基线用的是 **`baseline-v273-r2.apk`**（= 线上 v2.7.3，不是本地中间包 r1）
+
+### 35.5 待办
+
+- [ ] 真机看一遍：多图物品的缩略条上封面有星标；长按第 3 张 → 它跑到第一位、星标跟过去、大图回到第 1 张
+- [ ] 深色封面上星标仍清晰（白描边该起作用）
+- [ ] 首页列表连续滚动 + 切换库存档位，不再出现「空白但仍占位」的行
+- [x] 提交推送 → 升 `app.json` / `docs/version.json` → 打包 → 传 `downloads/` → `shared.py` CHANGELOG
+      + `rc.py` 的 `V` → 生成器 → `deploy.py` → `check_deploy.py`
+
+**已发版（2026-10-24 19:30）**：`gewu-v2.7.4-arm64.apk`（md5 `ddc9951c…`，50,327,688 B）
+落 `downloads/`（远端 md5 已核）；线上 `version.json` = vc 37 / 2.7.4 / 48.00 MB
+（md5 `eb9031db…`，四方一致；★ 首次上传后线上仍是旧值 `79d2b032`，`confirm_landed` 重传才对，**照例不是噪音**）；
+`index.html` `6be70824…`、`changelog.html` `d1145eee…`（21 条）；根站 `cf206bcc` 未被动；
+`check_deploy.py` ①–⑩ 全过；源站 `--resolve` 四项 200、`version.json` 带 `cache-control: no-cache`。
+
+★★ 本版顺带修了 `check_deploy.py` ⑥ 的**误报**：原判据是「根目录出现
+`version.json` / `images` / `vendor` 三者之一即为残留」—— 而**主站「周周的生活」自己也用
+`images/`**（17 张 `cat-*`/`feat-*.webp`，根 index 本来就引 `images/thumb`）。
+改成**内容判据**：`version.json` / `vendor` 直接判；`images/` 则看里面有没有格物特有的图
+（`01-items.png` / `02-detail.png` / `wechat-qr.png`）。常红的断言迟早被删掉，
+而 10-09 那次事故（散文件落到根目录、漏下去的正是格物截图）依然抓得住。
+
+
+
 

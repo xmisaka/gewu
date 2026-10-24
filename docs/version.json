@@ -1,13 +1,13 @@
 {
-  "versionCode": 36,
-  "versionName": "2.7.3",
-  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.7.3-arm64.apk",
+  "versionCode": 37,
+  "versionName": "2.7.4",
+  "url": "https://gewu.zhouzhou.online/downloads/gewu-v2.7.4-arm64.apk",
   "size": "48.00 MB",
   "notes": [
-    "新增：列表可分「全部 / 还有 / 用完」，默认只看还有的",
-    "用完的东西不再混在列表里，切到「用完」能看到是哪些",
-    "修复：点「添加照片」只有相册没有相机（魅族等机型）",
-    "分类上的件数会跟着库存档位一起变"
+    "修复：列表偶尔整行空白，明明有数据那一行却空着",
+    "新增：一件物品有多张照片时，长按缩略图即可换封面",
+    "封面的那张缩略图左上角有星标，一眼看得出列表显示的是哪张",
+    "全屏查看里的「设为封面」仍然保留"
   ],
   "force": false
 }
