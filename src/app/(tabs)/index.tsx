@@ -705,6 +705,31 @@ export default function ItemsScreen() {
             data={items}
             keyExtractor={(item) => item.id}
             style={styles.listFlex}
+            /**
+             * ★★★ 必须显式关掉（Android 上 FlatList 默认是 **true**）。
+             *
+             * 症状：列表「明明有数据，却有一行空着」—— 那一段仍然占着两行的高度、
+             * 白底与左右卡边都在，**但内容是空的**，连行间的发丝线都没有
+             * （线是 ItemRow 自己画的，它整块被摘掉了，所以线也跟着没了）。
+             * 滚动一下、或重进一次往往又恢复，于是极难复现。
+             *
+             * 为什么关：裁剪（`removeClippedSubviews`）动的是**原生子视图的挂载关系，
+             * 不改布局**。cell 根视图（`rowShell` 的白底 / 边框）留着，里面的子树被移除，
+             * 于是高度对、内容空。RN 自己在这个 prop 的类型注释里就写着
+             * "may have bugs (missing content) in some circumstances"。
+             *
+             * 这个列表的触发条件格外充分，两条叠着：
+             *   ① `ListHeaderComponent`（统计卡 + 图例 + 两排筛选 + 排序行）比列表
+             *      视口还高 —— 前几行长期在可视区边界上进进出出；
+             *   ② 换库存档位 / 换筛选时会 `scrollToOffset(0)`，把 cell 整批推到
+             *      视口外，紧接着数据又换了一批。
+             *
+             * 代价是有上限的：VirtualizedList 的窗口化仍然生效（只渲染可视区附近，
+             * `windowSize` 照旧），关掉的只是「已渲染的 cell 是否被回收」。
+             * 库上限 150 件（支持者可更多）、行高百余 dp，这点内存换「不丢内容」值得。
+             * ★ 别为了「优化滚动」把它改回 true —— 那是拿可见性换性能，而且不报错。
+             */
+            removeClippedSubviews={false}
             ListHeaderComponent={
               <View style={styles.headBlock}>
                 <MetricStrip
