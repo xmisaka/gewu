@@ -581,8 +581,12 @@ const useStyles = makeStyles((Palette) => ({
   thumbSlot: { position: 'relative' },
   /**
    * 封面星标。14dp 圆点 + 8dp 星，压在左上角。
-   * ★ 位置取 (1,1) 而不是贴边 0：选中态那圈 2dp 品牌色边框画在缩略图上，
-   *   徽标压到边框上会显得像没对齐。
+   * ★ 位置取 (1,1)：贴着圆角内侧 1dp，不要缩到选中边框里面去（(3,3) 那种）——
+   *   48dp 的图本来就不大，星标与边缘之间再留一圈空，整块看着更碎。
+   * ★★ **必须带一圈纯白描边**：brand 是棕褐色，深色封面上（黑壳产品、夜景）
+   *   它会整块融进图里 —— 星标消失了，而这正是「哪张是封面」唯一的线索。
+   *   用 `Palette.pure` 而不是 `surface`：后者在玄夜/深色主题下是深灰，
+   *   等于在深色图上又描了一条深色边。
    */
   coverBadge: {
     position: 'absolute',
@@ -592,6 +596,8 @@ const useStyles = makeStyles((Palette) => ({
     height: 14,
     borderRadius: 7,
     backgroundColor: Palette.brand,
+    borderWidth: 1.5,
+    borderColor: Palette.pure,
     alignItems: 'center',
     justifyContent: 'center',
   },
